@@ -1,0 +1,899 @@
+<title>FoodTrip — Ăn ngon, đi vui, lịch trình vừa ý</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ---------------------------------- TOKENS ---------------------------------- */
+  :root{
+    color-scheme: light;
+    --paper:#F2E9D8;
+    --paper-2:#EAE0CB;
+    --surface:#FFFCF4;
+    --ink:#241A12;
+    --ink-muted:#6E5C46;
+    --ink-faint:#9A8A72;
+    --line: rgba(36,26,18,0.14);
+    --line-strong: rgba(36,26,18,0.28);
+
+    --chili:#D8481F;
+    --chili-ink:#FFF7EE;
+    --lantern:#B87B1F;
+    --lantern-ink:#241A12;
+    --herb:#2F5D4E;
+    --herb-ink:#FFF7EE;
+
+    --shadow: 0 1px 2px rgba(36,26,18,0.06), 0 12px 32px -12px rgba(36,26,18,0.22);
+    --shadow-lg: 0 20px 60px -20px rgba(36,26,18,0.35);
+
+    --font-display: Constantia, Cambria, "Noto Serif", Georgia, "Times New Roman", serif;
+    --font-body: "Segoe UI", Roboto, "Noto Sans", Helvetica, Arial, sans-serif;
+    --font-utility: Bahnschrift, "Segoe UI Semibold", "Segoe UI", Roboto, sans-serif;
+
+    --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px;
+    --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px; --space-10:132px;
+
+    --container: 1180px;
+    --radius-sm: 4px;
+    --radius-md: 10px;
+  }
+
+  @media (prefers-color-scheme: dark){
+    :root{
+      color-scheme: dark;
+      --paper:#131C1A;
+      --paper-2:#0E1614;
+      --surface:#1B2724;
+      --ink:#F1E8D6;
+      --ink-muted:#B7A98F;
+      --ink-faint:#7C7361;
+      --line: rgba(241,232,214,0.14);
+      --line-strong: rgba(241,232,214,0.26);
+
+      --chili:#FF7A4D;
+      --chili-ink:#20140D;
+      --lantern:#E8B85C;
+      --lantern-ink:#20140D;
+      --herb:#6FAE97;
+      --herb-ink:#0E1614;
+
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 20px 50px -20px rgba(0,0,0,0.6);
+      --shadow-lg: 0 24px 70px -20px rgba(0,0,0,0.7);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --paper:#131C1A; --paper-2:#0E1614; --surface:#1B2724;
+    --ink:#F1E8D6; --ink-muted:#B7A98F; --ink-faint:#7C7361;
+    --line: rgba(241,232,214,0.14); --line-strong: rgba(241,232,214,0.26);
+    --chili:#FF7A4D; --chili-ink:#20140D;
+    --lantern:#E8B85C; --lantern-ink:#20140D;
+    --herb:#6FAE97; --herb-ink:#0E1614;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 20px 50px -20px rgba(0,0,0,0.6);
+    --shadow-lg: 0 24px 70px -20px rgba(0,0,0,0.7);
+  }
+  :root[data-theme="light"]{
+    color-scheme: light;
+    --paper:#F2E9D8; --paper-2:#EAE0CB; --surface:#FFFCF4;
+    --ink:#241A12; --ink-muted:#6E5C46; --ink-faint:#9A8A72;
+    --line: rgba(36,26,18,0.14); --line-strong: rgba(36,26,18,0.28);
+    --chili:#D8481F; --chili-ink:#FFF7EE;
+    --lantern:#B87B1F; --lantern-ink:#241A12;
+    --herb:#2F5D4E; --herb-ink:#FFF7EE;
+    --shadow: 0 1px 2px rgba(36,26,18,0.06), 0 12px 32px -12px rgba(36,26,18,0.22);
+    --shadow-lg: 0 20px 60px -20px rgba(36,26,18,0.35);
+  }
+
+  /* ---------------------------------- RESET ---------------------------------- */
+  *,*::before,*::after{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--font-body); font-size:16px; line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    position:relative;
+  }
+  img,svg{ display:block; max-width:100%; }
+  a{ color:inherit; }
+  button{ font:inherit; color:inherit; }
+  h1,h2,h3,p,ul,figure{ margin:0; }
+  ul{ padding:0; list-style:none; }
+  .container{ max-width:var(--container); margin-inline:auto; padding-inline:var(--space-5); }
+  @media (min-width:900px){ .container{ padding-inline:var(--space-8); } }
+
+  :focus-visible{ outline:2.5px solid var(--chili); outline-offset:3px; border-radius:2px; }
+
+  /* grain texture overlay */
+  body::before{
+    content:"";
+    position:fixed; inset:0; pointer-events:none; z-index:2000;
+    opacity:.035; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  .eyebrow{
+    font-family:var(--font-utility); font-size:12.5px; font-weight:700;
+    letter-spacing:.14em; text-transform:uppercase; color:var(--chili);
+    display:inline-flex; align-items:center; gap:var(--space-2);
+  }
+  .eyebrow::before{ content:""; width:16px; height:1.5px; background:var(--chili); display:inline-block; }
+
+  h1,h2,h3{ font-family:var(--font-display); font-weight:600; text-wrap:balance; color:var(--ink); }
+  .tabular{ font-variant-numeric:tabular-nums; }
+
+  .icon{ width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+
+  /* ---------------------------------- BUTTONS ---------------------------------- */
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+    font-family:var(--font-utility); font-weight:600; font-size:14.5px; letter-spacing:.02em;
+    padding:14px 26px; border-radius:999px; border:1.5px solid transparent; cursor:pointer;
+    transition:transform .18s ease, box-shadow .18s ease, background-color .18s ease;
+    white-space:nowrap;
+  }
+  .btn:active{ transform:scale(.97); }
+  .btn-primary{ background:var(--chili); color:var(--chili-ink); box-shadow:var(--shadow); }
+  .btn-primary:hover{ box-shadow:var(--shadow-lg); }
+  .btn-ghost{ background:transparent; border-color:var(--line-strong); color:var(--ink); }
+  .btn-ghost:hover{ border-color:var(--chili); color:var(--chili); }
+  .btn-light{ background:var(--surface); color:var(--ink); box-shadow:var(--shadow); }
+
+  /* ---------------------------------- NAV ---------------------------------- */
+  .nav{
+    position:sticky; top:0; z-index:500;
+    background:color-mix(in srgb, var(--paper) 78%, transparent);
+    backdrop-filter:blur(14px) saturate(1.1);
+    border-bottom:1px solid var(--line);
+  }
+  .nav-row{ display:flex; align-items:center; justify-content:space-between; height:76px; }
+  .logo{ display:flex; align-items:center; gap:var(--space-2); font-family:var(--font-display); font-weight:700; font-size:22px; }
+  .logo svg{ width:34px; height:34px; }
+  .nav-links{ display:none; align-items:center; gap:var(--space-7); font-family:var(--font-utility); font-size:14px; font-weight:600; letter-spacing:.02em; }
+  .nav-links a{ text-decoration:none; opacity:.82; transition:opacity .15s; position:relative; }
+  .nav-links a:hover{ opacity:1; }
+  .nav-actions{ display:flex; align-items:center; gap:var(--space-4); }
+  .nav-toggle{ display:inline-flex; background:none; border:none; padding:8px; cursor:pointer; }
+  @media (min-width:900px){
+    .nav-links{ display:flex; }
+    .nav-toggle{ display:none; }
+  }
+  .mobile-menu{
+    display:none; flex-direction:column; gap:var(--space-1); padding:var(--space-3) 0 var(--space-5);
+    border-top:1px solid var(--line);
+    font-family:var(--font-utility); font-weight:600;
+  }
+  .mobile-menu.open{ display:flex; }
+  .mobile-menu a{ padding:12px 4px; text-decoration:none; border-bottom:1px dashed var(--line); }
+  @media (min-width:900px){ .mobile-menu{ display:none !important; } }
+
+  /* ---------------------------------- HERO ---------------------------------- */
+  .hero{ padding-block:var(--space-8) var(--space-9); position:relative; overflow:clip; }
+  .hero-grid{ display:grid; gap:var(--space-8); align-items:center; }
+  @media (min-width:980px){ .hero-grid{ grid-template-columns:1.05fr .95fr; gap:var(--space-9); } }
+  .hero-head{ display:flex; flex-direction:column; gap:var(--space-5); align-items:flex-start; }
+  .hero h1{ font-size:clamp(38px, 6vw, 64px); line-height:1.06; letter-spacing:-.01em; }
+  .hero h1 em{ font-style:italic; color:var(--chili); }
+  .hero-sub{ font-size:18px; color:var(--ink-muted); max-width:52ch; }
+  .trust-line{ display:flex; align-items:center; gap:var(--space-3); font-family:var(--font-utility); font-size:13px; color:var(--ink-muted); }
+  .avatars{ display:flex; }
+  .avatars span{ width:26px; height:26px; border-radius:50%; border:2px solid var(--paper); margin-left:-8px; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; }
+  .avatars span:first-child{ margin-left:0; }
+
+  .hero-art{ position:relative; }
+  .bowl-wrap{ position:relative; aspect-ratio:1/1; max-width:460px; margin-inline:auto; }
+  .steam{ position:absolute; bottom:58%; stroke:var(--ink-faint); stroke-width:3; fill:none; opacity:.55; }
+  @media (prefers-reduced-motion:no-preference){
+    .steam path{ animation:rise 4.5s ease-in-out infinite; transform-origin:bottom; }
+    .steam path:nth-child(2){ animation-delay:.8s; }
+    .steam path:nth-child(3){ animation-delay:1.6s; }
+    @keyframes rise{
+      0%{ transform:translateY(0) scaleY(1); opacity:0; }
+      15%{ opacity:.6; }
+      100%{ transform:translateY(-46px) scaleY(1.15); opacity:0; }
+    }
+  }
+  .route-badge{
+    position:absolute; display:flex; align-items:center; gap:8px;
+    background:var(--surface); border:1px solid var(--line); border-radius:999px;
+    padding:8px 14px 8px 8px; box-shadow:var(--shadow); font-family:var(--font-utility); font-size:12.5px; font-weight:700;
+  }
+  .route-badge .dot{ width:26px; height:26px; border-radius:50%; background:var(--herb); color:var(--herb-ink); display:flex; align-items:center; justify-content:center; }
+  .route-badge.b1{ top:6%; left:-2%; }
+  .route-badge.b2{ bottom:10%; right:-4%; }
+  @media (max-width:560px){ .route-badge{ font-size:11px; padding:6px 12px 6px 6px; } .route-badge.b1{left:0;} .route-badge.b2{right:0;} }
+
+  /* mini planner strip */
+  .planner{
+    width:100%; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-md);
+    box-shadow:var(--shadow); padding:var(--space-5);
+  }
+  .planner-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:var(--space-3); }
+  @media (min-width:640px){ .planner-grid{ grid-template-columns:repeat(4,1fr); } }
+  .field{ display:flex; flex-direction:column; gap:4px; }
+  .field label{ font-family:var(--font-utility); font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); }
+  .field .val{ font-weight:600; font-size:14.5px; display:flex; align-items:center; gap:6px; padding:10px 0; border-bottom:1.5px solid var(--line); }
+  .field .val .icon{ width:16px; height:16px; color:var(--chili); }
+  .chips-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:var(--space-4); }
+  .chip{
+    font-family:var(--font-utility); font-size:12.5px; font-weight:600; padding:7px 14px; border-radius:999px;
+    border:1.5px solid var(--line-strong); background:transparent; cursor:pointer; transition:.15s;
+  }
+  .chip.active{ background:var(--herb); border-color:var(--herb); color:var(--herb-ink); }
+  .chip:hover{ border-color:var(--chili); }
+  .planner-foot{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-4); margin-top:var(--space-5); flex-wrap:wrap; }
+  .planner-foot .note{ font-size:12.5px; color:var(--ink-faint); }
+
+  /* ---------------------------------- STATS ---------------------------------- */
+  .stats-strip{ border-top:1px solid var(--line); border-bottom:1px solid var(--line); background:var(--paper-2); }
+  .stats-row{ display:grid; grid-template-columns:repeat(2,1fr); }
+  @media (min-width:760px){ .stats-row{ grid-template-columns:repeat(4,1fr); } }
+  .stat{ padding:var(--space-6) var(--space-4); text-align:center; border-right:1px dashed var(--line); }
+  .stat:last-child{ border-right:none; }
+  .stat b{ display:block; font-family:var(--font-display); font-size:clamp(26px,3vw,36px); font-weight:700; color:var(--chili); }
+  .stat span{ font-family:var(--font-utility); font-size:12px; color:var(--ink-muted); text-transform:uppercase; letter-spacing:.05em; }
+
+  /* ---------------------------------- SECTION HEAD ---------------------------------- */
+  .section{ padding-block:var(--space-9); }
+  .section-head{ display:flex; flex-direction:column; gap:var(--space-3); margin-bottom:var(--space-7); max-width:640px; }
+  .section-head h2{ font-size:clamp(28px,3.6vw,42px); line-height:1.15; }
+  .section-head p{ color:var(--ink-muted); font-size:16.5px; }
+  .reveal{ opacity:0; transform:translateY(16px); transition:opacity .6s ease, transform .6s ease; }
+  .reveal.in{ opacity:1; transform:none; }
+  @media (prefers-reduced-motion:reduce){ .reveal{ opacity:1; transform:none; transition:none; } }
+
+  /* ---------------------------------- HOW IT WORKS (stamps) ---------------------------------- */
+  .steps{ display:grid; gap:var(--space-6); grid-template-columns:1fr; }
+  @media (min-width:760px){ .steps{ grid-template-columns:repeat(4,1fr); } }
+  .step{ position:relative; padding-top:var(--space-6); border-top:2px solid var(--line-strong); }
+  .stamp{
+    width:52px; height:52px; border-radius:50%; border:2px dashed var(--line-strong);
+    display:flex; align-items:center; justify-content:center; margin-bottom:var(--space-4);
+    font-family:var(--font-display); font-weight:700; font-size:18px; color:var(--chili);
+  }
+  .step h3{ font-size:18px; margin-bottom:8px; }
+  .step p{ font-size:14.5px; color:var(--ink-muted); }
+
+  /* ---------------------------------- ITINERARY TICKET ---------------------------------- */
+  .ticket-wrap{ display:flex; justify-content:center; }
+  .ticket{
+    width:100%; max-width:880px; display:grid; grid-template-columns:1fr;
+    background:var(--surface); border-radius:14px; box-shadow:var(--shadow-lg); overflow:visible;
+    position:relative;
+  }
+  @media (min-width:760px){ .ticket{ grid-template-columns:220px 1fr; } }
+  .ticket-stub{
+    padding:var(--space-6) var(--space-5); display:flex; flex-direction:column; gap:var(--space-5);
+    border-bottom:1px dashed var(--line-strong); position:relative;
+  }
+  @media (min-width:760px){ .ticket-stub{ border-bottom:none; border-right:1px dashed var(--line-strong); } }
+  .notch{ position:absolute; width:22px; height:22px; border-radius:50%; background:var(--paper); }
+  @media (min-width:760px){
+    .notch.top{ top:-11px; right:-11px; }
+    .notch.bottom{ bottom:-11px; right:-11px; }
+  }
+  @media (max-width:759px){
+    .notch.top{ bottom:-11px; left:-11px; }
+    .notch.bottom{ bottom:-11px; right:-11px; }
+  }
+  .stub-item{ display:flex; flex-direction:column; gap:2px; }
+  .stub-item .k{ font-family:var(--font-utility); font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-faint); }
+  .stub-item .v{ font-weight:700; font-size:15px; display:flex; align-items:center; gap:6px; }
+  .stub-item .v .icon{ width:16px; height:16px; color:var(--herb); }
+  .barcode{ display:flex; gap:3px; height:34px; margin-top:auto; align-items:flex-end; }
+  .barcode i{ background:var(--ink); opacity:.55; width:3px; display:block; }
+  .ticket-body{ padding:var(--space-6); }
+  .ticket-body-head{ display:flex; align-items:baseline; justify-content:space-between; gap:var(--space-3); margin-bottom:var(--space-5); flex-wrap:wrap; }
+  .ticket-body-head h3{ font-size:22px; }
+  .day-label{ font-family:var(--font-utility); font-weight:700; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--chili); margin:var(--space-5) 0 var(--space-3); }
+  .day-label:first-of-type{ margin-top:0; }
+  .stop{ display:grid; grid-template-columns:64px 1fr; gap:var(--space-4); padding-block:var(--space-3); border-top:1px solid var(--line); }
+  .stop:first-of-type{ border-top:none; }
+  .stop-time{ font-family:var(--font-utility); font-weight:700; font-size:14px; color:var(--ink-muted); }
+  .stop-main{ display:flex; flex-direction:column; gap:4px; }
+  .stop-title-row{ display:flex; align-items:center; justify-content:space-between; gap:var(--space-3); flex-wrap:wrap; }
+  .stop-title{ font-weight:700; font-size:15.5px; }
+  .tag{ font-family:var(--font-utility); font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background:var(--paper-2); color:var(--ink-muted); }
+  .stop-meta{ display:flex; flex-wrap:wrap; gap:var(--space-4); font-size:13px; color:var(--ink-faint); }
+  .stop-meta span{ display:flex; align-items:center; gap:5px; }
+  .stop-meta .icon{ width:14px; height:14px; }
+  .stop-meta .open{ color:var(--herb); font-weight:600; }
+
+  /* ---------------------------------- DESTINATIONS STRIP ---------------------------------- */
+  .strip-head{ display:flex; align-items:flex-end; justify-content:space-between; gap:var(--space-4); margin-bottom:var(--space-6); flex-wrap:wrap; }
+  .strip-controls{ display:flex; gap:var(--space-2); }
+  .arrow-btn{ width:44px; height:44px; border-radius:50%; border:1.5px solid var(--line-strong); background:var(--surface); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.15s; }
+  .arrow-btn:hover{ border-color:var(--chili); color:var(--chili); }
+  .dest-scroll{ display:flex; gap:var(--space-5); overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:var(--space-4); margin:0 calc(var(--space-5) * -1); padding-inline:var(--space-5); scrollbar-width:none; }
+  .dest-scroll::-webkit-scrollbar{ display:none; }
+  @media (min-width:900px){ .dest-scroll{ margin:0 calc(var(--space-8) * -1); padding-inline:var(--space-8); } }
+  .dest-card{ scroll-snap-align:start; flex:0 0 auto; width:270px; background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); }
+  .dest-art{ height:170px; position:relative; display:flex; align-items:center; justify-content:center; }
+  .dest-body{ padding:var(--space-4) var(--space-4) var(--space-5); }
+  .dest-title-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .dest-title{ font-family:var(--font-display); font-weight:700; font-size:19px; }
+  .rating{ display:flex; align-items:center; gap:4px; font-family:var(--font-utility); font-weight:700; font-size:13px; color:var(--lantern); }
+  .rating .icon{ width:14px; height:14px; stroke:none; fill:currentColor; }
+  .dest-tag{ font-size:13.5px; color:var(--ink-muted); margin-bottom:var(--space-3); }
+  .dish-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .dish-chip{ font-size:11.5px; font-family:var(--font-utility); font-weight:600; padding:4px 10px; border-radius:999px; background:var(--paper-2); color:var(--ink-muted); }
+
+  /* ---------------------------------- REVIEWS / SAVE ---------------------------------- */
+  .split-2{ display:grid; gap:var(--space-6); grid-template-columns:1fr; }
+  @media (min-width:900px){ .split-2{ grid-template-columns:1fr 1fr; } }
+  .feature-card{ background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:var(--space-6); box-shadow:var(--shadow); display:flex; flex-direction:column; gap:var(--space-5); }
+  .feature-card h3{ font-size:21px; }
+  .review-mock{ background:var(--paper-2); border-radius:10px; padding:var(--space-5); display:flex; flex-direction:column; gap:var(--space-3); }
+  .reviewer{ display:flex; align-items:center; gap:var(--space-3); }
+  .reviewer .av{ width:40px; height:40px; border-radius:50%; background:var(--chili); color:var(--chili-ink); display:flex; align-items:center; justify-content:center; font-weight:700; font-family:var(--font-utility); }
+  .reviewer .name{ font-weight:700; font-size:14.5px; }
+  .reviewer .stars{ display:flex; gap:2px; color:var(--lantern); }
+  .reviewer .stars .icon{ width:13px; height:13px; stroke:none; fill:currentColor; }
+  .review-mock p{ font-size:14.5px; color:var(--ink-muted); }
+  .review-tags{ display:flex; gap:6px; flex-wrap:wrap; }
+
+  .passport-mock{ background:var(--paper-2); border-radius:10px; padding:var(--space-5); display:flex; flex-direction:column; gap:var(--space-3); }
+  .passport-item{ display:flex; align-items:center; gap:var(--space-3); padding-block:var(--space-2); border-bottom:1px dashed var(--line); }
+  .passport-item:last-child{ border-bottom:none; }
+  .passport-stamp{ width:38px; height:38px; border-radius:50%; border:2px solid var(--herb); color:var(--herb); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .passport-item .pt{ font-weight:700; font-size:14px; }
+  .passport-item .ps{ font-size:12.5px; color:var(--ink-faint); }
+
+  /* ---------------------------------- TESTIMONIALS ---------------------------------- */
+  .postcards{ display:grid; gap:var(--space-6); grid-template-columns:1fr; }
+  @media (min-width:760px){ .postcards{ grid-template-columns:repeat(3,1fr); } }
+  .postcard{ background:var(--surface); border:1px solid var(--line); border-radius:4px; padding:var(--space-6); position:relative; box-shadow:var(--shadow); }
+  .postcard::before{ content:""; position:absolute; top:14px; right:14px; width:30px; height:30px; border:2px solid var(--line-strong); border-radius:3px; }
+  .postcard-quote{ font-family:var(--font-display); font-size:18px; line-height:1.5; margin-bottom:var(--space-5); }
+  .postcard-who{ font-family:var(--font-utility); font-size:12.5px; color:var(--ink-muted); border-top:1px dashed var(--line); padding-top:var(--space-3); }
+
+  /* ---------------------------------- CTA ---------------------------------- */
+  .cta-band{ background:var(--herb); color:var(--herb-ink); border-radius:18px; padding:var(--space-8) var(--space-6); text-align:center; display:flex; flex-direction:column; align-items:center; gap:var(--space-5); }
+  .cta-band h2{ color:var(--herb-ink); font-size:clamp(28px,4vw,42px); max-width:20ch; }
+  .cta-band .note{ font-size:13px; opacity:.8; font-family:var(--font-utility); }
+  .cta-actions{ display:flex; gap:var(--space-3); flex-wrap:wrap; justify-content:center; }
+  .cta-band .btn-ghost{ border-color:rgba(255,255,255,.5); color:inherit; }
+  .cta-band .btn-primary{ background:var(--paper); color:var(--ink); }
+
+  /* ---------------------------------- FOOTER ---------------------------------- */
+  footer{ border-top:1px solid var(--line); padding-block:var(--space-8) var(--space-6); }
+  .foot-grid{ display:grid; gap:var(--space-7); grid-template-columns:1.3fr repeat(3,1fr); }
+  @media (max-width:860px){ .foot-grid{ grid-template-columns:1fr 1fr; } }
+  .foot-col h4{ font-family:var(--font-utility); font-size:12.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); margin-bottom:var(--space-4); }
+  .foot-col ul{ display:flex; flex-direction:column; gap:10px; }
+  .foot-col a{ text-decoration:none; font-size:14.5px; opacity:.85; }
+  .foot-col a:hover{ opacity:1; color:var(--chili); }
+  .newsletter{ display:flex; gap:8px; margin-top:var(--space-4); max-width:340px; }
+  .newsletter input{ flex:1; padding:11px 14px; border-radius:999px; border:1.5px solid var(--line-strong); background:transparent; color:var(--ink); font-size:14px; }
+  .newsletter input::placeholder{ color:var(--ink-faint); }
+  .foot-bottom{ display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:var(--space-3); margin-top:var(--space-8); padding-top:var(--space-5); border-top:1px solid var(--line); font-size:13px; color:var(--ink-faint); }
+  .socials{ display:flex; gap:var(--space-3); }
+  .socials a{ width:36px; height:36px; border-radius:50%; border:1.5px solid var(--line-strong); display:flex; align-items:center; justify-content:center; text-decoration:none; }
+  .socials a:hover{ border-color:var(--chili); color:var(--chili); }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z"/><circle cx="12" cy="10" r="2.6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="12" rx="2.2"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3"/><path d="M3.5 19c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/><circle cx="17" cy="9.5" r="2.4"/><path d="M15.2 13.4c2.4.4 4.3 2.3 4.3 5"/></symbol>
+  <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M5 19c9 1 14-4 14-13-9 0-14 5-14 13Z"/><path d="M5 19c2-4 4.5-6.5 9-9"/></symbol>
+  <symbol id="i-bike" viewBox="0 0 24 24"><circle cx="6" cy="17" r="3"/><circle cx="18" cy="17" r="3"/><path d="M6 17 10 9h5l3 4M10 9 8.5 6h-2M13 13h4"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="5" cy="7" r="2"/><circle cx="19" cy="17" r="2"/><path d="M5 9c0 5 9 3 9 8" stroke-dasharray="2.5 3.5"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12.5 2.6 2.6L16.5 9"/></symbol>
+  <symbol id="i-ruler" viewBox="0 0 24 24"><path d="M4 15 9 20l11-11L15 4Z"/><path d="m7 12 2 2M10 9l2 2M13 6l2 2"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></symbol>
+  <symbol id="i-chev-r" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-arrow-r" viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6 3.5h12v17l-6-4-6 4Z"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="m12 3 2.7 5.9 6.3.7-4.7 4.4 1.2 6.3L12 17.2l-5.5 3.1 1.2-6.3-4.7-4.4 6.3-.7Z"/></symbol>
+  <symbol id="i-fb" viewBox="0 0 24 24"><path d="M14 21v-7h2.4l.4-3H14V9c0-.9.3-1.5 1.7-1.5H17V5c-.3 0-1.3-.1-2.4-.1-2.4 0-4 1.4-4 4v2.1H8V14h2.6v7Z"/></symbol>
+  <symbol id="i-ig" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17" cy="7" r="1"/></symbol>
+  <symbol id="i-tt" viewBox="0 0 24 24"><path d="M14 3v11.2a3 3 0 1 1-2.3-2.9M14 3c.4 2.2 2 3.8 4 4.1"/></symbol>
+</defs>
+</svg>
+
+<header class="nav">
+  <div class="container nav-row">
+    <a class="logo" href="#top" aria-label="FoodTrip - Trang chủ">
+      <svg viewBox="0 0 40 40" aria-hidden="true">
+        <circle cx="20" cy="24" r="12" fill="var(--chili)"/>
+        <path d="M10 22a10 10 0 0 0 20 0Z" fill="var(--surface)"/>
+        <circle cx="20" cy="9" r="2.6" fill="var(--herb)"/>
+        <path d="M20 12v3" stroke="var(--herb)" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      FoodTrip
+    </a>
+    <nav class="nav-links" aria-label="Điều hướng chính">
+      <a href="#kham-pha">Khám phá</a>
+      <a href="#lich-trinh">Lịch trình AI</a>
+      <a href="#diem-den">Địa điểm</a>
+      <a href="#danh-gia">Đánh giá</a>
+    </nav>
+    <div class="nav-actions">
+      <button class="btn btn-primary" id="cta-nav-btn">Bắt đầu miễn phí</button>
+      <button class="nav-toggle" id="navToggle" aria-label="Mở menu" aria-expanded="false">
+        <svg class="icon" style="width:24px;height:24px" id="navToggleIcon"><use href="#i-menu"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="container mobile-menu" id="mobileMenu">
+    <a href="#kham-pha">Khám phá</a>
+    <a href="#lich-trinh">Lịch trình AI</a>
+    <a href="#diem-den">Địa điểm</a>
+    <a href="#danh-gia">Đánh giá</a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <section class="hero container" id="kham-pha">
+    <div class="hero-grid">
+      <div class="hero-head">
+        <span class="eyebrow">Trợ lý ẩm thực &amp; du lịch AI</span>
+        <h1>Ăn ngon, đi vui,<br>lịch trình <em>vừa ý</em>.</h1>
+        <p class="hero-sub">FoodTrip gom hết quán ngon, điểm đến đáng đi và review thật từ cộng đồng — rồi để AI xếp thành một lịch trình khớp giờ mở cửa, khớp khoảng cách, khớp cả ngân sách của bạn.</p>
+        <div class="trust-line">
+          <div class="avatars">
+            <span style="background:var(--chili);color:var(--chili-ink)">T</span>
+            <span style="background:var(--herb);color:var(--herb-ink)">M</span>
+            <span style="background:var(--lantern);color:var(--lantern-ink)">A</span>
+          </div>
+          Hơn 41.000 tín đồ ẩm thực Việt đang dùng FoodTrip
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="bowl-wrap">
+          <svg viewBox="0 0 320 320" style="width:100%">
+            <ellipse cx="160" cy="185" rx="130" ry="34" fill="var(--paper-2)"/>
+            <ellipse cx="160" cy="170" rx="128" ry="82" fill="var(--surface)" stroke="var(--line-strong)" stroke-width="2"/>
+            <ellipse cx="160" cy="164" rx="104" ry="62" fill="var(--chili)" opacity=".9"/>
+            <ellipse cx="160" cy="164" rx="104" ry="62" fill="none" stroke="var(--lantern)" stroke-width="2" opacity=".6"/>
+            <circle cx="120" cy="150" r="7" fill="var(--lantern)"/>
+            <circle cx="190" cy="140" r="5" fill="var(--herb)"/>
+            <circle cx="205" cy="172" r="6" fill="var(--lantern)"/>
+            <circle cx="130" cy="182" r="5" fill="var(--herb)"/>
+            <circle cx="168" cy="120" r="4.5" fill="var(--surface)"/>
+            <rect x="205" y="70" width="6" height="90" rx="3" fill="var(--ink-muted)" transform="rotate(18 208 115)"/>
+            <rect x="219" y="66" width="6" height="90" rx="3" fill="var(--ink-muted)" transform="rotate(18 222 111)"/>
+          </svg>
+          <svg class="steam" viewBox="0 0 100 60" style="left:38%; width:26%;">
+            <path d="M10 60C10 40 -2 40 -2 25S10 5 10 -5" transform="translate(2 0)"/>
+          </svg>
+          <svg class="steam" viewBox="0 0 100 60" style="left:50%; width:26%;">
+            <path d="M10 60C10 40 -2 40 -2 25S10 5 10 -5"/>
+          </svg>
+          <svg class="steam" viewBox="0 0 100 60" style="left:62%; width:26%;">
+            <path d="M10 60C10 40 -2 40 -2 25S10 5 10 -5" transform="translate(-2 0)"/>
+          </svg>
+          <div class="route-badge b1"><span class="dot"><svg class="icon" style="width:14px;height:14px"><use href="#i-pin"/></svg></span>Hội An · 2N1Đ</div>
+          <div class="route-badge b2"><span class="dot" style="background:var(--chili);color:var(--chili-ink)"><svg class="icon" style="width:14px;height:14px"><use href="#i-check"/></svg></span>Còn mở đến 22:30</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="planner reveal" style="margin-top:var(--space-8)">
+      <div class="planner-grid">
+        <div class="field">
+          <label>Điểm đến</label>
+          <div class="val"><svg class="icon"><use href="#i-pin"/></svg>Hội An, Quảng Nam</div>
+        </div>
+        <div class="field">
+          <label>Thời gian</label>
+          <div class="val"><svg class="icon"><use href="#i-clock"/></svg>2 ngày 1 đêm</div>
+        </div>
+        <div class="field">
+          <label>Ngân sách / người</label>
+          <div class="val"><svg class="icon"><use href="#i-wallet"/></svg>1.500.000đ</div>
+        </div>
+        <div class="field">
+          <label>Số người</label>
+          <div class="val"><svg class="icon"><use href="#i-users"/></svg>2 người</div>
+        </div>
+      </div>
+      <div class="chips-row" id="prefChips">
+        <button class="chip active">Hải sản</button>
+        <button class="chip active">Cà phê</button>
+        <button class="chip">Phố cổ &amp; check-in</button>
+        <button class="chip">Ăn chay</button>
+        <button class="chip active">Xe máy</button>
+        <button class="chip">Ô tô riêng</button>
+      </div>
+      <div class="planner-foot">
+        <span class="note">AI sẽ kiểm tra giờ mở cửa &amp; khoảng cách thực tế giữa các điểm.</span>
+        <button class="btn btn-primary" id="genBtn">Tạo lịch trình <svg class="icon" style="width:16px;height:16px"><use href="#i-arrow-r"/></svg></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats-strip">
+    <div class="container stats-row">
+      <div class="stat"><b class="tabular">12.400+</b><span>Quán &amp; điểm đến</span></div>
+      <div class="stat"><b class="tabular">63/63</b><span>Tỉnh thành</span></div>
+      <div class="stat"><b class="tabular">180.000+</b><span>Lịch trình đã tạo</span></div>
+      <div class="stat"><b class="tabular">4,8/5</b><span>Từ 9.200 đánh giá</span></div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="section container" id="lich-trinh">
+    <div class="section-head reveal">
+      <span class="eyebrow">Cách FoodTrip hoạt động</span>
+      <h2>Bốn bước, một lịch trình vừa khít.</h2>
+      <p>Không cần tự dò bản đồ hay tính giờ mở cửa — bạn chỉ chọn, AI lo phần còn lại.</p>
+    </div>
+    <div class="steps">
+      <div class="step reveal"><div class="stamp">01</div><h3>Chọn điểm đến</h3><p>Từ Hà Nội đến Cà Mau — gõ tên là ra quán ngon, điểm check-in được người thật đánh giá.</p></div>
+      <div class="step reveal"><div class="stamp">02</div><h3>Set thời gian &amp; ngân sách</h3><p>Bao nhiêu ngày, đi mấy người, chi bao nhiêu — AI tính toán vừa khít, không đội chi phí.</p></div>
+      <div class="step reveal"><div class="stamp">03</div><h3>Chọn khẩu vị &amp; phương tiện</h3><p>Thích hải sản hay ăn chay, đi xe máy hay ô tô — lịch trình bám sát sở thích của bạn.</p></div>
+      <div class="step reveal"><div class="stamp">04</div><h3>Nhận lịch trình hoàn chỉnh</h3><p>Giờ mở cửa, khoảng cách di chuyển, thứ tự ghé quán — mọi thứ đã được sắp vừa vặn.</p></div>
+    </div>
+  </section>
+
+  <!-- ITINERARY TICKET -->
+  <section class="section container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Lịch trình mẫu</span>
+      <h2>Một vé lịch trình, đủ cả ăn lẫn đi.</h2>
+      <p>Đây là lịch trình FoodTrip AI vừa tạo cho chuyến Hội An 2 ngày 1 đêm — sắp theo giờ mở cửa và khoảng cách thực tế.</p>
+    </div>
+    <div class="ticket-wrap reveal">
+      <div class="ticket">
+        <div class="ticket-stub">
+          <div class="notch top"></div>
+          <div class="notch bottom"></div>
+          <div class="stub-item"><span class="k">Điểm đến</span><span class="v"><svg class="icon"><use href="#i-pin"/></svg>Hội An</span></div>
+          <div class="stub-item"><span class="k">Thời gian</span><span class="v"><svg class="icon"><use href="#i-clock"/></svg>2N1Đ</span></div>
+          <div class="stub-item"><span class="k">Số người</span><span class="v"><svg class="icon"><use href="#i-users"/></svg>2 người</span></div>
+          <div class="stub-item"><span class="k">Phương tiện</span><span class="v"><svg class="icon"><use href="#i-bike"/></svg>Xe máy</span></div>
+          <div class="stub-item"><span class="k">Ngân sách</span><span class="v tabular">1.500.000đ/người</span></div>
+          <div class="barcode" aria-hidden="true"></div>
+        </div>
+        <div class="ticket-body">
+          <div class="ticket-body-head">
+            <h3>Hội An · Ẩm thực &amp; phố cổ</h3>
+            <span class="tag">Do FoodTrip AI tạo</span>
+          </div>
+
+          <div class="day-label">Ngày 1</div>
+          <div class="stop">
+            <div class="stop-time tabular">07:00</div>
+            <div class="stop-main">
+              <div class="stop-title-row"><span class="stop-title">Bánh mì Phượng</span><span class="tag">Ăn sáng</span></div>
+              <div class="stop-meta"><span class="open"><svg class="icon"><use href="#i-check"/></svg>Mở đến 21:00</span><span><svg class="icon"><use href="#i-ruler"/></svg>350m từ khách sạn</span></div>
+            </div>
+          </div>
+          <div class="stop">
+            <div class="stop-time tabular">09:00</div>
+            <div class="stop-main">
+              <div class="stop-title-row"><span class="stop-title">Chùa Cầu &amp; Phố cổ</span><span class="tag">Tham quan</span></div>
+              <div class="stop-meta"><span><svg class="icon"><use href="#i-ruler"/></svg>1,2km · 15 phút đi bộ</span></div>
+            </div>
+          </div>
+          <div class="stop">
+            <div class="stop-time tabular">12:00</div>
+            <div class="stop-main">
+              <div class="stop-title-row"><span class="stop-title">Cao lầu Bà Bé</span><span class="tag">Ăn trưa</span></div>
+              <div class="stop-meta"><span class="open"><svg class="icon"><use href="#i-check"/></svg>Còn chỗ</span><span><svg class="icon"><use href="#i-ruler"/></svg>800m</span></div>
+            </div>
+          </div>
+          <div class="stop">
+            <div class="stop-time tabular">15:00</div>
+            <div class="stop-main">
+              <div class="stop-title-row"><span class="stop-title">Rừng dừa Bảy Mẫu</span><span class="tag">Trải nghiệm</span></div>
+              <div class="stop-meta"><span><svg class="icon"><use href="#i-bike"/></svg>6km · 20 phút xe máy</span></div>
+            </div>
+          </div>
+          <div class="stop">
+            <div class="stop-time tabular">20:30</div>
+            <div class="stop-main">
+              <div class="stop-title-row"><span class="stop-title">Hải sản Sông Hoài</span><span class="tag">Ăn tối</span></div>
+              <div class="stop-meta"><span class="open"><svg class="icon"><use href="#i-check"/></svg>Mở đến 22:30</span></div>
+            </div>
+          </div>
+
+          <div class="day-label">Ngày 2</div>
+          <div class="stop">
+            <div class="stop-time tabular">07:30</div>
+            <div class="stop-main">
+              <div class="stop-title-row"><span class="stop-title">Cà phê phin Faifo</span><span class="tag">Cà phê sáng</span></div>
+              <div class="stop-meta"><span><svg class="icon"><use href="#i-ruler"/></svg>500m</span></div>
+            </div>
+          </div>
+          <div class="stop">
+            <div class="stop-time tabular">12:00</div>
+            <div class="stop-main">
+              <div class="stop-title-row"><span class="stop-title">Cơm gà Bà Buội</span><span class="tag">Ăn trưa</span></div>
+              <div class="stop-meta"><span><svg class="icon"><use href="#i-ruler"/></svg>Gần khách sạn · trước giờ trả phòng</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DESTINATIONS -->
+  <section class="section" id="diem-den">
+    <div class="container">
+      <div class="strip-head reveal">
+        <div class="section-head" style="margin-bottom:0">
+          <span class="eyebrow">Địa điểm nổi bật</span>
+          <h2>Đi đâu cũng có quán để mê.</h2>
+        </div>
+        <div class="strip-controls">
+          <button class="arrow-btn" id="scrollLeft" aria-label="Cuộn sang trái"><svg class="icon"><use href="#i-chev-l"/></svg></button>
+          <button class="arrow-btn" id="scrollRight" aria-label="Cuộn sang phải"><svg class="icon"><use href="#i-chev-r"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      <div class="dest-scroll reveal" id="destScroll">
+        <article class="dest-card">
+          <div class="dest-art" style="background:linear-gradient(135deg, var(--chili), var(--lantern))">
+            <svg viewBox="0 0 200 130" style="width:70%">
+              <polygon points="10,110 40,60 70,110" fill="rgba(255,255,255,.85)"/>
+              <polygon points="60,110 95,50 130,110" fill="rgba(255,255,255,.7)"/>
+              <polygon points="120,110 150,68 180,110" fill="rgba(255,255,255,.85)"/>
+              <circle cx="170" cy="30" r="14" fill="rgba(255,255,255,.55)"/>
+            </svg>
+          </div>
+          <div class="dest-body">
+            <div class="dest-title-row"><span class="dest-title">Hà Nội</span><span class="rating"><svg class="icon"><use href="#i-star"/></svg>4.8</span></div>
+            <p class="dest-tag">Phở, bún chả &amp; 36 phố phường</p>
+            <div class="dish-chips"><span class="dish-chip">Phở bò</span><span class="dish-chip">Bún chả</span><span class="dish-chip">Cà phê trứng</span></div>
+          </div>
+        </article>
+
+        <article class="dest-card">
+          <div class="dest-art" style="background:linear-gradient(135deg, var(--lantern), var(--chili))">
+            <svg viewBox="0 0 200 130" style="width:70%">
+              <path d="M20 90 Q100 40 180 90" stroke="rgba(255,255,255,.7)" stroke-width="5" fill="none"/>
+              <circle cx="45" cy="45" r="10" fill="rgba(255,255,255,.85)"/>
+              <circle cx="80" cy="35" r="10" fill="rgba(255,255,255,.7)"/>
+              <circle cx="115" cy="30" r="10" fill="rgba(255,255,255,.85)"/>
+              <circle cx="150" cy="40" r="10" fill="rgba(255,255,255,.7)"/>
+            </svg>
+          </div>
+          <div class="dest-body">
+            <div class="dest-title-row"><span class="dest-title">Hội An</span><span class="rating"><svg class="icon"><use href="#i-star"/></svg>4.9</span></div>
+            <p class="dest-tag">Đèn lồng, cao lầu, phố cổ</p>
+            <div class="dish-chips"><span class="dish-chip">Cao lầu</span><span class="dish-chip">Bánh mì Phượng</span><span class="dish-chip">Chè bắp</span></div>
+          </div>
+        </article>
+
+        <article class="dest-card">
+          <div class="dest-art" style="background:linear-gradient(135deg, var(--herb), var(--lantern))">
+            <svg viewBox="0 0 200 130" style="width:70%">
+              <path d="M10 100 Q60 60 100 100 T190 100" stroke="rgba(255,255,255,.75)" stroke-width="5" fill="none"/>
+              <path d="M40 60 A50 30 0 0 1 140 60" stroke="rgba(255,255,255,.6)" stroke-width="5" fill="none"/>
+            </svg>
+          </div>
+          <div class="dest-body">
+            <div class="dest-title-row"><span class="dest-title">Đà Nẵng</span><span class="rating"><svg class="icon"><use href="#i-star"/></svg>4.7</span></div>
+            <p class="dest-tag">Biển, cầu Rồng, mì Quảng</p>
+            <div class="dish-chips"><span class="dish-chip">Mì Quảng</span><span class="dish-chip">Bánh tráng cuốn thịt heo</span></div>
+          </div>
+        </article>
+
+        <article class="dest-card">
+          <div class="dest-art" style="background:linear-gradient(135deg, var(--chili), var(--herb))">
+            <svg viewBox="0 0 200 130" style="width:70%">
+              <rect x="15" y="55" width="18" height="55" fill="rgba(255,255,255,.75)"/>
+              <rect x="40" y="35" width="18" height="75" fill="rgba(255,255,255,.85)"/>
+              <rect x="65" y="20" width="20" height="90" fill="rgba(255,255,255,.9)"/>
+              <rect x="92" y="45" width="18" height="65" fill="rgba(255,255,255,.7)"/>
+              <rect x="117" y="60" width="18" height="50" fill="rgba(255,255,255,.8)"/>
+            </svg>
+          </div>
+          <div class="dest-body">
+            <div class="dest-title-row"><span class="dest-title">TP. Hồ Chí Minh</span><span class="rating"><svg class="icon"><use href="#i-star"/></svg>4.7</span></div>
+            <p class="dest-tag">Cơm tấm, hẻm ẩm thực, không ngủ</p>
+            <div class="dish-chips"><span class="dish-chip">Cơm tấm</span><span class="dish-chip">Hủ tiếu</span><span class="dish-chip">Ốc đêm</span></div>
+          </div>
+        </article>
+
+        <article class="dest-card">
+          <div class="dest-art" style="background:linear-gradient(135deg, var(--herb), var(--chili))">
+            <svg viewBox="0 0 200 130" style="width:70%">
+              <polygon points="30,110 45,70 60,110" fill="rgba(255,255,255,.85)"/>
+              <polygon points="70,110 90,55 110,110" fill="rgba(255,255,255,.7)"/>
+              <polygon points="120,110 140,75 160,110" fill="rgba(255,255,255,.85)"/>
+            </svg>
+          </div>
+          <div class="dest-body">
+            <div class="dest-title-row"><span class="dest-title">Đà Lạt</span><span class="rating"><svg class="icon"><use href="#i-star"/></svg>4.8</span></div>
+            <p class="dest-tag">Cà phê, thông reo, lẩu gà lá é</p>
+            <div class="dish-chips"><span class="dish-chip">Lẩu gà lá é</span><span class="dish-chip">Bánh tráng nướng</span></div>
+          </div>
+        </article>
+
+        <article class="dest-card">
+          <div class="dest-art" style="background:linear-gradient(135deg, var(--lantern), var(--herb))">
+            <svg viewBox="0 0 200 130" style="width:70%">
+              <polygon points="60,90 100,50 140,90 130,90 130,110 70,110 70,90" fill="rgba(255,255,255,.85)"/>
+              <polygon points="70,70 100,40 130,70 122,70 122,86 78,86 78,70" fill="rgba(255,255,255,.7)"/>
+              <path d="M20 115 Q100 100 180 115" stroke="rgba(255,255,255,.6)" stroke-width="4" fill="none"/>
+            </svg>
+          </div>
+          <div class="dest-body">
+            <div class="dest-title-row"><span class="dest-title">Huế</span><span class="rating"><svg class="icon"><use href="#i-star"/></svg>4.7</span></div>
+            <p class="dest-tag">Ẩm thực cung đình, sông Hương</p>
+            <div class="dish-chips"><span class="dish-chip">Bún bò Huế</span><span class="dish-chip">Bánh khoái</span></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- REVIEWS + SAVE -->
+  <section class="section container" id="danh-gia">
+    <div class="section-head reveal">
+      <span class="eyebrow">Đánh giá &amp; lưu địa điểm</span>
+      <h2>Review thật, sổ tay của riêng bạn.</h2>
+      <p>Mỗi đánh giá đến từ người đã ăn thật, đi thật — và mọi nơi bạn thích đều có thể lưu lại cho chuyến sau.</p>
+    </div>
+    <div class="split-2">
+      <div class="feature-card reveal">
+        <h3>Đánh giá thật từ người đi thật</h3>
+        <div class="review-mock">
+          <div class="reviewer">
+            <div class="av">TN</div>
+            <div>
+              <div class="name">Thảo Nguyên</div>
+              <div class="stars">
+                <svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg><svg class="icon"><use href="#i-star"/></svg>
+              </div>
+            </div>
+          </div>
+          <p>"Quán bún bò trong hẻm nhỏ mà FoodTrip gợi ý ngon hơn hẳn mấy chỗ nổi tiếng trên mạng. Giá cũng rất sinh viên."</p>
+          <div class="review-tags"><span class="dish-chip">Ngon</span><span class="dish-chip">Giá tốt</span><span class="dish-chip">View đẹp</span></div>
+        </div>
+      </div>
+      <div class="feature-card reveal">
+        <h3>Sổ tay ẩm thực của riêng bạn</h3>
+        <div class="passport-mock">
+          <div class="passport-item">
+            <div class="passport-stamp"><svg class="icon" style="width:18px;height:18px"><use href="#i-bookmark"/></svg></div>
+            <div><div class="pt">Bánh xèo miền Trung</div><div class="ps">Đã lưu · Đà Nẵng</div></div>
+          </div>
+          <div class="passport-item">
+            <div class="passport-stamp"><svg class="icon" style="width:18px;height:18px"><use href="#i-bookmark"/></svg></div>
+            <div><div class="pt">Cà phê muối</div><div class="ps">Đã lưu · Huế</div></div>
+          </div>
+          <div class="passport-item">
+            <div class="passport-stamp"><svg class="icon" style="width:18px;height:18px"><use href="#i-bookmark"/></svg></div>
+            <div><div class="pt">Nem lụi sông Hàn</div><div class="ps">Đã lưu · Đà Nẵng</div></div>
+          </div>
+          <p style="font-size:13px;color:var(--ink-faint);margin-top:4px">Đã lưu 24 địa điểm tại Đà Nẵng</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TESTIMONIALS -->
+  <section class="section container">
+    <div class="section-head reveal">
+      <span class="eyebrow">Người dùng nói gì</span>
+      <h2>Bớt lo lịch trình, thêm vui chuyến đi.</h2>
+    </div>
+    <div class="postcards">
+      <div class="postcard reveal">
+        <p class="postcard-quote">"Đi Đà Lạt 3 ngày mà không cãi nhau lần nào về việc ăn gì, đi đâu — lần đầu tiên luôn."</p>
+        <div class="postcard-who">An, 24 tuổi — TP.HCM</div>
+      </div>
+      <div class="postcard reveal">
+        <p class="postcard-quote">"Tôi hay đi một mình, FoodTrip giúp tôi tin tưởng chọn quán lạ mà không sợ hớ giá."</p>
+        <div class="postcard-who">Minh Thư, 27 tuổi — freelancer du lịch</div>
+      </div>
+      <div class="postcard reveal">
+        <p class="postcard-quote">"Nhóm 4 đứa, ngân sách khác nhau, FoodTrip vẫn ra được lịch trình vừa túi tiền cả nhóm."</p>
+        <div class="postcard-who">Nhóm bạn Hà Nội, 4 người</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="section container">
+    <div class="cta-band reveal">
+      <h2>Chuyến đi tiếp theo, để FoodTrip lo phần lịch trình.</h2>
+      <div class="cta-actions">
+        <button class="btn btn-primary">Bắt đầu miễn phí</button>
+        <button class="btn btn-ghost">Xem lịch trình mẫu</button>
+      </div>
+      <span class="note">Không cần thẻ tín dụng · Sẵn sàng trong 2 phút</span>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container">
+    <div class="foot-grid">
+      <div class="foot-col">
+        <a class="logo" href="#top" style="font-size:19px;margin-bottom:var(--space-3);display:inline-flex">
+          <svg viewBox="0 0 40 40" style="width:26px;height:26px"><circle cx="20" cy="24" r="12" fill="var(--chili)"/><path d="M10 22a10 10 0 0 0 20 0Z" fill="var(--surface)"/><circle cx="20" cy="9" r="2.6" fill="var(--herb)"/></svg>
+          FoodTrip
+        </a>
+        <p style="font-size:14px;color:var(--ink-muted);max-width:32ch">Ăn ngon, đi vui, lịch trình vừa ý — cùng cộng đồng yêu ẩm thực Việt.</p>
+        <div class="newsletter">
+          <input type="email" placeholder="Email của bạn" aria-label="Email đăng ký nhận tin"/>
+          <button class="btn btn-primary" style="padding:11px 16px" aria-label="Đăng ký nhận tin"><svg class="icon" style="width:16px;height:16px"><use href="#i-mail"/></svg></button>
+        </div>
+      </div>
+      <div class="foot-col">
+        <h4>Sản phẩm</h4>
+        <ul><li><a href="#kham-pha">Khám phá</a></li><li><a href="#lich-trinh">Lịch trình AI</a></li><li><a href="#danh-gia">Đánh giá</a></li><li><a href="#">Ứng dụng di động</a></li></ul>
+      </div>
+      <div class="foot-col">
+        <h4>Công ty</h4>
+        <ul><li><a href="#">Về chúng tôi</a></li><li><a href="#">Tuyển dụng</a></li><li><a href="#">Blog ẩm thực</a></li></ul>
+      </div>
+      <div class="foot-col">
+        <h4>Hỗ trợ</h4>
+        <ul><li><a href="#">Trung tâm trợ giúp</a></li><li><a href="#">Liên hệ</a></li><li><a href="#">Điều khoản</a></li><li><a href="#">Bảo mật</a></li></ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span>© 2026 FoodTrip. Made with vị giác tại Việt Nam.</span>
+      <div class="socials">
+        <a href="#" aria-label="Facebook"><svg class="icon" style="width:16px;height:16px"><use href="#i-fb"/></svg></a>
+        <a href="#" aria-label="Instagram"><svg class="icon" style="width:16px;height:16px"><use href="#i-ig"/></svg></a>
+        <a href="#" aria-label="TikTok"><svg class="icon" style="width:16px;height:16px"><use href="#i-tt"/></svg></a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var navToggle = document.getElementById('navToggle');
+  var mobileMenu = document.getElementById('mobileMenu');
+  var navToggleIcon = document.getElementById('navToggleIcon');
+  navToggle.addEventListener('click', function(){
+    var open = mobileMenu.classList.toggle('open');
+    navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    navToggleIcon.querySelector('use').setAttribute('href', open ? '#i-close' : '#i-menu');
+  });
+  mobileMenu.querySelectorAll('a').forEach(function(a){
+    a.addEventListener('click', function(){
+      mobileMenu.classList.remove('open');
+      navToggle.setAttribute('aria-expanded','false');
+      navToggleIcon.querySelector('use').setAttribute('href', '#i-menu');
+    });
+  });
+
+  document.querySelectorAll('#cta-nav-btn, .planner-foot .btn-primary').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelector('#lich-trinh').scrollIntoView({behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block:'start'});
+    });
+  });
+
+  document.querySelectorAll('.chip').forEach(function(chip){
+    chip.addEventListener('click', function(){ chip.classList.toggle('active'); });
+  });
+
+  var scroller = document.getElementById('destScroll');
+  document.getElementById('scrollLeft').addEventListener('click', function(){ scroller.scrollBy({left:-290, behavior:'smooth'}); });
+  document.getElementById('scrollRight').addEventListener('click', function(){ scroller.scrollBy({left:290, behavior:'smooth'}); });
+
+  var barcode = document.querySelector('.barcode');
+  if(barcode){
+    var seed = 1234567;
+    function rnd(){ seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for(var i=0;i<28;i++){
+      var bar = document.createElement('i');
+      bar.style.height = (30 + rnd()*70) + '%';
+      barcode.appendChild(bar);
+    }
+  }
+
+  if('IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, {threshold:.12});
+    document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+  } else {
+    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('in'); });
+  }
+})();
+</script>

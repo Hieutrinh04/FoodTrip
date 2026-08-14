@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <style>
+    .f, .dot { fill: #D8481F; }
+    .t { fill: #2A2559; }
+    @media (prefers-color-scheme: dark) {
+      .f, .dot { fill: #FF7A4D; }
+      .t { fill: #8981E0; }
+    }
+  </style>
+  <rect class="f" x="7" y="8" width="5.5" height="24" rx="2.5"/>
+  <rect class="f" x="7" y="8" width="13.5" height="5.5" rx="2.5"/>
+  <rect class="f" x="7" y="17.5" width="10" height="5.5" rx="2.5"/>
+  <rect class="t" x="18" y="8" width="14.5" height="5.5" rx="2.5"/>
+  <rect class="t" x="23" y="8" width="5.5" height="24" rx="2.5"/>
+  <circle class="dot" cx="25.75" cy="5.3" r="2.8"/>
+</svg>
