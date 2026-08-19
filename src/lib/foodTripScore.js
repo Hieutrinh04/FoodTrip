@@ -19,11 +19,19 @@ function clampScore(value) {
 }
 
 /**
- * Produces a stable FoodTrip scorecard for the curated demo dataset. In the
- * production schema these values map directly to review_scores aggregates.
+ * Produces a FoodTrip scorecard for a place, derived from its community
+ * rating. In the production schema these values map directly to review_scores
+ * aggregates.
+ *
+ * Returns null when the place carries no rating at all. Live results from the
+ * map provider have none — it publishes no review data — and inventing a
+ * number for a real business nobody has reviewed would put a fabricated
+ * "Hygiene 4.6" next to a real restaurant's name. Unrated places show no score,
+ * the same way an unreviewed listing does on any maps app.
  */
 export function getFoodTripScore(place) {
-  const base = place.rating ?? 4.2
+  const base = place.rating
+  if (base == null) return null
   const isFood = place.category === 'food' || place.category === 'cafe'
   const values = {
     food: clampScore(base + (isFood ? 0.1 : -0.15) + stableOffset(place.id, 1)),
@@ -36,6 +44,9 @@ export function getFoodTripScore(place) {
   return { overall, ...values }
 }
 
+/** Score for one criterion, or null when the place has no rating to derive one from. */
 export function scoreForCriterion(place, criterion = 'overall') {
-  return getFoodTripScore(place)[criterion] ?? getFoodTripScore(place).overall
+  const score = getFoodTripScore(place)
+  if (!score) return null
+  return score[criterion] ?? score.overall
 }

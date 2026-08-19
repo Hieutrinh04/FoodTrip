@@ -24,7 +24,7 @@ const COPY = {
     overall: 'Tổng hợp', rating: 'Điểm tối thiểu', price: 'Mức giá', sort: 'Sắp xếp',
     relevant: 'Phù hợp nhất', highest: 'Điểm cao nhất', lowPrice: 'Giá thấp nhất',
     viewDetail: 'Xem chi tiết', map: 'Bản đồ', list: 'Danh sách', scoreTitle: 'Điểm FoodTrip',
-    reviewCount: (n) => `${n} đánh giá cộng đồng`, clear: 'Xóa bộ lọc', priceUnit: '₫',
+    reviewCount: (n) => `${n} đánh giá cộng đồng`, noReviewsYet: 'Chưa có đánh giá', clear: 'Xóa bộ lọc', priceUnit: '₫',
     nearMe: 'Gần tôi', locating: 'Đang định vị', locationDenied: 'Không lấy được vị trí. Hãy cấp quyền và thử lại.',
     radius: 'Bán kính', distance: (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
     match: 'phù hợp', foodType: 'Loại món',
@@ -37,7 +37,7 @@ const COPY = {
     overall: 'Overall', rating: 'Minimum score', price: 'Price', sort: 'Sort',
     relevant: 'Most relevant', highest: 'Highest score', lowPrice: 'Lowest price',
     viewDetail: 'View details', map: 'Map', list: 'List', scoreTitle: 'FoodTrip score',
-    reviewCount: (n) => `${n} community reviews`, clear: 'Clear filters', priceUnit: '$',
+    reviewCount: (n) => `${n} community reviews`, noReviewsYet: 'No reviews yet', clear: 'Clear filters', priceUnit: '$',
     nearMe: 'Near me', locating: 'Locating', locationDenied: 'Could not access location. Allow permission and try again.',
     radius: 'Radius', distance: (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
     match: 'match', foodType: 'Food type',
@@ -69,7 +69,9 @@ function placeMatchesFoodType(place, type) {
 }
 
 function calculateMatch(place, distanceKm) {
-  const score = getFoodTripScore(place).overall / 5
+  // Unrated live results carry no scorecard; treat their quality as neutral so
+  // the match percentage still reflects distance, opening hours and price.
+  const score = (getFoodTripScore(place)?.overall ?? 4) / 5
   const distanceFit = distanceKm == null ? 0.55 : Math.max(0, 1 - distanceKm / 15)
   const openFit = isOpenNow(place.hours) ? 1 : 0.35
   const valueFit = Math.max(0.25, 1 - place.price * 0.2)
@@ -114,8 +116,19 @@ export default function Explore() {
   const [livePlaces, setLivePlaces] = useState([])
   const [liveStatus, setLiveStatus] = useState('idle')
 
+  // Free text or a food-type chip both drive a live search; the typed query
+  // wins so "bánh xèo" finds real places instead of filtering the seed list
+  // down to nothing. Debounced so typing doesn't fire a request per keystroke.
+  const trimmedQuery = query.trim()
+  const [liveQuery, setLiveQuery] = useState('')
   useEffect(() => {
-    if (foodType === 'all' || (!userLocation && cityFilter === 'all')) {
+    const timer = setTimeout(() => setLiveQuery(trimmedQuery), 450)
+    return () => clearTimeout(timer)
+  }, [trimmedQuery])
+
+  useEffect(() => {
+    const hasSearchTerm = liveQuery.length >= 2 || foodType !== 'all'
+    if (!hasSearchTerm || (!userLocation && cityFilter === 'all')) {
       setLivePlaces([])
       setLiveStatus('idle')
       return undefined
@@ -123,7 +136,7 @@ export default function Explore() {
     let cancelled = false
     setLiveStatus('loading')
     const city = CITIES.find((item) => item.id === cityFilter)
-    searchExplorePlaces({ foodType, city, origin: userLocation, radiusKm })
+    searchExplorePlaces({ foodType, query: liveQuery, city, origin: userLocation, radiusKm })
       .then((places) => {
         if (!cancelled) {
           setLivePlaces(places)
@@ -137,7 +150,7 @@ export default function Explore() {
         }
       })
     return () => { cancelled = true }
-  }, [foodType, cityFilter, userLocation, radiusKm])
+  }, [foodType, liveQuery, cityFilter, userLocation, radiusKm])
 
   function setCity(id) {
     if (id === 'all') setSearchParams({}, { replace: true })
@@ -196,18 +209,25 @@ export default function Explore() {
   }
 
   const filtered = useMemo(() => {
-    const sourcePlaces = liveStatus === 'ready' ? livePlaces : PLACES
+    const isLive = liveStatus === 'ready'
+    const sourcePlaces = isLive ? livePlaces : PLACES
     const result = sourcePlaces.filter((place) => {
-      if (cityFilter !== 'all' && place.city !== cityFilter) return false
+      // Live results were already fetched for this city/area and matched the
+      // typed phrase server-side, so re-applying the local text and city
+      // filters would only throw away real matches.
+      if (!isLive && cityFilter !== 'all' && place.city !== cityFilter) return false
       if (category !== 'all' && place.category !== category) return false
-      if (!placeMatchesFoodType(place, foodType)) return false
+      if (!isLive && !placeMatchesFoodType(place, foodType)) return false
       if (price !== 'all' && place.price !== Number(price)) return false
       if (openOnly && !isOpenNow(place.hours)) return false
-      if (scoreForCriterion(place, criterion) < minScore) return false
+      const criterionScore = scoreForCriterion(place, criterion)
+      // A place with no community rating has no score to compare — only drop it
+      // when the traveller actually asked for a minimum.
+      if (minScore > 0 && (criterionScore == null || criterionScore < minScore)) return false
       const location = place.location ?? resolvedLocations[place.id]
       const distanceKm = userLocation && location ? haversineKm(userLocation, location) : null
       if (userLocation && distanceKm != null && distanceKm > radiusKm) return false
-      if (query.trim()) {
+      if (!isLive && query.trim()) {
         const needle = query.trim().toLocaleLowerCase(lang === 'vi' ? 'vi' : 'en')
         const haystack = `${place.name.vi} ${place.name.en} ${place.address.vi} ${place.address.en} ${place.shortDesc.vi} ${place.shortDesc.en}`.toLocaleLowerCase(lang === 'vi' ? 'vi' : 'en')
         if (!haystack.includes(needle)) return false
@@ -219,7 +239,10 @@ export default function Explore() {
       const distanceKm = userLocation && location ? haversineKm(userLocation, location) : null
       return { ...place, location, distanceKm, matchScore: userLocation ? calculateMatch(place, distanceKm) : null }
     })
-    if (sort === 'highest') enriched.sort((a, b) => scoreForCriterion(b, criterion) - scoreForCriterion(a, criterion))
+    // Unrated places sort last rather than being treated as a zero score.
+    if (sort === 'highest') {
+      enriched.sort((a, b) => (scoreForCriterion(b, criterion) ?? -1) - (scoreForCriterion(a, criterion) ?? -1))
+    }
     if (sort === 'relevant' && userLocation) enriched.sort((a, b) => b.matchScore - a.matchScore)
     if (sort === 'low-price') enriched.sort((a, b) => a.price - b.price)
     return enriched
@@ -334,11 +357,17 @@ function ExplorePlaceCard({ place, index, criterion, selected, onSelect, lang, c
       <div className="grid grid-cols-[112px_1fr]">
         <div className="relative min-h-[150px]">
           {place.image ? <img src={place.image} alt={place.name[lang]} className="absolute inset-0 h-full w-full object-cover" /> : <CityPattern pattern={city.pattern} accent={city.accent} className="absolute inset-0" />}
-          <span className="absolute left-2 top-2 rounded-full bg-surface/95 px-2 py-1 font-utility text-[11px] font-bold text-chili shadow-soft">{activeScore.toFixed(1)}</span>
+          {activeScore != null && (
+            <span className="absolute left-2 top-2 rounded-full bg-surface/95 px-2 py-1 font-utility text-[11px] font-bold text-chili shadow-soft">{activeScore.toFixed(1)}</span>
+          )}
         </div>
         <div className="min-w-0 p-3">
           <div className="flex items-start justify-between gap-2"><h2 className="line-clamp-2 font-display text-[16px] font-bold leading-tight">{place.name[lang]}</h2><span className="shrink-0 text-[11px] text-ink-faint">{copy.priceUnit.repeat(Math.max(1, place.price + 1))}</span></div>
-          <div className="mt-1 flex items-center gap-1.5"><span className="font-utility text-[12px] font-bold text-chili">{score.overall.toFixed(1)}</span><Star size={12} weight="fill" className="text-lantern" /><span className="text-[10.5px] text-ink-faint">({reviewCount(place)})</span></div>
+          {score ? (
+            <div className="mt-1 flex items-center gap-1.5"><span className="font-utility text-[12px] font-bold text-chili">{score.overall.toFixed(1)}</span><Star size={12} weight="fill" className="text-lantern" /><span className="text-[10.5px] text-ink-faint">({reviewCount(place)})</span></div>
+          ) : (
+            <div className="mt-1 font-utility text-[10.5px] text-ink-faint">{copy.noReviewsYet}</div>
+          )}
           <p className="mt-1 line-clamp-1 text-[11.5px] text-ink-muted">{CATEGORY_LABEL[place.category][lang]} · {place.source === 'track-asia' ? place.address[lang] : city.name[lang]}</p>
           {place.matchScore != null && (
             <div className="mt-2 flex items-center gap-2">
@@ -350,7 +379,7 @@ function ExplorePlaceCard({ place, index, criterion, selected, onSelect, lang, c
           {place.source !== 'track-asia' && <Link to={`/place/${place.id}`} onClick={(event) => event.stopPropagation()} className="mt-2 block font-utility text-[11px] font-semibold text-chili hover:underline">{copy.viewDetail} →</Link>}
         </div>
       </div>
-      {selected && (
+      {selected && score && (
         <div className="grid grid-cols-5 gap-1 border-t border-line bg-paper-2 px-3 py-2.5">
           {Object.keys(FOODTRIP_CRITERIA).map((key) => <div key={key} className="text-center"><div className="font-utility text-[10.5px] font-bold text-ink">{score[key].toFixed(1)}</div><div className="truncate text-[8.5px] text-ink-faint">{FOODTRIP_CRITERIA[key][lang]}</div></div>)}
         </div>
