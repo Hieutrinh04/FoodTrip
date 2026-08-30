@@ -40,13 +40,13 @@ export default function Nav() {
 
   return (
     <header className="no-print sticky top-0 z-50 border-b border-line bg-paper/80 backdrop-blur-md">
-      <div className="max-w-[1180px] mx-auto px-5 md:px-8 flex items-center justify-between h-[72px]">
+      <div className="mx-auto flex h-[72px] max-w-[1600px] items-center justify-between px-5 md:px-8">
         <NavLink to="/" className="flex items-center gap-2 font-display font-bold text-[21px]" onClick={() => setOpen(false)}>
           <LogoMark />
           <Wordmark />
         </NavLink>
 
-        <nav className="hidden md:flex items-center gap-8 font-utility text-[13.5px] font-semibold" aria-label="Điều hướng chính">
+        <nav className="hidden items-center gap-5 whitespace-nowrap font-utility text-[13px] font-semibold lg:flex xl:gap-7" aria-label="Điều hướng chính">
           {navLinks.map((link) => {
             const active = location.pathname === link.to
             return (
@@ -86,7 +86,7 @@ export default function Nav() {
                 onClick={signOut}
                 title={user.email}
                 aria-label={al.logout}
-                className="hidden sm:flex items-center gap-1.5 font-utility text-[12.5px] font-bold px-3 py-2 rounded-full border-[1.5px] border-line-strong hover:border-chili transition-colors max-w-[140px]"
+                className="hidden max-w-[120px] items-center gap-1.5 rounded-full border-[1.5px] border-line-strong px-3 py-2 font-utility text-[12px] font-bold transition-colors hover:border-chili sm:flex"
               >
                 <UserCircle size={16} className="shrink-0" />
                 <span className="truncate">{user.email}</span>
@@ -105,7 +105,7 @@ export default function Nav() {
           )}
           <NavLink
             to="/plan"
-            className="hidden md:inline-flex items-center gap-2 font-utility font-semibold text-[14px] px-6 py-[13px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow"
+            className="hidden items-center gap-2 whitespace-nowrap rounded-full bg-chili px-5 py-3 font-utility text-[13px] font-semibold text-chili-ink shadow-soft transition-shadow hover:shadow-lifted lg:inline-flex"
           >
             {CTA[lang]}
           </NavLink>
@@ -113,7 +113,7 @@ export default function Nav() {
             onClick={() => setOpen((v) => !v)}
             aria-label={open ? 'Đóng menu' : 'Mở menu'}
             aria-expanded={open}
-            className="md:hidden inline-flex p-2"
+            className="inline-flex p-2 lg:hidden"
           >
             {open ? <X size={24} /> : <List size={24} />}
           </button>
@@ -125,7 +125,7 @@ export default function Nav() {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             transition={{ duration: 0.3, ease: easeOut }}
-            className="md:hidden overflow-hidden border-t border-line"
+            className="overflow-hidden border-t border-line lg:hidden"
             aria-label="Điều hướng di động"
           >
             <div className="max-w-[1180px] mx-auto px-5 py-3 flex flex-col font-utility font-semibold">

@@ -25,7 +25,7 @@ export default function VideoReviewCard({ review }) {
     script.async = true
     document.body.appendChild(script)
     return () => {
-      document.body.contains(script) && document.body.removeChild(script)
+      if (document.body.contains(script)) document.body.removeChild(script)
     }
   }, [review.id, review.platform, review.embedHtml])
 

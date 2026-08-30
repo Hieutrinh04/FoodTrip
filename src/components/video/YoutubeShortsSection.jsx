@@ -1,18 +1,26 @@
 import { useEffect, useState } from 'react'
-import { PlayCircle } from '@phosphor-icons/react'
+import { ArrowClockwise, PlayCircle, VideoCamera, WarningCircle } from '@phosphor-icons/react'
 import { fetchYoutubeShorts } from '../../lib/youtubeShorts.js'
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
 
 const C = {
   vi: {
-    title: 'Video ngắn gợi ý (YouTube)',
+    title: 'Video review gợi ý (YouTube)',
     hint: 'FoodTrip tự tìm — không cần ai chia sẻ',
-    loading: 'Đang tìm video ngắn liên quan…',
+    loading: 'Đang tìm video liên quan…',
+    empty: 'Chưa tìm thấy video phù hợp cho địa điểm này.',
+    noKey: 'Dịch vụ video chưa được cấu hình.',
+    error: 'Không thể tải video lúc này. Vui lòng thử lại.',
+    retry: 'Thử lại',
   },
   en: {
-    title: 'Suggested short videos (YouTube)',
+    title: 'Suggested review videos (YouTube)',
     hint: 'Auto-found by FoodTrip — no submission needed',
-    loading: 'Finding related short videos…',
+    loading: 'Finding related videos…',
+    empty: 'No suitable videos were found for this place.',
+    noKey: 'The video service is not configured.',
+    error: 'Videos could not be loaded. Please try again.',
+    retry: 'Try again',
   },
 }
 
@@ -25,11 +33,14 @@ export default function YoutubeShortsSection({ query }) {
   const [status, setStatus] = useState('loading') // loading | ok | empty | no-key | error
   const [videos, setVideos] = useState([])
   const [openId, setOpenId] = useState(null)
+  const [requestId, setRequestId] = useState(0)
 
   useEffect(() => {
     if (!query) return
     let cancelled = false
     setStatus('loading')
+    setVideos([])
+    setOpenId(null)
 
     fetchYoutubeShorts(query)
       .then((res) => {
@@ -46,22 +57,28 @@ export default function YoutubeShortsSection({ query }) {
     return () => {
       cancelled = true
     }
-  }, [query])
+  }, [query, requestId])
 
-  if (status === 'loading' || status === 'no-key' || status === 'empty' || status === 'error') {
-    return null
-  }
+  const statusMessage = status === 'no-key' ? c.noKey : c[status] || c.empty
 
   return (
-    <div className="max-w-[1180px] mx-auto px-5 md:px-8 mt-14">
+    <section className="mx-auto mt-14 max-w-[1180px] px-5 md:px-8" aria-labelledby="youtube-videos-title">
       <div className="flex items-baseline justify-between gap-3 mb-5 flex-wrap">
-        <h2 className="text-[22px] font-bold">{c.title}</h2>
+        <h2 id="youtube-videos-title" className="text-[22px] font-bold">{c.title}</h2>
         <span className="font-utility text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{c.hint}</span>
       </div>
-      <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+      {status !== 'ok' ? (
+        <div className="flex min-h-[150px] items-center justify-center rounded-2xl border border-line bg-surface px-5 py-8 text-center">
+          <div className="flex max-w-[38ch] flex-col items-center gap-3">
+            {status === 'loading' ? <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-line-strong border-t-chili" /> : status === 'error' ? <WarningCircle size={28} className="text-chili" /> : <VideoCamera size={28} className="text-ink-faint" />}
+            <p className="text-[13.5px] text-ink-muted">{statusMessage}</p>
+            {status === 'error' && <button type="button" onClick={() => setRequestId((value) => value + 1)} className="inline-flex items-center gap-1.5 rounded-full border border-line-strong px-4 py-2 font-utility text-[12px] font-semibold hover:border-chili"><ArrowClockwise size={14} />{c.retry}</button>}
+          </div>
+        </div>
+      ) : <div className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3">
         {videos.map((v) =>
           openId === v.videoId ? (
-            <div key={v.videoId} className="shrink-0 w-[160px] aspect-[9/16] rounded-xl overflow-hidden bg-black border border-line">
+            <div key={v.videoId} className="aspect-[9/16] w-[170px] shrink-0 snap-start overflow-hidden rounded-2xl border border-line bg-black sm:w-[190px]">
               <iframe
                 src={`https://www.youtube.com/embed/${v.videoId}?autoplay=1`}
                 title={v.title}
@@ -75,7 +92,7 @@ export default function YoutubeShortsSection({ query }) {
               key={v.videoId}
               type="button"
               onClick={() => setOpenId(v.videoId)}
-              className="group relative shrink-0 w-[160px] aspect-[9/16] rounded-xl overflow-hidden bg-paper-2 border border-line text-left"
+              className="group relative aspect-[9/16] w-[170px] shrink-0 snap-start overflow-hidden rounded-2xl border border-line bg-paper-2 text-left shadow-soft sm:w-[190px]"
             >
               {v.thumbnailUrl && (
                 <img src={v.thumbnailUrl} alt={v.title} loading="lazy" className="h-full w-full object-cover" />
@@ -88,7 +105,7 @@ export default function YoutubeShortsSection({ query }) {
             </button>
           )
         )}
-      </div>
-    </div>
+      </div>}
+    </section>
   )
 }

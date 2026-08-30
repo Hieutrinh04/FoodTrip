@@ -1,6 +1,7 @@
 import { getPlacesByCity, getCity, registerCustomPlaces } from '../data/destinations.js'
 import { fetchPlaceEnrichment } from './placesService.js'
 import { searchCityPlaces } from './citySearch.js'
+import { optimiseDayRoute } from './routeOptimizer.js'
 
 // Generic day structure — the engine fills each slot with the best-scoring
 // place of the right category for that city, rather than a fixed template.
@@ -236,18 +237,33 @@ export async function generateItinerary({ cityId, places, duration, budget, peop
   const days = []
   for (let d = 0; d < duration; d++) {
     const slots = duration > 1 && d === duration - 1 ? LAST_DAY_SLOTS : FULL_DAY_SLOTS
-    const stops = []
+    const entries = []
     let prevLocation = null
     const usedToday = new Set()
 
+    // Pass 1 — fill each slot greedily, best-scoring place first.
     for (const slot of slots) {
       const place = pickForSlot(slot, prevLocation, usedToday)
       if (!place) continue
       usedToday.add(place.id)
       const enrichment = enrichmentById[place.id]
       const location = enrichment?.location ?? null
-      const distanceKm = prevLocation && location ? haversineKm(prevLocation, location) : null
+      entries.push({ slot, place, location, enrichment })
+      if (location) prevLocation = location
+    }
 
+    // Pass 2 — the greedy fill commits to each slot without looking ahead, so
+    // an early pick can strand a later stop across town. Reorder which place
+    // sits in which slot to cut total travel, keeping every place in a slot it
+    // is still valid for.
+    const optimised = optimiseDayRoute(entries, isOpenAt).entries
+
+    // Distances are between consecutive stops, so they can only be computed
+    // once the final order is settled.
+    const stops = []
+    let previous = null
+    for (const { slot, place, location, enrichment } of optimised) {
+      const distanceKm = previous && location ? haversineKm(previous, location) : null
       stops.push({
         time: slot.time,
         placeId: place.id,
@@ -258,7 +274,7 @@ export async function generateItinerary({ cityId, places, duration, budget, peop
         location,
         googlePlaceId: enrichment?.placeId ?? null,
       })
-      if (location) prevLocation = location
+      if (location) previous = location
     }
     days.push(stops)
   }

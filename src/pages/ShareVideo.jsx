@@ -160,7 +160,11 @@ export default function ShareVideo() {
 
       // De-duplicate in case two guesses verified to the same real place.
       const seen = new Set()
-      const unique = matched.filter((v) => (seen.has(v.placeId) ? false : (seen.add(v.placeId), true)))
+      const unique = matched.filter((v) => {
+        if (seen.has(v.placeId)) return false
+        seen.add(v.placeId)
+        return true
+      })
 
       setFoundPlaces(unique)
       setSelectedIds(new Set(unique.map((v) => v.placeId)))

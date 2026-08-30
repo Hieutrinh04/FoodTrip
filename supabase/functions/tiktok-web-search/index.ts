@@ -1,6 +1,7 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
+import { hasExactPlaceMention, hasLocationEvidence } from '../_shared/relevance.ts'
 
-const SEARCH_URL = 'https://www.googleapis.com/customsearch/v1'
+const SEARCH_URL = 'https://google.serper.dev/search'
 const TIKTOK_VIDEO_URL_RE = /^https:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+/
 
 async function fetchTikTokOEmbedData(videoUrl: string) {
@@ -13,21 +14,23 @@ async function fetchTikTokOEmbedData(videoUrl: string) {
 
 /**
  * Auto-discovers real TikTok videos about a place. TikTok itself has no
- * public search API, so this uses Google's official Custom Search JSON API
- * (a legitimate, ToS-compliant way to query Google's search index — not
- * scraping) restricted to tiktok.com, then confirms each hit is an actual
+ * public search API, so this uses Serper's search API restricted to
+ * tiktok.com, then confirms each hit is an actual
  * video page (not a profile/hashtag page) and fetches its real oEmbed data.
  */
-async function searchTikTokVideos(query: string) {
-  const apiKey = Deno.env.get('GOOGLE_CUSTOM_SEARCH_KEY')
-  const cx = Deno.env.get('GOOGLE_CUSTOM_SEARCH_CX')
-  if (!apiKey || !cx) return { status: 'no-key', videos: [] }
+async function searchTikTokVideos(query: string, placeName: string, location: string) {
+  const apiKey = Deno.env.get('SERPER_API_KEY')
+  if (!apiKey) return { status: 'no-key', videos: [] }
 
-  const params = new URLSearchParams({ key: apiKey, cx, q: `${query} site:tiktok.com`, num: '10' })
-  const res = await fetch(`${SEARCH_URL}?${params}`)
-  if (!res.ok) throw new Error(`Custom Search ${res.status}: ${(await res.text()).slice(0, 200)}`)
+  const res = await fetch(SEARCH_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'X-API-KEY': apiKey },
+    body: JSON.stringify({ q: `"${query}" review site:tiktok.com`, num: 10, gl: 'vn', hl: 'vi' }),
+  })
+  if (!res.ok) throw new Error(`Serper ${res.status}: ${(await res.text()).slice(0, 200)}`)
   const json = await res.json()
-  const candidateLinks = (json.items || [])
+  const candidateLinks = (json.organic || [])
+    .filter((it: { title?: string; snippet?: string }) => hasExactPlaceMention(it.title || '', placeName) && hasLocationEvidence(`${it.title || ''} ${it.snippet || ''}`, location))
     .map((it: { link?: string }) => it.link)
     .filter((link: string | undefined) => TIKTOK_VIDEO_URL_RE.test(link || ''))
     .slice(0, 5)
@@ -38,7 +41,7 @@ async function searchTikTokVideos(query: string) {
     candidateLinks.map(async (link: string) => {
       try {
         const oe = await fetchTikTokOEmbedData(link)
-        if (!oe) return null
+        if (!oe || !hasExactPlaceMention(oe.title || '', placeName) || !hasLocationEvidence(oe.title || '', location)) return null
         return { videoUrl: link, title: oe.title, authorName: oe.author_name, thumbnailUrl: oe.thumbnail_url, embedHtml: oe.html }
       } catch {
         return null
@@ -55,8 +58,10 @@ Deno.serve(async (req) => {
 
   const query = new URL(req.url).searchParams.get('query')
   if (!query) return jsonResponse({ error: 'missing-query' }, { status: 400 })
+  const placeName = new URL(req.url).searchParams.get('name')?.trim() || query
+  const location = new URL(req.url).searchParams.get('location')?.trim() || ''
   try {
-    const result = await searchTikTokVideos(query)
+    const result = await searchTikTokVideos(query, placeName, location)
     return jsonResponse(result)
   } catch (err) {
     console.error('tiktok-web-search failed:', (err as Error).message)

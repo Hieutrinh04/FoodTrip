@@ -1,6 +1,6 @@
 import { supabase, hasSupabase } from './supabaseClient.js'
 
-const CACHE_PREFIX = 'ft_tt_search_v1:'
+const CACHE_PREFIX = 'ft_tt_search_v4:'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7 // 7 days
 
 function readCache(query) {
@@ -23,15 +23,16 @@ function writeCache(query, data) {
   }
 }
 
-/** Auto-discovers real TikTok videos about a place via Google Custom Search (cached). */
-export async function fetchTikTokAutoSuggestions(query) {
-  const cached = readCache(query)
+/** Auto-discovers real TikTok videos about a place via the configured web search provider (cached). */
+export async function fetchTikTokAutoSuggestions(query, placeName = query, location = '') {
+  const cacheKey = `${placeName}|${location}|${query}`
+  const cached = readCache(cacheKey)
   if (cached) return cached
   if (!hasSupabase) return { status: 'no-key', videos: [] }
 
-  const { data, error } = await supabase.functions.invoke(`tiktok-web-search?query=${encodeURIComponent(query)}`, { method: 'GET' })
+  const { data, error } = await supabase.functions.invoke(`tiktok-web-search?query=${encodeURIComponent(query)}&name=${encodeURIComponent(placeName)}&location=${encodeURIComponent(location)}`, { method: 'GET' })
   if (error) throw new Error('tiktok-web-search-failed')
 
-  if (data.status === 'ok') writeCache(query, data)
+  if (data.status === 'ok') writeCache(cacheKey, data)
   return data
 }

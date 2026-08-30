@@ -55,15 +55,17 @@ function toFeatureCollection(plotted, criterion, lang) {
   }
 }
 
-export default function ExploreMap({ places, criterion, selectedId, onSelect, userLocation, onLocationsResolved, className = '' }) {
+export default function ExploreMap({ places, criterion, selectedId, onSelect, onAreaSelect, userLocation, onLocationsResolved, className = '' }) {
   const { lang } = useLanguage()
   const copy = COPY[lang]
   const containerRef = useRef(null)
   const mapRef = useRef(null)
   const locationsRef = useRef(new Map())
   const onSelectRef = useRef(onSelect)
+  const onAreaSelectRef = useRef(onAreaSelect)
   const onLocationsResolvedRef = useRef(onLocationsResolved)
   onSelectRef.current = onSelect
+  onAreaSelectRef.current = onAreaSelect
   onLocationsResolvedRef.current = onLocationsResolved
   const [status, setStatus] = useState(hasMapsKey ? 'loading' : 'no-key')
   const placesKey = places.map((place) => `${place.id}:${place.matchScore ?? ''}`).join('|')
@@ -157,6 +159,10 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, us
             const id = event.features?.[0]?.properties?.id
             if (id) onSelectRef.current?.(id)
           })
+          map.on('click', (event) => {
+            if (map.queryRenderedFeatures(event.point, { layers: [CIRCLE_LAYER] }).length) return
+            onAreaSelectRef.current?.({ lat: event.lngLat.lat, lng: event.lngLat.lng })
+          })
           map.on('mouseenter', CIRCLE_LAYER, () => { map.getCanvas().style.cursor = 'pointer' })
           map.on('mouseleave', CIRCLE_LAYER, () => { map.getCanvas().style.cursor = '' })
 
@@ -201,8 +207,8 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, us
   // would detach the ref, and the effect — which bails without a container —
   // could then never rebuild the map once results did arrive.
   return (
-    <div className={`relative h-full min-h-[420px] bg-paper-2 ${className}`}>
-      <div ref={containerRef} className="h-full min-h-[420px] w-full" />
+    <div className={`relative h-full min-h-[420px] bg-paper-2 lg:min-h-0 ${className}`}>
+      <div ref={containerRef} className="h-full min-h-[420px] w-full lg:min-h-0" />
       {status === 'loading' && (
         <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-full bg-surface/95 px-4 py-2 font-utility text-[11.5px] font-semibold text-ink-muted shadow-soft">
           {copy.loading}

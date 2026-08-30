@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -6,6 +6,7 @@ import {
   Clock, Star, SlidersHorizontal, X, NavigationArrow, SpinnerGap,
 } from '@phosphor-icons/react'
 import ExploreMap from '../components/map/ExploreMap.jsx'
+import MapPlacePreview from '../components/map/MapPlacePreview.jsx'
 import Chip from '../components/ui/Chip.jsx'
 import CityPattern from '../components/CityPattern.jsx'
 import { CITIES, PLACES, CATEGORY_LABEL, getCity } from '../data/destinations.js'
@@ -25,7 +26,10 @@ const COPY = {
     relevant: 'Phù hợp nhất', highest: 'Điểm cao nhất', lowPrice: 'Giá thấp nhất',
     viewDetail: 'Xem chi tiết', map: 'Bản đồ', list: 'Danh sách', scoreTitle: 'Điểm FoodTrip',
     reviewCount: (n) => `${n} đánh giá cộng đồng`, noReviewsYet: 'Chưa có đánh giá', clear: 'Xóa bộ lọc', priceUnit: '₫',
-    nearMe: 'Gần tôi', locating: 'Đang định vị', locationDenied: 'Không lấy được vị trí. Hãy cấp quyền và thử lại.',
+    nearMe: 'Gần tôi', locating: 'Đang định vị', located: 'Đã định vị',
+    locationDenied: 'Quyền vị trí đang bị chặn. Hãy cho phép vị trí trong thanh địa chỉ rồi thử lại.',
+    locationUnavailable: 'Thiết bị chưa xác định được vị trí. Hãy bật Dịch vụ vị trí của Windows rồi thử lại.',
+    locationTimeout: 'Định vị mất quá nhiều thời gian. Hãy kiểm tra mạng và thử lại.',
     radius: 'Bán kính', distance: (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
     match: 'phù hợp', foodType: 'Loại món',
   },
@@ -38,7 +42,10 @@ const COPY = {
     relevant: 'Most relevant', highest: 'Highest score', lowPrice: 'Lowest price',
     viewDetail: 'View details', map: 'Map', list: 'List', scoreTitle: 'FoodTrip score',
     reviewCount: (n) => `${n} community reviews`, noReviewsYet: 'No reviews yet', clear: 'Clear filters', priceUnit: '$',
-    nearMe: 'Near me', locating: 'Locating', locationDenied: 'Could not access location. Allow permission and try again.',
+    nearMe: 'Near me', locating: 'Locating', located: 'Located',
+    locationDenied: 'Location permission is blocked. Allow it from the address bar and try again.',
+    locationUnavailable: 'Your device could not determine its location. Turn on system Location Services and try again.',
+    locationTimeout: 'Location timed out. Check your connection and try again.',
     radius: 'Radius', distance: (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
     match: 'match', foodType: 'Food type',
   },
@@ -111,10 +118,24 @@ export default function Explore() {
   const [mobileView, setMobileView] = useState('list')
   const [userLocation, setUserLocation] = useState(null)
   const [locationStatus, setLocationStatus] = useState('idle')
+  const [locationError, setLocationError] = useState('')
   const [radiusKm, setRadiusKm] = useState(5)
   const [resolvedLocations, setResolvedLocations] = useState({})
   const [livePlaces, setLivePlaces] = useState([])
   const [liveStatus, setLiveStatus] = useState('idle')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [mapSearchOrigin, setMapSearchOrigin] = useState(null)
+  const locationWatchRef = useRef(null)
+  const locationTimerRef = useRef(null)
+
+  function stopLocationWatch() {
+    if (locationWatchRef.current != null) navigator.geolocation?.clearWatch(locationWatchRef.current)
+    if (locationTimerRef.current != null) window.clearTimeout(locationTimerRef.current)
+    locationWatchRef.current = null
+    locationTimerRef.current = null
+  }
+
+  useEffect(() => () => stopLocationWatch(), [])
 
   // Free text or a food-type chip both drive a live search; the typed query
   // wins so "bánh xèo" finds real places instead of filtering the seed list
@@ -127,8 +148,9 @@ export default function Explore() {
   }, [trimmedQuery])
 
   useEffect(() => {
-    const hasSearchTerm = liveQuery.length >= 2 || foodType !== 'all'
-    if (!hasSearchTerm || (!userLocation && cityFilter === 'all')) {
+    const hasSearchTerm = liveQuery.length >= 2 || foodType !== 'all' || category !== 'all' || Boolean(mapSearchOrigin) || Boolean(userLocation)
+    const searchOrigin = mapSearchOrigin ?? userLocation
+    if (!hasSearchTerm || (!searchOrigin && cityFilter === 'all')) {
       setLivePlaces([])
       setLiveStatus('idle')
       return undefined
@@ -136,11 +158,11 @@ export default function Explore() {
     let cancelled = false
     setLiveStatus('loading')
     const city = CITIES.find((item) => item.id === cityFilter)
-    searchExplorePlaces({ foodType, query: liveQuery, city, origin: userLocation, radiusKm })
+    searchExplorePlaces({ foodType, category, query: liveQuery, city, origin: searchOrigin, radiusKm: mapSearchOrigin ? Math.max(radiusKm, 20) : radiusKm })
       .then((places) => {
         if (!cancelled) {
           setLivePlaces(places)
-          setLiveStatus('ready')
+          setLiveStatus(places.length ? 'ready' : 'empty')
         }
       })
       .catch(() => {
@@ -150,7 +172,7 @@ export default function Explore() {
         }
       })
     return () => { cancelled = true }
-  }, [foodType, liveQuery, cityFilter, userLocation, radiusKm])
+  }, [foodType, category, liveQuery, cityFilter, userLocation, mapSearchOrigin, radiusKm])
 
   function setCity(id) {
     if (id === 'all') setSearchParams({}, { replace: true })
@@ -169,24 +191,48 @@ export default function Explore() {
     setQuery('')
     setUserLocation(null)
     setLocationStatus('idle')
+    setLocationError('')
     setRadiusKm(5)
+    setMapSearchOrigin(null)
   }
 
   function locateUser() {
     if (!navigator.geolocation) {
       setLocationStatus('error')
+      setLocationError(copy.locationUnavailable)
       return
     }
+    stopLocationWatch()
     setLocationStatus('loading')
-    navigator.geolocation.getCurrentPosition(
+    setLocationError('')
+    locationWatchRef.current = navigator.geolocation.watchPosition(
       (position) => {
+        stopLocationWatch()
         setUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude })
         setLocationStatus('ready')
+        setLocationError('')
+        setMapSearchOrigin(null)
+        setSelectedId(null)
+        setMobileView('map')
         setSort('relevant')
       },
-      () => setLocationStatus('error'),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+      (error) => {
+        // Windows/Chrome can emit POSITION_UNAVAILABLE or TIMEOUT while its
+        // location service is still resolving. Keep waiting; only a denied
+        // permission is final and should be shown immediately.
+        if (error.code === error.PERMISSION_DENIED) {
+          stopLocationWatch()
+          setLocationStatus('error')
+          setLocationError(copy.locationDenied)
+        }
+      },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
     )
+    locationTimerRef.current = window.setTimeout(() => {
+      stopLocationWatch()
+      setLocationStatus('error')
+      setLocationError(copy.locationTimeout)
+    }, 30000)
   }
 
   function mergeResolvedLocations(nextLocations) {
@@ -208,7 +254,14 @@ export default function Explore() {
     document.getElementById(`explore-place-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
+  function searchMapArea(location) {
+    setMapSearchOrigin(location)
+    setSelectedId(null)
+  }
+
   const filtered = useMemo(() => {
+    const proximityOrigin = mapSearchOrigin ?? userLocation
+    const effectiveRadiusKm = mapSearchOrigin ? Math.max(radiusKm, 20) : radiusKm
     const isLive = liveStatus === 'ready'
     const sourcePlaces = isLive ? livePlaces : PLACES
     const result = sourcePlaces.filter((place) => {
@@ -225,8 +278,8 @@ export default function Explore() {
       // when the traveller actually asked for a minimum.
       if (minScore > 0 && (criterionScore == null || criterionScore < minScore)) return false
       const location = place.location ?? resolvedLocations[place.id]
-      const distanceKm = userLocation && location ? haversineKm(userLocation, location) : null
-      if (userLocation && distanceKm != null && distanceKm > radiusKm) return false
+      const distanceKm = proximityOrigin && location ? haversineKm(proximityOrigin, location) : null
+      if (proximityOrigin && distanceKm != null && distanceKm > effectiveRadiusKm) return false
       if (!isLive && query.trim()) {
         const needle = query.trim().toLocaleLowerCase(lang === 'vi' ? 'vi' : 'en')
         const haystack = `${place.name.vi} ${place.name.en} ${place.address.vi} ${place.address.en} ${place.shortDesc.vi} ${place.shortDesc.en}`.toLocaleLowerCase(lang === 'vi' ? 'vi' : 'en')
@@ -236,29 +289,30 @@ export default function Explore() {
     })
     const enriched = result.map((place) => {
       const location = place.location ?? resolvedLocations[place.id]
-      const distanceKm = userLocation && location ? haversineKm(userLocation, location) : null
-      return { ...place, location, distanceKm, matchScore: userLocation ? calculateMatch(place, distanceKm) : null }
+      const distanceKm = proximityOrigin && location ? haversineKm(proximityOrigin, location) : null
+      return { ...place, location, distanceKm, matchScore: proximityOrigin ? calculateMatch(place, distanceKm) : null }
     })
     // Unrated places sort last rather than being treated as a zero score.
     if (sort === 'highest') {
       enriched.sort((a, b) => (scoreForCriterion(b, criterion) ?? -1) - (scoreForCriterion(a, criterion) ?? -1))
     }
-    if (sort === 'relevant' && userLocation) enriched.sort((a, b) => b.matchScore - a.matchScore)
+    if (sort === 'relevant' && proximityOrigin) enriched.sort((a, b) => b.matchScore - a.matchScore)
     if (sort === 'low-price') enriched.sort((a, b) => a.price - b.price)
     return enriched
-  }, [cityFilter, category, foodType, price, openOnly, criterion, minScore, query, sort, lang, userLocation, radiusKm, resolvedLocations, livePlaces, liveStatus])
+  }, [cityFilter, category, foodType, price, openOnly, criterion, minScore, query, sort, lang, userLocation, mapSearchOrigin, radiusKm, resolvedLocations, livePlaces, liveStatus])
 
-  const activeFilterCount = [category !== 'all', foodType !== 'all', price !== 'all', openOnly, minScore > 0, criterion !== 'overall', Boolean(userLocation)].filter(Boolean).length
+  const activeFilterCount = [category !== 'all', foodType !== 'all', price !== 'all', openOnly, minScore > 0, criterion !== 'overall', Boolean(userLocation || mapSearchOrigin)].filter(Boolean).length
+  const selectedPlace = filtered.find((place) => place.id === selectedId) ?? null
 
   return (
-    <div className="min-h-[calc(100vh-72px)] bg-paper">
-      <header className="border-b border-line bg-surface px-4 py-5 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100dvh-72px)] bg-paper lg:flex lg:h-[calc(100dvh-72px)] lg:min-h-0 lg:flex-col lg:overflow-hidden">
+      <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6 lg:px-8">
         <motion.div initial="hidden" animate="show" variants={staggerContainer(0.06)} className="mx-auto max-w-[1600px]">
           <motion.span variants={fadeUp} className="font-utility text-[11.5px] font-bold uppercase tracking-[.14em] text-chili">{copy.eyebrow}</motion.span>
           <motion.div variants={fadeUp} className="mt-1 flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
             <div>
-              <h1 className="text-[28px] font-bold leading-tight md:text-[36px]">{copy.title}</h1>
-              <p className="mt-1 max-w-[65ch] text-[14px] text-ink-muted md:text-[15px]">{copy.sub}</p>
+              <h1 className="text-[25px] font-bold leading-tight md:text-[29px]">{copy.title}</h1>
+              <p className="mt-0.5 max-w-[70ch] text-[13px] text-ink-muted">{copy.sub}</p>
             </div>
             <div className="inline-flex self-start rounded-full bg-paper-2 p-1 lg:hidden">
               <ViewButton active={mobileView === 'list'} onClick={() => setMobileView('list')} icon={ListBullets} label={copy.list} />
@@ -268,71 +322,60 @@ export default function Explore() {
         </motion.div>
       </header>
 
-      <div className="sticky top-0 z-30 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-3">
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            <div className="relative min-w-[270px] flex-1 lg:max-w-[430px]">
+      <div className="z-30 shrink-0 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur-md sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full flex-none lg:w-auto lg:min-w-[340px] lg:max-w-none lg:flex-1">
               <MagnifyingGlass size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} className="w-full rounded-full border-[1.5px] border-line-strong bg-paper py-2.5 pl-11 pr-10 text-[14px] focus:border-chili" />
               {query && <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-faint hover:text-chili"><X size={15} /></button>}
             </div>
-            <FilterSelect value={criterion} onChange={setCriterion} label={copy.scoreTitle}>
-              {CRITERION_KEYS.map((key) => <option key={key} value={key}>{key === 'overall' ? copy.overall : FOODTRIP_CRITERIA[key][lang]}</option>)}
+            <FilterSelect value={cityFilter} onChange={setCity} label={lang === 'vi' ? 'Thành phố' : 'City'}>
+              <option value="all">{lang === 'vi' ? 'Mọi thành phố' : 'All cities'}</option>
+              {CITIES.map((city) => <option key={city.id} value={city.id}>{city.name[lang]}</option>)}
             </FilterSelect>
-            <FilterSelect value={minScore} onChange={(value) => setMinScore(Number(value))} label={copy.rating}>
-              <option value="0">{copy.rating}</option><option value="4">4.0+</option><option value="4.3">4.3+</option><option value="4.5">4.5+</option><option value="4.7">4.7+</option>
-            </FilterSelect>
-            <FilterSelect value={price} onChange={setPrice} label={copy.price}>
-              <option value="all">{copy.price}</option><option value="0">{copy.priceUnit}</option><option value="1">{copy.priceUnit.repeat(2)}</option><option value="2">{copy.priceUnit.repeat(3)}</option><option value="3">{copy.priceUnit.repeat(4)}</option>
-            </FilterSelect>
-            <button onClick={() => setOpenOnly((value) => !value)} className={`shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-[12.5px] font-semibold ${openOnly ? 'border-herb bg-herb text-herb-ink' : 'border-line-strong bg-surface text-ink-muted'}`}><Clock size={14} className="mr-1.5 inline" />{copy.open}</button>
             <button onClick={locateUser} disabled={locationStatus === 'loading'} className={`shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-[12.5px] font-semibold disabled:opacity-65 ${userLocation ? 'border-[#2583d8] bg-[#2583d8] text-white' : 'border-line-strong bg-surface text-ink-muted'}`}>
               {locationStatus === 'loading' ? <SpinnerGap size={14} className="mr-1.5 inline animate-spin" /> : <NavigationArrow size={14} weight="fill" className="mr-1.5 inline" />}
-              {locationStatus === 'loading' ? copy.locating : copy.nearMe}
+              {locationStatus === 'loading' ? copy.locating : userLocation ? copy.located : copy.nearMe}
             </button>
-            {userLocation && (
-              <FilterSelect value={radiusKm} onChange={(value) => setRadiusKm(Number(value))} label={copy.radius}>
-                <option value="1">1 km</option><option value="3">3 km</option><option value="5">5 km</option><option value="10">10 km</option><option value="20">20 km</option>
-              </FilterSelect>
-            )}
-            {activeFilterCount > 0 && <button onClick={clearFilters} className="shrink-0 rounded-full px-3 py-2 font-utility text-[12px] font-semibold text-chili hover:bg-paper-2">{copy.clear}</button>}
+            <button onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced} className={`relative shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-[12.5px] font-semibold ${showAdvanced ? 'border-ink bg-ink text-paper' : 'border-line-strong bg-surface text-ink-muted'}`}><SlidersHorizontal size={15} className="mr-1.5 inline" />{copy.filters}{activeFilterCount > 0 && <span className="ml-1.5 rounded-full bg-chili px-1.5 py-0.5 text-[10px] text-white">{activeFilterCount}</span>}</button>
           </div>
-          {locationStatus === 'error' && <p className="text-[12px] font-medium text-chili">{copy.locationDenied}</p>}
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            <Chip active={cityFilter === 'all'} onClick={() => setCity('all')}>{copy.all}</Chip>
-            {CITIES.map((city) => <Chip key={city.id} active={cityFilter === city.id} onClick={() => setCity(city.id)}>{city.name[lang]}</Chip>)}
+          {locationStatus === 'error' && <p role="alert" className="text-[12px] font-medium text-chili">{locationError || copy.locationUnavailable}</p>}
+          <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-0.5">
+              <Chip active={category === 'all' && foodType === 'all'} onClick={() => { setCategory('all'); setFoodType('all') }}>{copy.all}</Chip>
+              {Object.keys(CATEGORY_LABEL).map((key) => { const Icon = CATEGORY_ICON[key]; return <Chip key={key} active={category === key && foodType === 'all'} onClick={() => { setCategory(key); setFoodType('all') }}><Icon size={13} className="mr-1 inline" />{CATEGORY_LABEL[key][lang]}</Chip> })}
+              <span className="h-5 w-px shrink-0 bg-line-strong" aria-hidden="true" />
+              {FOOD_TYPES.map((type) => <Chip key={type.id} active={foodType === type.id} onClick={() => { const next = foodType === type.id ? 'all' : type.id; setFoodType(next); if (next === 'coffee') setCategory('cafe'); else if (next !== 'all') setCategory('food') }}>{type[lang]}</Chip>)}
           </div>
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex gap-2 overflow-x-auto">
-              <Chip active={category === 'all'} onClick={() => setCategory('all')}>{copy.all}</Chip>
-              {Object.keys(CATEGORY_LABEL).map((key) => { const Icon = CATEGORY_ICON[key]; return <Chip key={key} active={category === key} onClick={() => setCategory(key)}><Icon size={13} className="mr-1 inline" />{CATEGORY_LABEL[key][lang]}</Chip> })}
-            </div>
-            <select value={sort} onChange={(event) => setSort(event.target.value)} aria-label={copy.sort} className="shrink-0 rounded-full border border-line-strong bg-surface px-3 py-2 font-utility text-[11.5px] text-ink-muted">
-              <option value="relevant">{copy.relevant}</option><option value="highest">{copy.highest}</option><option value="low-price">{copy.lowPrice}</option>
-            </select>
-          </div>
-          <div className="flex gap-2 overflow-x-auto pb-1" aria-label={copy.foodType}>
-            <Chip active={foodType === 'all'} onClick={() => setFoodType('all')}>{copy.all}</Chip>
-            {FOOD_TYPES.map((type) => <Chip key={type.id} active={foodType === type.id} onClick={() => { setFoodType(type.id); if (type.id === 'coffee') setCategory('cafe'); else if (category === 'cafe') setCategory('food') }}>{type[lang]}</Chip>)}
-          </div>
+          {showAdvanced && <div className="no-scrollbar flex gap-2 overflow-x-auto rounded-xl border border-line bg-paper-2 p-2">
+            <FilterSelect value={criterion} onChange={setCriterion} label={copy.scoreTitle}>{CRITERION_KEYS.map((key) => <option key={key} value={key}>{key === 'overall' ? copy.overall : FOODTRIP_CRITERIA[key][lang]}</option>)}</FilterSelect>
+            <FilterSelect value={minScore} onChange={(value) => setMinScore(Number(value))} label={copy.rating}><option value="0">{copy.rating}</option><option value="4">4.0+</option><option value="4.3">4.3+</option><option value="4.5">4.5+</option><option value="4.7">4.7+</option></FilterSelect>
+            <FilterSelect value={price} onChange={setPrice} label={copy.price}><option value="all">{copy.price}</option><option value="0">{copy.priceUnit}</option><option value="1">{copy.priceUnit.repeat(2)}</option><option value="2">{copy.priceUnit.repeat(3)}</option><option value="3">{copy.priceUnit.repeat(4)}</option></FilterSelect>
+            <button onClick={() => setOpenOnly((value) => !value)} className={`shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-[12.5px] font-semibold ${openOnly ? 'border-herb bg-herb text-herb-ink' : 'border-line-strong bg-surface text-ink-muted'}`}><Clock size={14} className="mr-1.5 inline" />{copy.open}</button>
+            {userLocation && <FilterSelect value={radiusKm} onChange={(value) => setRadiusKm(Number(value))} label={copy.radius}><option value="1">1 km</option><option value="3">3 km</option><option value="5">5 km</option><option value="10">10 km</option><option value="20">20 km</option></FilterSelect>}
+            {activeFilterCount > 0 && <button onClick={clearFilters} className="shrink-0 rounded-full px-3 py-2 font-utility text-[12px] font-semibold text-chili hover:bg-surface">{copy.clear}</button>}
+          </div>}
         </div>
       </div>
 
-      <main className="mx-auto grid max-w-[1600px] grid-cols-1 lg:h-[calc(100vh-262px)] lg:grid-cols-[minmax(390px,46%)_1fr]">
+      <main className="mx-auto grid w-full max-w-[1600px] flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[minmax(390px,44%)_1fr]">
         <section className={`${mobileView === 'map' ? 'hidden lg:block' : 'block'} overflow-y-auto border-r border-line bg-paper px-4 py-4 sm:px-6`}>
-          <div className="mb-3 flex items-center justify-between"><span className="font-utility text-[12px] font-semibold text-ink-muted">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang tìm địa điểm thật…' : 'Finding live places…') : copy.results(filtered.length)}</span><span className="inline-flex items-center gap-1 text-[11px] text-ink-faint"><SlidersHorizontal size={13} />{activeFilterCount} {copy.filters.toLowerCase()}</span></div>
-          {foodType !== 'all' && !userLocation && cityFilter === 'all' && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-3 text-[12px] text-ink-muted">{lang === 'vi' ? 'Chọn một thành phố hoặc bấm “Gần tôi” để tải đúng các địa điểm trên bản đồ.' : 'Choose a city or use “Near me” to load matching map places.'}</div>}
-          {livePlaces.length > 0 && <div className="mb-3 rounded-xl border border-herb/20 bg-herb/5 px-4 py-2.5 text-[11px] text-ink-muted">{lang === 'vi' ? `Đang hiển thị ${livePlaces.length} địa điểm thật. Điểm FoodTrip hiện là điểm thử nghiệm.` : `Showing ${livePlaces.length} live places. FoodTrip scores are currently demo scores.`}</div>}
+          <div className="mb-3 flex items-center justify-between gap-3"><span className="font-utility text-[12px] font-semibold text-ink-muted">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang tìm địa điểm thật…' : 'Finding live places…') : copy.results(filtered.length)}</span><select value={sort} onChange={(event) => setSort(event.target.value)} aria-label={copy.sort} className="shrink-0 rounded-full border border-line-strong bg-surface px-3 py-2 font-utility text-[11.5px] text-ink-muted"><option value="relevant">{copy.relevant}</option><option value="highest">{copy.highest}</option><option value="low-price">{copy.lowPrice}</option></select></div>
+          {(foodType !== 'all' || category !== 'all') && !userLocation && !mapSearchOrigin && cityFilter === 'all' && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-3 text-[12px] text-ink-muted">{lang === 'vi' ? 'Chọn thành phố, dùng “Gần tôi” hoặc bấm trực tiếp lên bản đồ.' : 'Choose a city, use “Near me”, or click the map.'}</div>}
+          {livePlaces.length > 0 && <div className="mb-3 rounded-xl border border-herb/20 bg-herb/5 px-4 py-2.5 text-[11px] text-ink-muted">{lang === 'vi' ? `Đang hiển thị ${livePlaces.length} địa điểm thật. Quán chưa có đánh giá FoodTrip sẽ được ghi rõ là chưa có điểm.` : `Showing ${livePlaces.length} live places. Places without FoodTrip reviews are clearly marked as unrated.`}</div>}
+          {liveStatus === 'empty' && mapSearchOrigin && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-2.5 text-[11px] text-ink-muted">{lang === 'vi' ? 'Chưa tìm thấy quán trong bán kính này. Bản đồ vẫn giữ dữ liệu cũ để bạn chọn khu vực khác.' : 'No places found in this radius. Previous map data remains available.'}</div>}
           {filtered.length ? (
-            <div className="grid gap-3 xl:grid-cols-2">
+            <div className="grid gap-3">
               {filtered.map((place, index) => <ExplorePlaceCard key={place.id} place={place} index={index} criterion={criterion} selected={selectedId === place.id} onSelect={() => setSelectedId(place.id)} lang={lang} copy={copy} />)}
             </div>
           ) : (
             <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-center text-ink-muted"><SmileySad size={38} /><p>{copy.empty}</p><button onClick={clearFilters} className="font-utility text-[12px] font-semibold text-chili">{copy.clear}</button></div>
           )}
         </section>
-        <section className={`${mobileView === 'map' ? 'block' : 'hidden lg:block'} relative min-h-[calc(100vh-220px)] overflow-hidden bg-paper-2 lg:min-h-0`}>
-          <ExploreMap places={filtered} criterion={criterion} selectedId={selectedId} onSelect={selectFromMap} userLocation={userLocation} onLocationsResolved={mergeResolvedLocations} className="h-full" />
+        <section className={`${mobileView === 'map' ? 'block' : 'hidden lg:block'} relative min-h-[calc(100dvh-220px)] overflow-hidden bg-paper-2 lg:min-h-0`}>
+          <ExploreMap places={filtered} criterion={criterion} selectedId={selectedId} onSelect={selectFromMap} onAreaSelect={searchMapArea} userLocation={userLocation} onLocationsResolved={mergeResolvedLocations} className="h-full" />
+          {!selectedPlace && <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface/95 px-3 py-2 font-utility text-[10.5px] font-semibold text-ink-muted shadow-soft">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang cập nhật khu vực…' : 'Updating area…') : (lang === 'vi' ? 'Bấm vào bản đồ để tìm quán quanh đó' : 'Click the map to search this area')}</div>}
+          {selectedPlace && <MapPlacePreview place={selectedPlace} criterion={criterion} onClose={() => setSelectedId(null)} />}
         </section>
       </main>
     </div>
@@ -353,7 +396,7 @@ function ExplorePlaceCard({ place, index, criterion, selected, onSelect, lang, c
   const activeScore = scoreForCriterion(place, criterion)
   const open = isOpenNow(place.hours)
   return (
-    <motion.article id={`explore-place-${place.id}`} variants={fadeUp} custom={index} initial="hidden" animate="show" onMouseEnter={onSelect} onClick={onSelect} className={`overflow-hidden rounded-xl border bg-surface shadow-soft transition-all ${selected ? 'border-chili ring-2 ring-chili/15' : 'border-line hover:border-line-strong'}`}>
+    <motion.article id={`explore-place-${place.id}`} variants={fadeUp} custom={index} initial="hidden" animate="show" onClick={onSelect} className={`cursor-pointer overflow-hidden rounded-xl border bg-surface shadow-soft transition-all ${selected ? 'border-chili ring-2 ring-chili/15' : 'border-line hover:border-line-strong'}`}>
       <div className="grid grid-cols-[112px_1fr]">
         <div className="relative min-h-[150px]">
           {place.image ? <img src={place.image} alt={place.name[lang]} className="absolute inset-0 h-full w-full object-cover" /> : <CityPattern pattern={city.pattern} accent={city.accent} className="absolute inset-0" />}

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  MapPin, Clock, CheckCircle, XCircle, Star, BookmarkSimple, ArrowLeft, CurrencyCircleDollar,
+  MapPin, Clock, CheckCircle, XCircle, Star, BookmarkSimple, ArrowLeft,
 } from '@phosphor-icons/react'
 import CityPattern from '../components/CityPattern.jsx'
 import CategoryIcon from '../components/ui/CategoryIcon.jsx'

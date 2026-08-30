@@ -7,6 +7,7 @@ import { pageVariants } from '../../motion/variants.js'
 
 export default function Layout() {
   const location = useLocation()
+  const isExplore = location.pathname === '/explore'
   const mainRef = useRef(null)
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function Layout() {
       >
         <Outlet />
       </motion.main>
-      <Footer />
+      {!isExplore && <Footer />}
     </div>
   )
 }

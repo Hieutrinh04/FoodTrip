@@ -6,6 +6,13 @@ const KEYWORDS = {
   snacks: 'quán ăn vặt', vegetarian: 'quán chay',
 }
 
+const CATEGORY_KEYWORDS = {
+  all: 'quán ăn',
+  food: 'quán ăn nhà hàng',
+  cafe: 'quán cà phê',
+  attraction: 'địa điểm du lịch',
+}
+
 // The provider caps a single search at ~20 results, so one query can never fill
 // a map the way a maps app does. Asking the same thing several ways returns
 // largely different sets — overlap between two phrasings measured at 2 of 19 —
@@ -21,21 +28,22 @@ const PHRASINGS = [
 const CAFE_HINTS = ['cà phê', 'cafe', 'coffee', 'trà sữa', 'tiệm trà']
 
 /** Classifies a result from its provider types, falling back to the search wording. */
-function categoryOf(types, keyword) {
+function categoryOf(types, keyword, requestedCategory) {
+  if (requestedCategory === 'attraction') return 'attraction'
   const list = types ?? []
   if (list.includes('cafe') || list.includes('coffee_shop')) return 'cafe'
   if (list.includes('restaurant') || list.includes('food')) return 'food'
   return CAFE_HINTS.some((hint) => keyword.toLowerCase().includes(hint)) ? 'cafe' : 'food'
 }
 
-function normalizePlace(result, { keyword, cityId, origin }) {
+function normalizePlace(result, { keyword, category, cityId, origin }) {
   const rawId = result.id || `${result.name}-${result.address}`
   const id = `live-${String(rawId).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 90)}`
   return {
     id,
     source: 'track-asia',
     city: cityId || null,
-    category: categoryOf(result.types, keyword),
+    category: categoryOf(result.types, keyword, category),
     name: { vi: result.name, en: result.name },
     address: { vi: result.address, en: result.address },
     shortDesc: { vi: 'Địa điểm từ dữ liệu bản đồ', en: 'A place from live map data' },
@@ -58,8 +66,8 @@ function normalizePlace(result, { keyword, cityId, origin }) {
  * point reverse-geocodes to, then filters by true distance — the provider has
  * no radius parameter, so proximity has to be applied client-side.
  */
-export async function searchExplorePlaces({ foodType, query, city, origin, radiusKm = 5, limit = 80 }) {
-  const keyword = query?.trim() || KEYWORDS[foodType]
+export async function searchExplorePlaces({ foodType, category = 'all', query, city, origin, radiusKm = 5, limit = 80 }) {
+  const keyword = query?.trim() || KEYWORDS[foodType] || CATEGORY_KEYWORDS[category]
   if (!keyword) return []
 
   let area = city?.name?.vi ?? ''
@@ -77,7 +85,7 @@ export async function searchExplorePlaces({ foodType, query, city, origin, radiu
     if (!result?.location) continue
     const nameKey = result.name.toLowerCase().normalize('NFC').replace(/\s+/g, ' ').trim()
     if (!nameKey || seenIds.has(result.id) || seenNames.has(nameKey)) continue
-    const place = normalizePlace(result, { keyword, cityId: city?.id, origin })
+    const place = normalizePlace(result, { keyword, category, cityId: city?.id, origin })
     if (origin && place.distanceKm != null && place.distanceKm > radiusKm) continue
     seenIds.add(result.id)
     seenNames.add(nameKey)
