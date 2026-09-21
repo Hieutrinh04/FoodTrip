@@ -9,9 +9,11 @@ import ExploreMap from '../components/map/ExploreMap.jsx'
 import MapPlacePreview from '../components/map/MapPlacePreview.jsx'
 import Chip from '../components/ui/Chip.jsx'
 import CityPattern from '../components/CityPattern.jsx'
-import { CITIES, PLACES, CATEGORY_LABEL, getCity } from '../data/destinations.js'
+import RemoteImage from '../components/ui/RemoteImage.jsx'
+import { CITIES, PLACES, CATEGORY_LABEL, getCity, isLivePlace } from '../data/destinations.js'
 import { FOODTRIP_CRITERIA, getFoodTripScore, scoreForCriterion } from '../lib/foodTripScore.js'
-import { haversineKm } from '../lib/trackAsia.js'
+import { fetchRouteDetails, haversineKm } from '../lib/trackAsia.js'
+import { scorePlaceDetailed, toTenPointScale, CRITERION_LABEL } from '../lib/placeScore.js'
 import { searchExplorePlaces } from '../lib/explorePlaceSearch.js'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { fadeUp, staggerContainer } from '../motion/variants.js'
@@ -32,6 +34,7 @@ const COPY = {
     locationTimeout: 'Định vị mất quá nhiều thời gian. Hãy kiểm tra mạng và thử lại.',
     radius: 'Bán kính', distance: (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
     match: 'phù hợp', foodType: 'Loại món',
+    suitability: 'Điểm phù hợp', suitabilityBasis: 'Chấm theo tiêu chí có dữ liệu',
   },
   en: {
     eyebrow: 'FoodTrip Map', title: 'Find the right place, with scores that matter.',
@@ -48,6 +51,7 @@ const COPY = {
     locationTimeout: 'Location timed out. Check your connection and try again.',
     radius: 'Radius', distance: (km) => km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
     match: 'match', foodType: 'Food type',
+    suitability: 'Suitability', suitabilityBasis: 'Scored on criteria with real data',
   },
 }
 
@@ -75,14 +79,45 @@ function placeMatchesFoodType(place, type) {
   return patterns[type]?.some((term) => text.includes(term)) ?? true
 }
 
+/** Centre of a result set, robust to a few far-flung outliers. */
+function medianCentre(locations) {
+  if (!locations.length) return null
+  const middle = (values) => {
+    const sorted = [...values].sort((a, b) => a - b)
+    const i = Math.floor(sorted.length / 2)
+    return sorted.length % 2 ? sorted[i] : (sorted[i - 1] + sorted[i]) / 2
+  }
+  return { lat: middle(locations.map((l) => l.lat)), lng: middle(locations.map((l) => l.lng)) }
+}
+
 function calculateMatch(place, distanceKm) {
   // Unrated live results carry no scorecard; treat their quality as neutral so
   // the match percentage still reflects distance, opening hours and price.
   const score = (getFoodTripScore(place)?.overall ?? 4) / 5
   const distanceFit = distanceKm == null ? 0.55 : Math.max(0, 1 - distanceKm / 15)
   const openFit = isOpenNow(place.hours) ? 1 : 0.35
-  const valueFit = Math.max(0.25, 1 - place.price * 0.2)
+  const valueFit = place.price == null ? 0.6 : Math.max(0.25, 1 - place.price * 0.2)
   return Math.round((score * 0.45 + distanceFit * 0.3 + openFit * 0.15 + valueFit * 0.1) * 100)
+}
+
+/**
+ * The single figure a place is ranked and filtered by, on a 0–10 scale.
+ *
+ * The list used to mix two scales: live results showed the system's
+ * "Điểm phù hợp" out of 10, while sorting and the minimum-score filter read the
+ * community scorecard out of 5 — which live results do not have. "Điểm cao
+ * nhất" therefore left them unsorted, and "4.0+" removed every one of them.
+ * Now the badge, the map marker, the sort and the filter all read this.
+ *
+ * "Tổng hợp" is the suitability score every place has. A specific criterion
+ * (Món ăn, Vệ sinh…) only exists in the community scorecard, so it is shown
+ * doubled onto the same /10 scale, and a place without one has no score for
+ * that criterion rather than a borrowed one.
+ */
+function displayScore(place, criterion) {
+  if (criterion === 'overall') return place.suitability ?? null
+  const community = scoreForCriterion(place, criterion)
+  return community == null ? null : Math.round(community * 2 * 10) / 10
 }
 
 function isOpenNow(hours) {
@@ -121,6 +156,12 @@ export default function Explore() {
   const [locationError, setLocationError] = useState('')
   const [radiusKm, setRadiusKm] = useState(5)
   const [resolvedLocations, setResolvedLocations] = useState({})
+  // Motorbike is the default because it is how most people actually get around
+  // a Vietnamese city, and walking vs riding changes the time for a 1km trip
+  // from fifteen minutes to three.
+  const [transport, setTransport] = useState('bike')
+  const [route, setRoute] = useState(null)
+  const [routeStatus, setRouteStatus] = useState('idle') // idle | loading | ready | error
   const [livePlaces, setLivePlaces] = useState([])
   const [liveStatus, setLiveStatus] = useState('idle')
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -273,10 +314,6 @@ export default function Explore() {
       if (!isLive && !placeMatchesFoodType(place, foodType)) return false
       if (price !== 'all' && place.price !== Number(price)) return false
       if (openOnly && !isOpenNow(place.hours)) return false
-      const criterionScore = scoreForCriterion(place, criterion)
-      // A place with no community rating has no score to compare — only drop it
-      // when the traveller actually asked for a minimum.
-      if (minScore > 0 && (criterionScore == null || criterionScore < minScore)) return false
       const location = place.location ?? resolvedLocations[place.id]
       const distanceKm = proximityOrigin && location ? haversineKm(proximityOrigin, location) : null
       if (proximityOrigin && distanceKm != null && distanceKm > effectiveRadiusKm) return false
@@ -287,32 +324,97 @@ export default function Explore() {
       }
       return true
     })
+    const located = result.map((place) => place.location ?? resolvedLocations[place.id]).filter(Boolean)
+    // The Weighted Sum Model needs a point to measure distance from. Fall back
+    // to the centre of the results themselves so every place still gets a
+    // score before the traveller shares GPS or taps the map.
+    const scoreOrigin = proximityOrigin ?? medianCentre(located)
+
     const enriched = result.map((place) => {
       const location = place.location ?? resolvedLocations[place.id]
       const distanceKm = proximityOrigin && location ? haversineKm(proximityOrigin, location) : null
-      return { ...place, location, distanceKm, matchScore: proximityOrigin ? calculateMatch(place, distanceKm) : null }
-    })
+      // System-computed suitability, using the same Weighted Sum Model as the
+      // itinerary generator so both rank places by identical rules.
+      const detail = scorePlaceDetailed(place, {
+        // Explore has no preference picker — the food-type chips already act as
+        // a hard filter — so that criterion drops out and its weight is shared
+        // across the ones that do have data.
+        prefs: [],
+        budgetPerPersonPerDay: 600000,
+        referenceLocation: scoreOrigin,
+        location,
+        // Real Google figures where we have them. These are what lift the model
+        // above a pure distance score: with them, three of the five criteria
+        // carry data instead of one.
+        rating: place.googleRating ?? place.rating,
+        reviewCount: place.googleRatingCount,
+      })
+      return {
+        ...place,
+        location,
+        distanceKm,
+        suitability: toTenPointScale(detail.score),
+        suitabilityParts: detail.parts,
+        matchScore: proximityOrigin ? calculateMatch(place, distanceKm) : null,
+      }
+    }).map((place) => ({ ...place, displayScore: displayScore(place, criterion) }))
+      // A place with no score for this criterion is only dropped when the
+      // traveller actually asked for a minimum.
+      .filter((place) => !(minScore > 0 && (place.displayScore == null || place.displayScore < minScore)))
     // Unrated places sort last rather than being treated as a zero score.
     if (sort === 'highest') {
-      enriched.sort((a, b) => (scoreForCriterion(b, criterion) ?? -1) - (scoreForCriterion(a, criterion) ?? -1))
+      enriched.sort((a, b) => (b.displayScore ?? -1) - (a.displayScore ?? -1))
     }
     if (sort === 'relevant' && proximityOrigin) enriched.sort((a, b) => b.matchScore - a.matchScore)
-    if (sort === 'low-price') enriched.sort((a, b) => a.price - b.price)
+    if (sort === 'low-price') enriched.sort((a, b) => (a.price ?? 99) - (b.price ?? 99))
     return enriched
   }, [cityFilter, category, foodType, price, openOnly, criterion, minScore, query, sort, lang, userLocation, mapSearchOrigin, radiusKm, resolvedLocations, livePlaces, liveStatus])
 
   const activeFilterCount = [category !== 'all', foodType !== 'all', price !== 'all', openOnly, minScore > 0, criterion !== 'overall', Boolean(userLocation || mapSearchOrigin)].filter(Boolean).length
   const selectedPlace = filtered.find((place) => place.id === selectedId) ?? null
 
+  // The road route from the traveller to the place they picked. It needs a
+  // starting point, so it only exists once "Gần tôi" has located them or they
+  // have tapped an area on the map — otherwise there is nothing to route from
+  // and the preview says so rather than drawing a line from nowhere.
+  const routeOrigin = userLocation ?? mapSearchOrigin
+  useEffect(() => {
+    const destination = selectedPlace?.location ?? resolvedLocations[selectedPlace?.id]
+    if (!routeOrigin || !destination) {
+      setRoute(null)
+      return undefined
+    }
+    let cancelled = false
+    setRouteStatus('loading')
+    fetchRouteDetails([routeOrigin, destination], transport)
+      .then((details) => {
+        if (cancelled) return
+        setRoute(details)
+        setRouteStatus(details ? 'ready' : 'error')
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRoute(null)
+          setRouteStatus('error')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+    // Keyed on coordinates rather than objects so a re-rendered parent does not
+    // re-request the same route.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPlace?.id, routeOrigin?.lat, routeOrigin?.lng, transport])
+
   return (
     <div className="min-h-[calc(100dvh-72px)] bg-paper lg:flex lg:h-[calc(100dvh-72px)] lg:min-h-0 lg:flex-col lg:overflow-hidden">
       <header className="shrink-0 border-b border-line bg-surface px-4 py-3 sm:px-6 lg:px-8">
         <motion.div initial="hidden" animate="show" variants={staggerContainer(0.06)} className="mx-auto max-w-[1600px]">
-          <motion.span variants={fadeUp} className="font-utility text-[11.5px] font-bold uppercase tracking-[.14em] text-chili">{copy.eyebrow}</motion.span>
+          <motion.span variants={fadeUp} className="eyebrow">{copy.eyebrow}</motion.span>
           <motion.div variants={fadeUp} className="mt-1 flex flex-col justify-between gap-3 lg:flex-row lg:items-end">
             <div>
-              <h1 className="text-[25px] font-bold leading-tight md:text-[29px]">{copy.title}</h1>
-              <p className="mt-0.5 max-w-[70ch] text-[13px] text-ink-muted">{copy.sub}</p>
+              <h1 className="text-xl font-bold leading-tight md:text-2xl">{copy.title}</h1>
+              <p className="mt-0.5 max-w-[70ch] text-sm text-ink-muted">{copy.sub}</p>
             </div>
             <div className="inline-flex self-start rounded-full bg-paper-2 p-1 lg:hidden">
               <ViewButton active={mobileView === 'list'} onClick={() => setMobileView('list')} icon={ListBullets} label={copy.list} />
@@ -327,20 +429,20 @@ export default function Explore() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-full flex-none lg:w-auto lg:min-w-[340px] lg:max-w-none lg:flex-1">
               <MagnifyingGlass size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-faint" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} className="w-full rounded-full border-[1.5px] border-line-strong bg-paper py-2.5 pl-11 pr-10 text-[14px] focus:border-chili" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.search} className="w-full rounded-full border-[1.5px] border-line-strong bg-paper py-2.5 pl-11 pr-10 text-md focus:border-chili" />
               {query && <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-ink-faint hover:text-chili"><X size={15} /></button>}
             </div>
             <FilterSelect value={cityFilter} onChange={setCity} label={lang === 'vi' ? 'Thành phố' : 'City'}>
               <option value="all">{lang === 'vi' ? 'Mọi thành phố' : 'All cities'}</option>
               {CITIES.map((city) => <option key={city.id} value={city.id}>{city.name[lang]}</option>)}
             </FilterSelect>
-            <button onClick={locateUser} disabled={locationStatus === 'loading'} className={`shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-[12.5px] font-semibold disabled:opacity-65 ${userLocation ? 'border-[#2583d8] bg-[#2583d8] text-white' : 'border-line-strong bg-surface text-ink-muted'}`}>
+            <button onClick={locateUser} disabled={locationStatus === 'loading'} className={`shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-sm font-semibold disabled:opacity-65 ${userLocation ? 'border-[#2583d8] bg-[#2583d8] text-white' : 'border-line-strong bg-surface text-ink-muted'}`}>
               {locationStatus === 'loading' ? <SpinnerGap size={14} className="mr-1.5 inline animate-spin" /> : <NavigationArrow size={14} weight="fill" className="mr-1.5 inline" />}
               {locationStatus === 'loading' ? copy.locating : userLocation ? copy.located : copy.nearMe}
             </button>
-            <button onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced} className={`relative shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-[12.5px] font-semibold ${showAdvanced ? 'border-ink bg-ink text-paper' : 'border-line-strong bg-surface text-ink-muted'}`}><SlidersHorizontal size={15} className="mr-1.5 inline" />{copy.filters}{activeFilterCount > 0 && <span className="ml-1.5 rounded-full bg-chili px-1.5 py-0.5 text-[10px] text-white">{activeFilterCount}</span>}</button>
+            <button onClick={() => setShowAdvanced((value) => !value)} aria-expanded={showAdvanced} className={`relative shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-sm font-semibold ${showAdvanced ? 'border-ink bg-ink text-paper' : 'border-line-strong bg-surface text-ink-muted'}`}><SlidersHorizontal size={15} className="mr-1.5 inline" />{copy.filters}{activeFilterCount > 0 && <span className="ml-1.5 rounded-full bg-chili px-1.5 py-0.5 text-micro text-white">{activeFilterCount}</span>}</button>
           </div>
-          {locationStatus === 'error' && <p role="alert" className="text-[12px] font-medium text-chili">{locationError || copy.locationUnavailable}</p>}
+          {locationStatus === 'error' && <p role="alert" className="text-xs font-medium text-chili">{locationError || copy.locationUnavailable}</p>}
           <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-0.5">
               <Chip active={category === 'all' && foodType === 'all'} onClick={() => { setCategory('all'); setFoodType('all') }}>{copy.all}</Chip>
               {Object.keys(CATEGORY_LABEL).map((key) => { const Icon = CATEGORY_ICON[key]; return <Chip key={key} active={category === key && foodType === 'all'} onClick={() => { setCategory(key); setFoodType('all') }}><Icon size={13} className="mr-1 inline" />{CATEGORY_LABEL[key][lang]}</Chip> })}
@@ -349,33 +451,44 @@ export default function Explore() {
           </div>
           {showAdvanced && <div className="no-scrollbar flex gap-2 overflow-x-auto rounded-xl border border-line bg-paper-2 p-2">
             <FilterSelect value={criterion} onChange={setCriterion} label={copy.scoreTitle}>{CRITERION_KEYS.map((key) => <option key={key} value={key}>{key === 'overall' ? copy.overall : FOODTRIP_CRITERIA[key][lang]}</option>)}</FilterSelect>
-            <FilterSelect value={minScore} onChange={(value) => setMinScore(Number(value))} label={copy.rating}><option value="0">{copy.rating}</option><option value="4">4.0+</option><option value="4.3">4.3+</option><option value="4.5">4.5+</option><option value="4.7">4.7+</option></FilterSelect>
+            <FilterSelect value={minScore} onChange={(value) => setMinScore(Number(value))} label={copy.rating}><option value="0">{copy.rating}</option><option value="6">6.0+</option><option value="7">7.0+</option><option value="8">8.0+</option><option value="9">9.0+</option></FilterSelect>
             <FilterSelect value={price} onChange={setPrice} label={copy.price}><option value="all">{copy.price}</option><option value="0">{copy.priceUnit}</option><option value="1">{copy.priceUnit.repeat(2)}</option><option value="2">{copy.priceUnit.repeat(3)}</option><option value="3">{copy.priceUnit.repeat(4)}</option></FilterSelect>
-            <button onClick={() => setOpenOnly((value) => !value)} className={`shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-[12.5px] font-semibold ${openOnly ? 'border-herb bg-herb text-herb-ink' : 'border-line-strong bg-surface text-ink-muted'}`}><Clock size={14} className="mr-1.5 inline" />{copy.open}</button>
+            <button onClick={() => setOpenOnly((value) => !value)} className={`shrink-0 rounded-full border-[1.5px] px-4 py-2.5 font-utility text-sm font-semibold ${openOnly ? 'border-herb bg-herb text-herb-ink' : 'border-line-strong bg-surface text-ink-muted'}`}><Clock size={14} className="mr-1.5 inline" />{copy.open}</button>
             {userLocation && <FilterSelect value={radiusKm} onChange={(value) => setRadiusKm(Number(value))} label={copy.radius}><option value="1">1 km</option><option value="3">3 km</option><option value="5">5 km</option><option value="10">10 km</option><option value="20">20 km</option></FilterSelect>}
-            {activeFilterCount > 0 && <button onClick={clearFilters} className="shrink-0 rounded-full px-3 py-2 font-utility text-[12px] font-semibold text-chili hover:bg-surface">{copy.clear}</button>}
+            {activeFilterCount > 0 && <button onClick={clearFilters} className="shrink-0 rounded-full px-3 py-2 font-utility text-xs font-semibold text-chili hover:bg-surface">{copy.clear}</button>}
           </div>}
         </div>
       </div>
 
       <main className="mx-auto grid w-full max-w-[1600px] flex-1 grid-cols-1 lg:min-h-0 lg:grid-cols-[minmax(390px,44%)_1fr]">
         <section className={`${mobileView === 'map' ? 'hidden lg:block' : 'block'} overflow-y-auto border-r border-line bg-paper px-4 py-4 sm:px-6`}>
-          <div className="mb-3 flex items-center justify-between gap-3"><span className="font-utility text-[12px] font-semibold text-ink-muted">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang tìm địa điểm thật…' : 'Finding live places…') : copy.results(filtered.length)}</span><select value={sort} onChange={(event) => setSort(event.target.value)} aria-label={copy.sort} className="shrink-0 rounded-full border border-line-strong bg-surface px-3 py-2 font-utility text-[11.5px] text-ink-muted"><option value="relevant">{copy.relevant}</option><option value="highest">{copy.highest}</option><option value="low-price">{copy.lowPrice}</option></select></div>
-          {(foodType !== 'all' || category !== 'all') && !userLocation && !mapSearchOrigin && cityFilter === 'all' && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-3 text-[12px] text-ink-muted">{lang === 'vi' ? 'Chọn thành phố, dùng “Gần tôi” hoặc bấm trực tiếp lên bản đồ.' : 'Choose a city, use “Near me”, or click the map.'}</div>}
-          {livePlaces.length > 0 && <div className="mb-3 rounded-xl border border-herb/20 bg-herb/5 px-4 py-2.5 text-[11px] text-ink-muted">{lang === 'vi' ? `Đang hiển thị ${livePlaces.length} địa điểm thật. Quán chưa có đánh giá FoodTrip sẽ được ghi rõ là chưa có điểm.` : `Showing ${livePlaces.length} live places. Places without FoodTrip reviews are clearly marked as unrated.`}</div>}
-          {liveStatus === 'empty' && mapSearchOrigin && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-2.5 text-[11px] text-ink-muted">{lang === 'vi' ? 'Chưa tìm thấy quán trong bán kính này. Bản đồ vẫn giữ dữ liệu cũ để bạn chọn khu vực khác.' : 'No places found in this radius. Previous map data remains available.'}</div>}
+          <div className="mb-3 flex items-center justify-between gap-3"><span className="font-utility text-xs font-semibold text-ink-muted">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang tìm địa điểm thật…' : 'Finding live places…') : copy.results(filtered.length)}</span><select value={sort} onChange={(event) => setSort(event.target.value)} aria-label={copy.sort} className="shrink-0 rounded-full border border-line-strong bg-surface px-3 py-2 font-utility text-xs text-ink-muted"><option value="relevant">{copy.relevant}</option><option value="highest">{copy.highest}</option><option value="low-price">{copy.lowPrice}</option></select></div>
+          {(foodType !== 'all' || category !== 'all') && !userLocation && !mapSearchOrigin && cityFilter === 'all' && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-3 text-xs text-ink-muted">{lang === 'vi' ? 'Chọn thành phố, dùng “Gần tôi” hoặc bấm trực tiếp lên bản đồ.' : 'Choose a city, use “Near me”, or click the map.'}</div>}
+          {livePlaces.length > 0 && <div className="mb-3 rounded-xl border border-herb/20 bg-herb/5 px-4 py-2.5 text-2xs text-ink-muted">{lang === 'vi' ? `Đang hiển thị ${livePlaces.length} địa điểm thật. Quán chưa có đánh giá cộng đồng được chấm Điểm phù hợp theo các tiêu chí có dữ liệu — bấm vào quán để xem chi tiết.` : `Showing ${livePlaces.length} live places. Those without community reviews get a Suitability score from the criteria that have real data — tap a place to see the breakdown.`}</div>}
+          {liveStatus === 'empty' && mapSearchOrigin && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-2.5 text-2xs text-ink-muted">{lang === 'vi' ? 'Chưa tìm thấy quán trong bán kính này. Bản đồ vẫn giữ dữ liệu cũ để bạn chọn khu vực khác.' : 'No places found in this radius. Previous map data remains available.'}</div>}
           {filtered.length ? (
             <div className="grid gap-3">
               {filtered.map((place, index) => <ExplorePlaceCard key={place.id} place={place} index={index} criterion={criterion} selected={selectedId === place.id} onSelect={() => setSelectedId(place.id)} lang={lang} copy={copy} />)}
             </div>
           ) : (
-            <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-center text-ink-muted"><SmileySad size={38} /><p>{copy.empty}</p><button onClick={clearFilters} className="font-utility text-[12px] font-semibold text-chili">{copy.clear}</button></div>
+            <div className="flex min-h-[360px] flex-col items-center justify-center gap-3 text-center text-ink-muted"><SmileySad size={38} /><p>{copy.empty}</p><button onClick={clearFilters} className="font-utility text-xs font-semibold text-chili">{copy.clear}</button></div>
           )}
         </section>
         <section className={`${mobileView === 'map' ? 'block' : 'hidden lg:block'} relative min-h-[calc(100dvh-220px)] overflow-hidden bg-paper-2 lg:min-h-0`}>
-          <ExploreMap places={filtered} criterion={criterion} selectedId={selectedId} onSelect={selectFromMap} onAreaSelect={searchMapArea} userLocation={userLocation} onLocationsResolved={mergeResolvedLocations} className="h-full" />
-          {!selectedPlace && <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface/95 px-3 py-2 font-utility text-[10.5px] font-semibold text-ink-muted shadow-soft">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang cập nhật khu vực…' : 'Updating area…') : (lang === 'vi' ? 'Bấm vào bản đồ để tìm quán quanh đó' : 'Click the map to search this area')}</div>}
-          {selectedPlace && <MapPlacePreview place={selectedPlace} criterion={criterion} onClose={() => setSelectedId(null)} />}
+          <ExploreMap places={filtered} criterion={criterion} selectedId={selectedId} onSelect={selectFromMap} onAreaSelect={searchMapArea} userLocation={userLocation} onLocationsResolved={mergeResolvedLocations} routeGeometry={route?.geometry ?? null} className="h-full" />
+          {!selectedPlace && <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-surface/95 px-3 py-2 font-utility text-2xs font-semibold text-ink-muted shadow-soft">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang cập nhật khu vực…' : 'Updating area…') : (lang === 'vi' ? 'Bấm vào bản đồ để tìm quán quanh đó' : 'Click the map to search this area')}</div>}
+          {selectedPlace && (
+            <MapPlacePreview
+              place={selectedPlace}
+              criterion={criterion}
+              onClose={() => setSelectedId(null)}
+              route={route}
+              routeStatus={routeStatus}
+              hasRouteOrigin={Boolean(routeOrigin)}
+              transport={transport}
+              onTransportChange={setTransport}
+            />
+          )}
         </section>
       </main>
     </div>
@@ -383,48 +496,71 @@ export default function Explore() {
 }
 
 function FilterSelect({ value, onChange, label, children }) {
-  return <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} className="shrink-0 rounded-full border-[1.5px] border-line-strong bg-surface px-4 py-2.5 font-utility text-[12.5px] font-semibold text-ink-muted focus:border-chili">{children}</select>
+  return <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={label} className="shrink-0 rounded-full border-[1.5px] border-line-strong bg-surface px-4 py-2.5 font-utility text-sm font-semibold text-ink-muted focus:border-chili">{children}</select>
 }
 
 function ViewButton({ active, onClick, icon: Icon, label }) {
-  return <button onClick={onClick} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 font-utility text-[12px] font-semibold ${active ? 'bg-surface text-chili shadow-soft' : 'text-ink-muted'}`}><Icon size={15} />{label}</button>
+  return <button onClick={onClick} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 font-utility text-xs font-semibold ${active ? 'bg-surface text-chili shadow-soft' : 'text-ink-muted'}`}><Icon size={15} />{label}</button>
 }
 
-function ExplorePlaceCard({ place, index, criterion, selected, onSelect, lang, copy }) {
+function ExplorePlaceCard({ place, index, selected, onSelect, lang, copy }) {
   const city = getCity(place.city) ?? { name: { vi: 'Theo vị trí bản đồ', en: 'Map location' }, pattern: 'wave', accent: 'herb' }
   const score = getFoodTripScore(place)
-  const activeScore = scoreForCriterion(place, criterion)
+  const activeScore = place.displayScore
   const open = isOpenNow(place.hours)
   return (
     <motion.article id={`explore-place-${place.id}`} variants={fadeUp} custom={index} initial="hidden" animate="show" onClick={onSelect} className={`cursor-pointer overflow-hidden rounded-xl border bg-surface shadow-soft transition-all ${selected ? 'border-chili ring-2 ring-chili/15' : 'border-line hover:border-line-strong'}`}>
       <div className="grid grid-cols-[112px_1fr]">
         <div className="relative min-h-[150px]">
-          {place.image ? <img src={place.image} alt={place.name[lang]} className="absolute inset-0 h-full w-full object-cover" /> : <CityPattern pattern={city.pattern} accent={city.accent} className="absolute inset-0" />}
+          {/* Curated places ship their own photo; places found live on the map
+              carry Google's thumbnail instead, which used to be ignored here
+              so every real result fell back to the pattern. */}
+          <RemoteImage
+            src={place.image ?? place.thumbnailUrl}
+            alt={place.name[lang]}
+            sizeHint="w224-h300-k-no"
+            className="absolute inset-0 h-full w-full object-cover"
+            fallback={<CityPattern pattern={city.pattern} accent={city.accent} className="absolute inset-0" />}
+          />
           {activeScore != null && (
-            <span className="absolute left-2 top-2 rounded-full bg-surface/95 px-2 py-1 font-utility text-[11px] font-bold text-chili shadow-soft">{activeScore.toFixed(1)}</span>
+            <span className="absolute left-2 top-2 rounded-full bg-surface/95 px-2 py-1 font-utility text-2xs font-bold text-chili shadow-soft">{activeScore.toFixed(1)}</span>
           )}
         </div>
         <div className="min-w-0 p-3">
-          <div className="flex items-start justify-between gap-2"><h2 className="line-clamp-2 font-display text-[16px] font-bold leading-tight">{place.name[lang]}</h2><span className="shrink-0 text-[11px] text-ink-faint">{copy.priceUnit.repeat(Math.max(1, place.price + 1))}</span></div>
+          <div className="flex items-start justify-between gap-2"><h2 className="line-clamp-2 font-display text-base font-bold leading-tight">{place.name[lang]}</h2><span className="shrink-0 text-2xs text-ink-faint">{place.price == null ? '' : copy.priceUnit.repeat(Math.max(1, place.price + 1))}</span></div>
           {score ? (
-            <div className="mt-1 flex items-center gap-1.5"><span className="font-utility text-[12px] font-bold text-chili">{score.overall.toFixed(1)}</span><Star size={12} weight="fill" className="text-lantern" /><span className="text-[10.5px] text-ink-faint">({reviewCount(place)})</span></div>
+            <div className="mt-1 flex items-center gap-1.5"><span className="font-utility text-xs font-bold text-chili">{score.overall.toFixed(1)}</span><Star size={12} weight="fill" className="text-lantern" /><span className="text-2xs text-ink-faint">({reviewCount(place)})</span></div>
           ) : (
-            <div className="mt-1 font-utility text-[10.5px] text-ink-faint">{copy.noReviewsYet}</div>
-          )}
-          <p className="mt-1 line-clamp-1 text-[11.5px] text-ink-muted">{CATEGORY_LABEL[place.category][lang]} · {place.source === 'track-asia' ? place.address[lang] : city.name[lang]}</p>
-          {place.matchScore != null && (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="rounded-full bg-[#e8f2fb] px-2 py-1 font-utility text-[10.5px] font-bold text-[#1769a8]">{place.matchScore}% {copy.match}</span>
-              {place.distanceKm != null && <span className="text-[10.5px] font-medium text-ink-faint">{copy.distance(place.distanceKm)}</span>}
+            <div className="mt-1 font-utility text-2xs text-ink-faint">
+              {place.suitability != null ? `${copy.suitability} ${place.suitability.toFixed(1)}/10` : copy.noReviewsYet}
             </div>
           )}
-          <p className={`mt-2 inline-flex items-center gap-1 font-utility text-[10.5px] font-semibold ${open ? 'text-herb' : 'text-chili'}`}><span className={`h-1.5 w-1.5 rounded-full ${open ? 'bg-herb' : 'bg-chili'}`} />{open ? (lang === 'vi' ? 'Đang mở' : 'Open') : (lang === 'vi' ? 'Đã đóng' : 'Closed')} · {place.hours.close}</p>
-          {place.source !== 'track-asia' && <Link to={`/place/${place.id}`} onClick={(event) => event.stopPropagation()} className="mt-2 block font-utility text-[11px] font-semibold text-chili hover:underline">{copy.viewDetail} →</Link>}
+          <p className="mt-1 line-clamp-1 text-xs text-ink-muted">{CATEGORY_LABEL[place.category][lang]} · {isLivePlace(place) ? place.address[lang] : city.name[lang]}</p>
+          {place.matchScore != null && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="rounded-full bg-[#e8f2fb] px-2 py-1 font-utility text-2xs font-bold text-[#1769a8]">{place.matchScore}% {copy.match}</span>
+              {place.distanceKm != null && <span className="text-2xs font-medium text-ink-faint">{copy.distance(place.distanceKm)}</span>}
+            </div>
+          )}
+          <p className={`mt-2 inline-flex items-center gap-1 font-utility text-2xs font-semibold ${open ? 'text-herb' : 'text-chili'}`}><span className={`h-1.5 w-1.5 rounded-full ${open ? 'bg-herb' : 'bg-chili'}`} />{open ? (lang === 'vi' ? 'Đang mở' : 'Open') : (lang === 'vi' ? 'Đã đóng' : 'Closed')} · {place.hours.close}</p>
+          {!isLivePlace(place) && <Link to={`/place/${place.id}`} onClick={(event) => event.stopPropagation()} className="mt-2 block font-utility text-2xs font-semibold text-chili hover:underline">{copy.viewDetail} →</Link>}
         </div>
       </div>
+      {selected && !score && place.suitabilityParts?.length > 0 && (
+        <div className="border-t border-line bg-paper-2 px-3 py-2.5">
+          <div className="mb-1.5 font-utility text-micro font-semibold uppercase tracking-wide text-ink-faint">{copy.suitabilityBasis}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {place.suitabilityParts.map((part) => (
+              <span key={part.key} className="rounded-full bg-surface px-2 py-1 font-utility text-micro text-ink-muted">
+                {CRITERION_LABEL[part.key][lang]} {(part.value * 10).toFixed(1)}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       {selected && score && (
         <div className="grid grid-cols-5 gap-1 border-t border-line bg-paper-2 px-3 py-2.5">
-          {Object.keys(FOODTRIP_CRITERIA).map((key) => <div key={key} className="text-center"><div className="font-utility text-[10.5px] font-bold text-ink">{score[key].toFixed(1)}</div><div className="truncate text-[8.5px] text-ink-faint">{FOODTRIP_CRITERIA[key][lang]}</div></div>)}
+          {Object.keys(FOODTRIP_CRITERIA).map((key) => <div key={key} className="text-center"><div className="font-utility text-2xs font-bold text-ink">{score[key].toFixed(1)}</div><div className="truncate text-micro text-ink-faint">{FOODTRIP_CRITERIA[key][lang]}</div></div>)}
         </div>
       )}
     </motion.article>
