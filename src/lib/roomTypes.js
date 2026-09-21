@@ -1,10 +1,16 @@
-// Google Places has no per-room pricing/inventory API, so room types and
-// nightly prices are derived deterministically from each hotel's Google
-// place id + price level instead of coming from a real property-management
-// system — the same hotel always yields the same rooms/prices, but there is
-// no real inventory behind them. This is a documented simplification, not a
-// bug: a genuine booking engine would need a hotel-partner contract FoodTrip
-// doesn't have.
+// Room types come from one of two places.
+//
+// When the hotel was priced by Hotelbeds, they are real: real room names, the
+// real quoted rate, the real board (room-only / bed & breakfast), the real
+// free-cancellation deadline and the real remaining allotment. Those arrive
+// already shaped on `hotel.rooms` from the hotel-availability Edge Function.
+//
+// Otherwise there is no per-room inventory to read — neither Track-Asia nor
+// Google Maps exposes one — so rooms are derived deterministically from the
+// hotel's id and price band. The same hotel always yields the same rooms and
+// prices, but nothing real sits behind them. That is a documented
+// simplification, not a bug: a genuine booking engine for those hotels would
+// need a hotel-partner contract FoodTrip doesn't have.
 
 export const AMENITY_LABEL = {
   wifi: { vi: 'Wifi miễn phí', en: 'Free wifi' },
@@ -38,8 +44,43 @@ function seededRandom(seedStr) {
   }
 }
 
-/** Returns 3 deterministic room types (name, capacity, amenities, price/night, rooms left) for a hotel. */
+// Hotelbeds names a board on every rate; "room only" is the default and adds
+// nothing worth a line on the card.
+const BOARD_LABEL = {
+  'BED AND BREAKFAST': { vi: 'Đã gồm ăn sáng', en: 'Breakfast included' },
+  'HALF BOARD': { vi: 'Gồm ăn sáng và một bữa chính', en: 'Half board' },
+  'FULL BOARD': { vi: 'Gồm ba bữa', en: 'Full board' },
+  'ALL INCLUSIVE': { vi: 'Trọn gói', en: 'All inclusive' },
+}
+
+export function boardLabel(board) {
+  return BOARD_LABEL[String(board || '').toUpperCase()] ?? null
+}
+
+/** Real Hotelbeds rooms, shaped like the simulated ones so callers don't branch. */
+function realRoomTypes(hotel) {
+  return hotel.rooms.map((room, index) => ({
+    // Hotelbeds room codes repeat across properties, so the hotel id stays in
+    // the key that the booking page selects on.
+    id: `${hotel.id}-${room.code ?? index}`,
+    key: String(room.code ?? index),
+    // Hotelbeds publishes one English room name; there is no Vietnamese
+    // translation to show, and inventing one would misname the room.
+    name: { vi: room.name, en: room.name },
+    capacity: room.capacity,
+    amenities: room.amenities ?? [],
+    pricePerNight: room.pricePerNight,
+    roomsLeft: room.roomsLeft ?? null,
+    board: room.board ?? null,
+    freeCancellationUntil: room.freeCancellationUntil ?? null,
+    real: true,
+  }))
+}
+
+/** Returns the hotel's room types — real ones when Hotelbeds quoted them, otherwise 3 deterministic ones. */
 export function getRoomTypesForHotel(hotel) {
+  if (hotel?.rooms?.length) return realRoomTypes(hotel)
+
   const base = PRICE_LEVEL_BASE[hotel.priceLevel] ?? PRICE_LEVEL_BASE.PRICE_LEVEL_MODERATE
   const rand = seededRandom(hotel.id)
   return ROOM_TEMPLATES.map((tpl) => {
@@ -54,10 +95,24 @@ export function getRoomTypesForHotel(hotel) {
       amenities: tpl.amenities,
       pricePerNight,
       roomsLeft,
+      board: null,
+      freeCancellationUntil: null,
+      real: false,
     }
   })
 }
 
 export function getRoomType(hotel, roomKey) {
   return getRoomTypesForHotel(hotel).find((r) => r.key === roomKey) ?? null
+}
+
+/**
+ * The nightly price a hotel card leads with — the cheapest room, real or
+ * estimated. A card showing only a vague band ("Giá rẻ (ước tính)") gives a
+ * traveller nothing to compare against their budget, so every hotel gets a
+ * number; whether it is a quoted tariff is said separately.
+ */
+export function cheapestPricePerNight(hotel) {
+  const rooms = getRoomTypesForHotel(hotel)
+  return rooms.length ? Math.min(...rooms.map((room) => room.pricePerNight)) : null
 }
