@@ -1453,3 +1453,14 @@ export const ITINERARY_TEMPLATES = {
     ],
   ],
 }
+
+/**
+ * Whether a place came from a live search rather than the curated dataset.
+ *
+ * Live results carry a `source` (the provider they came from); curated entries
+ * do not. Detail pages and city labels only exist for curated places, so this
+ * is what decides whether to link to one.
+ */
+export function isLivePlace(place) {
+  return Boolean(place?.source)
+}

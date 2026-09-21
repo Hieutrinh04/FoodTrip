@@ -15,7 +15,7 @@ import { usePlaceEnrichment } from '../hooks/usePlaceEnrichment.js'
 import { useVideoReviewsForPlace } from '../hooks/useVideoReviewsForPlace.js'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
-import { supabase } from '../lib/supabaseClient.js'
+import { getSavedPlaceIds, setPlaceSaved } from '../lib/savedPlaces.js'
 import { fadeUp, staggerContainer, viewportOnce } from '../motion/variants.js'
 import NotFound from './NotFound.jsx'
 
@@ -74,18 +74,11 @@ export default function PlaceDetail() {
 
   useEffect(() => {
     if (!place) return
-    if (user) {
-      supabase
-        .from('saved_places')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('place_id', place.id)
-        .maybeSingle()
-        .then(({ data }) => setSaved(Boolean(data)))
-      return
-    }
-    const list = JSON.parse(localStorage.getItem('foodtrip-saved') || '[]')
-    setSaved(list.includes(place.id))
+    let cancelled = false
+    getSavedPlaceIds(user?.id)
+      .then((ids) => { if (!cancelled) setSaved(ids.includes(place.id)) })
+      .catch(() => { /* keep the current button state if loading fails */ })
+    return () => { cancelled = true }
   }, [place, user])
 
   if (!place) return <NotFound />
@@ -95,25 +88,19 @@ export default function PlaceDetail() {
   const open = isOpenNow(place.hours)
 
   async function toggleSave() {
-    if (user) {
-      setSaved(!saved)
-      if (saved) {
-        await supabase.from('saved_places').delete().eq('user_id', user.id).eq('place_id', place.id)
-      } else {
-        await supabase.from('saved_places').insert({ user_id: user.id, place_id: place.id })
-      }
-      return
+    const next = !saved
+    setSaved(next)
+    try {
+      await setPlaceSaved({ userId: user?.id, placeId: place.id, saved: next })
+    } catch {
+      setSaved(!next)
     }
-    const list = JSON.parse(localStorage.getItem('foodtrip-saved') || '[]')
-    const next = saved ? list.filter((x) => x !== place.id) : [...list, place.id]
-    localStorage.setItem('foodtrip-saved', JSON.stringify(next))
-    setSaved(!saved)
   }
 
   return (
     <div className="pb-20">
       <div className="max-w-[1180px] mx-auto px-5 md:px-8 pt-8">
-        <Link to="/explore" className="inline-flex items-center gap-2 text-[13.5px] font-utility font-semibold text-ink-muted hover:text-chili transition-colors">
+        <Link to="/explore" className="inline-flex items-center gap-2 text-md font-utility font-semibold text-ink-muted hover:text-chili transition-colors">
           <ArrowLeft size={16} /> {c.back}
         </Link>
       </div>
@@ -138,25 +125,25 @@ export default function PlaceDetail() {
         <motion.div initial="hidden" animate="show" variants={staggerContainer(0.08)} className="flex flex-col gap-4">
           <motion.div variants={fadeUp} className="flex items-start justify-between gap-3">
             <div>
-              <span className="font-utility text-[12px] font-bold uppercase tracking-wide text-ink-faint">{city.name[lang]} · {CATEGORY_LABEL[place.category][lang]}</span>
-              <h1 className="text-[30px] md:text-[36px] font-bold leading-tight mt-1">{place.name[lang]}</h1>
+              <span className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint">{city.name[lang]} · {CATEGORY_LABEL[place.category][lang]}</span>
+              <h1 className="text-3xl md:text-4xl font-bold leading-tight mt-1">{place.name[lang]}</h1>
             </div>
             <button
               onClick={toggleSave}
               aria-pressed={saved}
-              className={`shrink-0 flex items-center gap-2 font-utility text-[13px] font-semibold px-4 py-2.5 rounded-full border-[1.5px] transition-colors ${saved ? 'bg-herb border-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}
+              className={`shrink-0 flex items-center gap-2 font-utility text-sm font-semibold px-4 py-2.5 rounded-full border-[1.5px] transition-colors ${saved ? 'bg-herb border-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}
             >
               <BookmarkSimple size={16} weight={saved ? 'fill' : 'regular'} />
               {saved ? c.saved : c.save}
             </button>
           </motion.div>
 
-          <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 font-utility font-bold text-[15px] text-lantern">
+          <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 font-utility font-bold text-md text-lantern">
             <span className="flex items-center gap-2">
               <Star size={16} weight="fill" /> {place.rating.toFixed(1)}
             </span>
             {enrichment.status === 'ready' && enrichment.data?.rating != null && (
-              <span className="flex items-center gap-1.5 text-[13px] font-semibold text-ink-muted">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted">
                 <Star size={13} weight="fill" className="text-chili" />
                 {enrichment.data.rating.toFixed(1)} · Google ({enrichment.data.userRatingCount ?? 0})
               </span>
@@ -164,15 +151,15 @@ export default function PlaceDetail() {
             <span className="text-ink-faint font-normal">{'đ'.repeat(place.price || 1)}</span>
           </motion.div>
 
-          <motion.p variants={fadeUp} className="text-[16px] text-ink-muted">{place.longDesc[lang]}</motion.p>
+          <motion.p variants={fadeUp} className="text-base text-ink-muted">{place.longDesc[lang]}</motion.p>
 
           <motion.div variants={fadeUp} className="flex flex-col gap-3 bg-paper-2 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-[14px]">
+            <div className="flex items-center gap-2 text-md">
               <MapPin size={16} className="text-chili shrink-0" /> {place.address[lang]}
             </div>
-            <div className="flex items-center gap-2 text-[14px]">
+            <div className="flex items-center gap-2 text-md">
               <Clock size={16} className="text-chili shrink-0" /> {c.hours(place.hours.open, place.hours.close)}
-              <span className={`ml-2 inline-flex items-center gap-1 font-utility text-[12px] font-bold ${open ? 'text-herb' : 'text-ink-faint'}`}>
+              <span className={`ml-2 inline-flex items-center gap-1 font-utility text-xs font-bold ${open ? 'text-herb' : 'text-ink-faint'}`}>
                 {open ? <CheckCircle size={14} /> : <XCircle size={14} />}
                 {open ? c.openNow : c.closedNow}
               </span>
@@ -181,7 +168,7 @@ export default function PlaceDetail() {
 
           <motion.div variants={fadeUp} className="flex flex-wrap gap-2">
             {place.tags.map((tag) => (
-              <span key={tag} className="font-utility text-[12px] font-semibold px-3 py-1.5 rounded-full bg-paper-2 text-ink-muted">
+              <span key={tag} className="font-utility text-xs font-semibold px-3 py-1.5 rounded-full bg-paper-2 text-ink-muted">
                 {TAGS[tag][lang]}
               </span>
             ))}
@@ -190,7 +177,7 @@ export default function PlaceDetail() {
       </div>
 
       <div className="max-w-[1180px] mx-auto px-5 md:px-8 mt-14">
-        <motion.h2 initial="hidden" whileInView="show" viewport={viewportOnce} variants={fadeUp} className="text-[22px] font-bold mb-5">
+        <motion.h2 initial="hidden" whileInView="show" viewport={viewportOnce} variants={fadeUp} className="text-xl font-bold mb-5">
           {c.reviewsTitle}
         </motion.h2>
         <motion.div
@@ -203,17 +190,17 @@ export default function PlaceDetail() {
           {place.reviews.map((r) => (
             <motion.div key={r.name} variants={fadeUp} className="bg-surface border border-line rounded-xl p-5 flex flex-col gap-2.5">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-[14.5px]">{r.name}</span>
+                <span className="font-bold text-md">{r.name}</span>
                 <div className="flex gap-0.5 text-lantern">
                   {Array.from({ length: 5 }).map((_, i) => (
                     <Star key={i} size={13} weight={i < r.rating ? 'fill' : 'regular'} />
                   ))}
                 </div>
               </div>
-              <p className="text-[14px] text-ink-muted">"{r.quote[lang]}"</p>
+              <p className="text-md text-ink-muted">"{r.quote[lang]}"</p>
               <div className="flex flex-wrap gap-1.5">
                 {r.tags.map((t) => (
-                  <span key={t} className="font-utility text-[11px] font-semibold px-2.5 py-1 rounded-full bg-paper-2 text-ink-muted">{t}</span>
+                  <span key={t} className="font-utility text-2xs font-semibold px-2.5 py-1 rounded-full bg-paper-2 text-ink-muted">{t}</span>
                 ))}
               </div>
             </motion.div>
@@ -224,9 +211,9 @@ export default function PlaceDetail() {
       {enrichment.status === 'ready' && enrichment.data?.reviews?.length > 0 && (
         <div className="max-w-[1180px] mx-auto px-5 md:px-8 mt-14">
           <motion.div initial="hidden" whileInView="show" viewport={viewportOnce} variants={fadeUp} className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-            <h2 className="text-[22px] font-bold">{c.googleReviewsTitle}</h2>
+            <h2 className="text-xl font-bold">{c.googleReviewsTitle}</h2>
             {enrichment.data.mapsUri && (
-              <a href={enrichment.data.mapsUri} target="_blank" rel="noreferrer" className="font-utility text-[12.5px] font-semibold text-chili hover:underline">
+              <a href={enrichment.data.mapsUri} target="_blank" rel="noreferrer" className="font-utility text-sm font-semibold text-chili hover:underline">
                 {c.viewOnGoogle} ↗
               </a>
             )}
@@ -241,16 +228,16 @@ export default function PlaceDetail() {
             {enrichment.data.reviews.map((r, i) => (
               <motion.div key={i} variants={fadeUp} className="bg-surface border border-line rounded-xl p-5 flex flex-col gap-2.5">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="font-bold text-[14.5px]">{r.author}</span>
+                  <span className="font-bold text-md">{r.author}</span>
                   <div className="flex gap-0.5 text-lantern">
                     {Array.from({ length: 5 }).map((_, si) => (
                       <Star key={si} size={13} weight={si < Math.round(r.rating) ? 'fill' : 'regular'} />
                     ))}
                   </div>
                 </div>
-                {r.text && <p className="text-[14px] text-ink-muted line-clamp-4">"{r.text}"</p>}
+                {r.text && <p className="text-md text-ink-muted line-clamp-4">"{r.text}"</p>}
                 {r.relativePublishTime && (
-                  <span className="font-utility text-[11.5px] text-ink-faint">{r.relativePublishTime}</span>
+                  <span className="font-utility text-xs text-ink-faint">{r.relativePublishTime}</span>
                 )}
               </motion.div>
             ))}
@@ -258,14 +245,14 @@ export default function PlaceDetail() {
         </div>
       )}
 
-      <YoutubeShortsSection query={`${place.name.vi} ${city.name.vi}`} />
-      <TikTokAutoSuggestSection query={`${place.name.vi} ${city.name.vi}`} />
+      <YoutubeShortsSection query={`${place.name.vi} ${city.name.vi}`} name={place.name.vi} location={city.name.vi} />
+      <TikTokAutoSuggestSection query={`${place.name.vi} ${city.name.vi}`} name={place.name.vi} location={city.name.vi} />
 
       {videoReviews.length > 0 && (
         <div className="max-w-[1180px] mx-auto px-5 md:px-8 mt-14">
           <motion.div initial="hidden" whileInView="show" viewport={viewportOnce} variants={fadeUp} className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-            <h2 className="text-[22px] font-bold">{c.videoReviewsTitle}</h2>
-            <Link to="/share" className="font-utility text-[12.5px] font-semibold text-chili hover:underline">
+            <h2 className="text-xl font-bold">{c.videoReviewsTitle}</h2>
+            <Link to="/share" className="font-utility text-sm font-semibold text-chili hover:underline">
               {c.shareVideoCta} ↗
             </Link>
           </motion.div>
@@ -287,7 +274,7 @@ export default function PlaceDetail() {
 
       {related.length > 0 && (
         <div className="max-w-[1180px] mx-auto px-5 md:px-8 mt-16">
-          <motion.h2 initial="hidden" whileInView="show" viewport={viewportOnce} variants={fadeUp} className="text-[22px] font-bold mb-5">
+          <motion.h2 initial="hidden" whileInView="show" viewport={viewportOnce} variants={fadeUp} className="text-xl font-bold mb-5">
             {c.relatedTitle(city.name[lang])}
           </motion.h2>
           <motion.div

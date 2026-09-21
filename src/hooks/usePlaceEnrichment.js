@@ -6,16 +6,20 @@ const IDLE = { status: 'idle', data: null, error: null }
 /** Fetches live Google rating/reviews/location for a local PLACES entry, keyed by place.id. */
 export function usePlaceEnrichment(place) {
   const [state, setState] = useState(IDLE)
+  const placeId = place?.id
+  const name = place?.name?.vi
+  const address = place?.address?.vi
+  const city = place?.city
 
   useEffect(() => {
-    if (!place) {
+    if (!placeId) {
       setState(IDLE)
       return
     }
     let cancelled = false
     setState({ status: 'loading', data: null, error: null })
 
-    fetchPlaceEnrichment({ name: place.name.vi, address: place.address.vi, city: place.city })
+    fetchPlaceEnrichment({ name, address, city })
       .then((data) => {
         if (!cancelled) setState({ status: data ? 'ready' : 'empty', data, error: null })
       })
@@ -26,7 +30,7 @@ export function usePlaceEnrichment(place) {
     return () => {
       cancelled = true
     }
-  }, [place?.id])
+  }, [placeId, name, address, city])
 
   return state
 }

@@ -9,9 +9,8 @@ import { supabase, hasSupabase } from './supabaseClient.js'
  */
 export async function startVnpayPayment({ bookingId, amount, orderInfo }) {
   if (!hasSupabase) return 'no-key'
-  const returnUrl = `${window.location.origin}/booking/return`
   const { data, error } = await supabase.functions.invoke('vnpay-create-payment', {
-    body: { bookingId, amount, orderInfo, returnUrl },
+    body: { bookingId, amount, orderInfo },
   })
   if (error) throw new Error('payment-failed')
   if (data.status === 'no-key') return 'no-key'

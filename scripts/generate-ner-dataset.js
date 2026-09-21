@@ -25,9 +25,6 @@ function rand() {
   seed = (seed * 9301 + 49297) % 233280
   return seed / 233280
 }
-function pick(arr) {
-  return arr[Math.floor(rand() * arr.length)]
-}
 function shuffle(arr) {
   const a = [...arr]
   for (let i = a.length - 1; i > 0; i--) {

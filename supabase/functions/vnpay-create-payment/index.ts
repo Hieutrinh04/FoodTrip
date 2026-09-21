@@ -32,8 +32,15 @@ Deno.serve(async (req) => {
     const hashSecret = Deno.env.get('VNPAY_HASH_SECRET')
     if (!tmnCode || !hashSecret) return jsonResponse({ status: 'no-key' })
 
-    const { bookingId, amount, orderInfo, returnUrl } = await req.json()
-    if (!bookingId || !amount || !returnUrl) return jsonResponse({ error: 'missing-params' }, { status: 400 })
+    const { bookingId, amount, orderInfo } = await req.json()
+    if (!bookingId || !amount) return jsonResponse({ error: 'missing-params' }, { status: 400 })
+
+    // VNPay must return through the server-side verifier, not directly to the
+    // React app. The verifier checks VNPay's signature, updates the booking,
+    // then redirects the customer to /booking/return with a trusted status.
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    if (!supabaseUrl) return jsonResponse({ error: 'missing-supabase-url' }, { status: 500 })
+    const verifiedReturnUrl = `${supabaseUrl}/functions/v1/vnpay-return`
 
     const ipAddr = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1'
     const params: Record<string, string> = {
@@ -46,7 +53,7 @@ Deno.serve(async (req) => {
       vnp_OrderInfo: (orderInfo || `Thanh toan dat phong ${bookingId}`).toString().slice(0, 254),
       vnp_OrderType: 'other',
       vnp_Locale: 'vn',
-      vnp_ReturnUrl: returnUrl,
+      vnp_ReturnUrl: verifiedReturnUrl,
       vnp_IpAddr: ipAddr,
       vnp_CreateDate: vnpDate(new Date()),
     }
