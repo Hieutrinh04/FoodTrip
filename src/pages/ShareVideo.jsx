@@ -1,398 +1,271 @@
-import { useEffect, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Link as LinkIcon, MagicWand, CheckCircle, PencilSimple, Trash, MapPin, ListChecks } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from 'react'
+import { MapPin, FilmSlate, Trash, PencilSimple, ShareNetwork } from '@phosphor-icons/react'
+import { useAuth } from '../auth/AuthContext.jsx'
+import { useLanguage } from '../i18n/LanguageContext.jsx'
+import AuthModal from '../components/auth/AuthModal.jsx'
 import VideoReviewCard from '../components/video/VideoReviewCard.jsx'
 import PlaceMiniMap from '../components/map/PlaceMiniMap.jsx'
-import {
-  detectPlatform,
-  fetchTikTokOEmbed,
-  fetchYoutubeOEmbed,
-  detectPlaceFromContent,
-  verifyPlaceQuery,
-  getVideoReviews,
-  saveVideoReview,
-  deleteVideoReview,
-} from '../lib/videoShare.js'
-import { useLanguage } from '../i18n/LanguageContext.jsx'
-import { fadeUp, staggerContainer, easeOut } from '../motion/variants.js'
+import EmptyState from '../components/ui/EmptyState.jsx'
+import { parseVideoUrl, fetchTikTokOEmbed, fetchYoutubeOEmbed, detectPlaceFromContent, verifyPlaceQuery, getVideoReviews, saveVideoReviews, updateVideoReview, deleteVideoReview, REVIEW_PAGE_SIZE } from '../lib/videoShare.js'
 
-const C = {
-  vi: {
-    eyebrow: 'Chia sẻ quán từ video',
-    title: 'Dán link TikTok, YouTube, Facebook hay Instagram — tụi mình tìm quán giúp bạn.',
-    sub: 'Với TikTok và YouTube, AI đọc tiêu đề/caption và ảnh trong video để nhận diện MỌI địa điểm được nhắc đến (kể cả video kiểu "Top 5 quán ngon") — mỗi quán đều được xác minh địa chỉ thật qua Google Places trước khi hiện lên bản đồ.',
-    placeholder: 'Dán link video vào đây…',
-    submit: 'Phân tích',
-    analyzing: 'Đang phân tích nội dung video…',
-    verifying: 'Đang xác minh địa chỉ thật…',
-    unknownPlatform: 'Link này mình chưa nhận diện được nền tảng (chỉ hỗ trợ TikTok, YouTube, Facebook, Instagram).',
-    noAiKey: 'Chưa cấu hình API AI (ANTHROPIC_API_KEY) — bỏ qua bước tự nhận diện, nhập tay bên dưới nhé.',
-    noPlacesKey: 'Chưa cấu hình Google Places server key — không xác minh được địa chỉ thật, bạn có thể lưu link không kèm bản đồ.',
-    fbNoAuto: 'Facebook/Instagram không cho phép lấy nội dung qua API công khai, nên không tự nhận diện được — nhập tên & địa chỉ quán bên dưới nhé.',
-    multiFoundTitle: (n) => (n === 1 ? 'AI tìm thấy 1 quán trong video này' : `AI tìm thấy ${n} quán trong video này`),
-    multiFoundHint: 'Bỏ chọn quán nào không đúng, rồi lưu lại (đã chọn sẵn hết):',
-    reject: 'Không quán nào đúng, để mình nhập tay',
-    confirmMulti: (n) => (n === 1 ? 'Lưu quán này' : `Lưu ${n} quán đã chọn`),
-    manualTitle: 'Nhập thông tin quán',
-    manualName: 'Tên quán',
-    manualAddress: 'Địa chỉ (càng chi tiết càng dễ tìm đúng)',
-    manualSearch: 'Tìm & xác minh',
-    manualSave: 'Lưu (không có bản đồ)',
-    savedListTitle: 'Các quán đã chia sẻ',
-    empty: 'Chưa có quán nào được chia sẻ — dán 1 link ở trên để bắt đầu.',
-    delete: 'Xoá',
-    reset: 'Dán link khác',
-  },
-  en: {
-    eyebrow: 'Share a place from a video',
-    title: 'Paste a TikTok, YouTube, Facebook or Instagram link — we’ll help find the place.',
-    sub: 'For TikTok and YouTube, AI reads the title/caption and thumbnail to detect EVERY place mentioned (including "Top 5" style listicle videos) — each one is verified against a real Google Places address before it shows on the map.',
-    placeholder: 'Paste a video link…',
-    submit: 'Analyze',
-    analyzing: 'Analyzing the video content…',
-    verifying: 'Verifying the real address…',
-    unknownPlatform: "Couldn't recognize this link's platform (only TikTok, YouTube, Facebook, Instagram are supported).",
-    noAiKey: 'AI API not configured (ANTHROPIC_API_KEY) — skipping auto-detection, please enter details below.',
-    noPlacesKey: "Google Places server key not configured — can't verify a real address, you can still save the link without a map.",
-    fbNoAuto: "Facebook/Instagram don't allow fetching content via public API, so auto-detection isn't possible — enter the place name & address below.",
-    multiFoundTitle: (n) => (n === 1 ? 'AI found 1 place in this video' : `AI found ${n} places in this video`),
-    multiFoundHint: 'Uncheck any that are wrong, then save (all selected by default):',
-    reject: "None of these are right, let me enter manually",
-    confirmMulti: (n) => (n === 1 ? 'Save this place' : `Save ${n} selected places`),
-    manualTitle: 'Enter place details',
-    manualName: 'Place name',
-    manualAddress: 'Address (more detail = easier to match)',
-    manualSearch: 'Search & verify',
-    manualSave: 'Save (without a map)',
-    savedListTitle: 'Shared places',
-    empty: 'No places shared yet — paste a link above to start.',
-    delete: 'Delete',
-    reset: 'Paste another link',
-  },
+const emptyDraft = { videoUrl: '', placeName: '', address: '', note: '' }
+const button = 'inline-flex items-center justify-center gap-2 rounded-full border border-line-strong px-4 py-2.5 text-sm font-utility font-semibold hover:border-chili disabled:opacity-50 disabled:cursor-not-allowed'
+const field = 'w-full rounded-xl border border-line-strong bg-surface px-4 py-3 outline-none focus:border-chili'
+
+function ReviewMedia({ review, vi }) {
+  const [open, setOpen] = useState(false)
+  return <div>
+    <button type="button" className={button} aria-expanded={open} onClick={() => setOpen(!open)}><FilmSlate size={16} />{open ? (vi ? 'Ẩn video và bản đồ' : 'Hide video and map') : (vi ? 'Xem video và bản đồ' : 'View video and map')}</button>
+    {open && <div className="mt-3 space-y-3"><VideoReviewCard review={review} />{review.location && <PlaceMiniMap location={review.location} title={review.placeName} className="h-[200px]" />}</div>}
+  </div>
 }
 
 export default function ShareVideo() {
   const { lang } = useLanguage()
-  const c = C[lang]
-
-  const [url, setUrl] = useState('')
-  const [step, setStep] = useState('input') // input | analyzing | verifying | multi-found | manual
-  const [platform, setPlatform] = useState(null)
-  const [oembed, setOembed] = useState(null)
-  const [notice, setNotice] = useState(null)
-  const [manualName, setManualName] = useState('')
-  const [manualAddress, setManualAddress] = useState('')
+  const vi = lang === 'vi'
+  const t = (vn, en) => vi ? vn : en
+  const { user, loading: authLoading } = useAuth()
+  const [authOpen, setAuthOpen] = useState(false)
+  const [draft, setDraft] = useState(emptyDraft)
+  const [editing, setEditing] = useState(null)
+  const [candidates, setCandidates] = useState([])
+  const [selected, setSelected] = useState([])
+  const [busy, setBusy] = useState('')
+  const busyRef = useRef(false)
+  const requestRef = useRef(0)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
   const [reviews, setReviews] = useState([])
-
-  const [foundPlaces, setFoundPlaces] = useState([]) // verified Places results for this video
-  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [listBusy, setListBusy] = useState(true)
+  const [listError, setListError] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
+  const [mine, setMine] = useState(false)
+  const [reload, setReload] = useState(0)
+  const [deleteId, setDeleteId] = useState(null)
+  const listRequest = useRef(0)
+  const [moreBusy, setMoreBusy] = useState(false)
+  const mineId = mine ? user?.id : null
 
   useEffect(() => {
-    getVideoReviews().then(setReviews).catch(() => setReviews([]))
+    const requests = listRequest
+    const token = ++requests.current
+    setListBusy(true)
+    setListError(false)
+    setMoreBusy(false)
+    getVideoReviews({ userId: mineId }).then((rows) => {
+      if (token !== listRequest.current) return
+      setReviews(rows)
+      setHasMore(rows.length === REVIEW_PAGE_SIZE)
+    }).catch(() => { if (token === listRequest.current) setListError(true) })
+      .finally(() => { if (token === listRequest.current) setListBusy(false) })
+    return () => { requests.current++ }
+  }, [mineId, reload])
+
+  useEffect(() => {
+    const requests = requestRef
+    return () => { requests.current++ }
   }, [])
 
   function reset() {
-    setUrl('')
-    setStep('input')
-    setPlatform(null)
-    setOembed(null)
-    setNotice(null)
-    setManualName('')
-    setManualAddress('')
-    setFoundPlaces([])
-    setSelectedIds(new Set())
+    requestRef.current++
+    setDraft(emptyDraft)
+    setCandidates([])
+    setSelected([])
+    setEditing(null)
+    setError('')
   }
-
-  async function handleAnalyze(e) {
-    e.preventDefault()
-    const p = detectPlatform(url.trim())
-    setPlatform(p)
-    setNotice(null)
-
-    if (p === 'unknown') {
-      setNotice(c.unknownPlatform)
+  function change(key, value) {
+    setDraft((prev) => ({ ...prev, [key]: value }))
+    if (key !== 'note') { setCandidates([]); setSelected([]) }
+    setNotice('')
+    setError('')
+  }
+  function begin(kind) {
+    if (busyRef.current) return false
+    busyRef.current = true
+    setBusy(kind)
+    setNotice('')
+    setError('')
+    return true
+  }
+  function finish() { busyRef.current = false; setBusy('') }
+  function showError(err) {
+    if (err.message === 'auth-required') {
+      setAuthOpen(true)
+      setError(t('Vui lòng đăng nhập rồi nhấn Đăng bài lại. Nội dung vẫn được giữ.', 'Please log in, then publish again. Your draft is preserved.'))
+    } else if (err.message === 'duplicate') {
+      setError(t('Bạn đã chia sẻ video này cho quán này. Mở “Bài của tôi” để chỉnh sửa.', 'You already shared this video for this place. Edit it under My posts.'))
+    } else if (err.message === 'invalid-video') {
+      setError(t('Link video không hợp lệ. Hãy dán link bài đăng từ nền tảng được hỗ trợ.', 'Invalid video link. Paste a post link from a supported platform.'))
+    } else if (err.message === 'invalid-details') {
+      setError(t('Vui lòng nhập tên quán; giới hạn tên 200 ký tự, địa chỉ 500 và cảm nhận 1.000 ký tự.', 'Enter a place name. Limits: name 200 characters, address 500, review 1,000.'))
+    } else {
+      setError(t('Không thể hoàn tất. Kiểm tra kết nối và thử lại; nội dung của bạn vẫn được giữ.', 'Could not complete this action. Check your connection and retry; your draft is preserved.'))
+    }
+  }
+  function present(rows) {
+    const unique = [...new Map((rows || []).filter((p) => p.placeId && p.name && p.location).map((p) => [p.placeId, p])).values()].slice(0, 8)
+    setCandidates(unique)
+    setSelected([])
+    setNotice(unique.length
+      ? t('Đây là các địa điểm gợi ý. Hãy kiểm tra tên, địa chỉ và chọn đúng quán xuất hiện trong video.', 'These are suggestions. Check each name and address, then select the places actually shown in the video.')
+      : t('Chưa tìm thấy địa điểm phù hợp. Thêm tên quán, quận/thành phố rồi tìm lại, hoặc đăng thông tin tự nhập.', 'No suitable place found. Add a name and district/city and retry, or publish your manually entered details.'))
+  }
+  async function analyze() {
+    const parsed = parseVideoUrl(draft.videoUrl)
+    if (!parsed) { setError(t('Hãy nhập link video/bài đăng hợp lệ từ TikTok, YouTube, Facebook hoặc Instagram.', 'Enter a valid TikTok, YouTube, Facebook or Instagram video/post link.')); return }
+    if (!begin('analyze')) return
+    const token = ++requestRef.current
+    setCandidates([]); setSelected([])
+    setDraft((prev) => ({ ...prev, videoUrl: parsed.url }))
+    try {
+      if (!['tiktok', 'youtube'].includes(parsed.platform)) {
+        setNotice(t('Với link này, hãy nhập tên quán và khu vực bên dưới để tìm địa điểm trên bản đồ.', 'For this link, enter the place name and area below to find it on the map.'))
+        return
+      }
+      const meta = await (parsed.platform === 'tiktok' ? fetchTikTokOEmbed(parsed.url) : fetchYoutubeOEmbed(parsed.url))
+      if (token !== requestRef.current) return
+      if (!meta.title?.trim()) { present([]); return }
+      const result = await detectPlaceFromContent({ caption: meta.title })
+      if (token === requestRef.current) present(result.places)
+    } catch {
+      if (token === requestRef.current) setNotice(t('Chưa đọc được nội dung video. Bạn vẫn có thể nhập tên quán và tìm địa chỉ bên dưới.', 'Could not read this video. You can still enter the place name and search below.'))
+    } finally { finish() }
+  }
+  async function search() {
+    if (!draft.placeName.trim()) { setError(t('Nhập tên quán trước khi tìm.', 'Enter a place name first.')); return }
+    if (!begin('search')) return
+    const token = ++requestRef.current
+    setCandidates([]); setSelected([])
+    try {
+      const result = await verifyPlaceQuery([draft.placeName.trim(), draft.address.trim()].filter(Boolean).join(', '))
+      if (token === requestRef.current) present(result.places || (result.status === 'matched' ? [result] : []))
+    } catch (err) { if (token === requestRef.current) showError(err) }
+    finally { finish() }
+  }
+  async function publish(event) {
+    event.preventDefault()
+    if (!parseVideoUrl(draft.videoUrl)) { showError(new Error('invalid-video')); return }
+    if (candidates.length && !selected.length) {
+      setError(t('Chọn đúng quán ở trên, hoặc chọn “Không đúng, dùng thông tin tự nhập”.', 'Select a place above, or choose to use manually entered details.'))
       return
     }
-
-    if (p !== 'tiktok' && p !== 'youtube') {
-      setNotice(c.fbNoAuto)
-      setStep('manual')
-      return
-    }
-
-    setStep('analyzing')
+    if (!selected.length && !draft.placeName.trim()) { showError(new Error('invalid-details')); return }
+    if (!user) { setAuthOpen(true); return }
+    if (!begin('save')) return
     try {
-      const oe = p === 'tiktok' ? await fetchTikTokOEmbed(url.trim()) : await fetchYoutubeOEmbed(url.trim())
-      setOembed(oe)
-
-      const detection = await detectPlaceFromContent({ caption: oe.title, thumbnailUrl: oe.thumbnail_url })
-
-      if (detection.evidence === 'missing-api-key') {
-        setNotice(c.noAiKey)
-        setStep('manual')
-        return
-      }
-      if (!detection.places?.length) {
-        setStep('manual')
-        return
-      }
-
-      setStep('verifying')
-      const verifiedResults = await Promise.all(
-        detection.places.map((g) =>
-          verifyPlaceQuery([g.guessedName, g.guessedArea].filter(Boolean).join(', ')).catch(() => ({ status: 'error' }))
-        )
-      )
-
-      if (verifiedResults.some((v) => v.status === 'no-key')) {
-        setNotice(c.noPlacesKey)
-        setManualName(detection.places[0]?.guessedName || '')
-        setStep('manual')
-        return
-      }
-
-      const matched = verifiedResults.filter((v) => v.status === 'matched')
-      if (!matched.length) {
-        setManualName(detection.places[0]?.guessedName || '')
-        setStep('manual')
-        return
-      }
-
-      // De-duplicate in case two guesses verified to the same real place.
-      const seen = new Set()
-      const unique = matched.filter((v) => {
-        if (seen.has(v.placeId)) return false
-        seen.add(v.placeId)
-        return true
-      })
-
-      setFoundPlaces(unique)
-      setSelectedIds(new Set(unique.map((v) => v.placeId)))
-      setStep('multi-found')
-    } catch {
-      setStep('manual')
-    }
+      const places = candidates.filter((p) => selected.includes(p.placeId))
+      const entries = places.length ? places.map((p) => ({ ...draft, placeName: p.name, address: p.address, location: p.location, googlePlaceId: p.placeId })) : [{ ...draft, location: null, googlePlaceId: null }]
+      if (editing) await updateVideoReview(editing, entries[0])
+      else await saveVideoReviews(entries)
+      reset()
+      setNotice(t('Đã lưu bài chia sẻ. Mọi người có thể xem trong danh sách bên dưới.', 'Your post has been saved and is visible in the list below.'))
+      setReload((n) => n + 1)
+    } catch (err) { showError(err) }
+    finally { finish() }
   }
-
-  function toggleFound(placeId) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      next.has(placeId) ? next.delete(placeId) : next.add(placeId)
-      return next
-    })
-  }
-
-  async function confirmMultiFound() {
-    const toSave = foundPlaces.filter((v) => selectedIds.has(v.placeId))
-    let next = reviews
-    for (const v of toSave) {
-      next = await saveVideoReview({
-        videoUrl: url.trim(),
-        platform,
-        embedHtml: oembed?.html ?? null,
-        thumbnailUrl: oembed?.thumbnail_url ?? null,
-        placeName: v.name,
-        address: v.address,
-        location: v.location,
-        googlePlaceId: v.placeId,
-      })
-    }
-    setReviews(next)
-    reset()
-  }
-
-  async function handleManualSearch(e) {
-    e.preventDefault()
-    if (!manualName.trim()) return
-    setStep('verifying')
+  async function remove(id) {
+    if (!begin('delete')) return
     try {
-      const v = await verifyPlaceQuery(`${manualName.trim()}, ${manualAddress.trim()}`)
-      if (v.status === 'matched') {
-        setFoundPlaces([v])
-        setSelectedIds(new Set([v.placeId]))
-        setStep('multi-found')
-      } else {
-        await saveManual()
-      }
-    } catch {
-      await saveManual()
-    }
+      await deleteVideoReview(id)
+      setDeleteId(null)
+      if (editing === id) reset()
+      setNotice(t('Đã xóa bài chia sẻ.', 'Post deleted.'))
+      setReload((n) => n + 1)
+    } catch (err) { showError(err) }
+    finally { finish() }
   }
-
-  async function saveManual() {
-    const next = await saveVideoReview({
-      videoUrl: url.trim(),
-      platform,
-      embedHtml: oembed?.html ?? null,
-      thumbnailUrl: oembed?.thumbnail_url ?? null,
-      placeName: manualName.trim() || null,
-      address: manualAddress.trim() || null,
-      location: null,
-    })
-    setReviews(next)
+  function edit(review) {
     reset()
+    setNotice('')
+    setDraft({ videoUrl: review.videoUrl, placeName: review.placeName || '', address: review.address || '', note: review.note })
+    setEditing(review.id)
+    if (review.location) {
+      const p = { placeId: review.googlePlaceId || review.id, name: review.placeName, address: review.address, location: review.location }
+      setCandidates([p]); setSelected([p.placeId])
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+  async function loadMore() {
+    if (moreBusy) return
+    setMoreBusy(true); setListError(false)
+    const token = listRequest.current
+    try {
+      const rows = await getVideoReviews({ offset: reviews.length, userId: mineId })
+      if (token !== listRequest.current) return
+      setReviews((prev) => [...new Map([...prev, ...rows].map((r) => [r.id, r])).values()])
+      setHasMore(rows.length === REVIEW_PAGE_SIZE)
+    } catch { if (token === listRequest.current) setListError(true) }
+    finally { if (token === listRequest.current) setMoreBusy(false) }
+  }
+  async function share(review) {
+    const safe = parseVideoUrl(review.videoUrl)
+    if (!safe) return
+    try {
+      const text = [review.placeName, review.address, review.note].filter(Boolean).join('\n')
+      if (navigator.share) await navigator.share({ title: review.placeName, text, url: safe.url })
+      else {
+        await navigator.clipboard.writeText(`${text}\n${safe.url}`)
+        setNotice(t('Đã sao chép thông tin quán và link video.', 'Copied place details and video link.'))
+      }
+    } catch (err) { if (err.name !== 'AbortError') setError(t('Không sao chép được. Bạn có thể mở video và sao chép đường dẫn.', 'Could not copy. Open the video to copy its link.')) }
   }
 
-  async function handleDelete(id) {
-    setReviews(await deleteVideoReview(id))
-  }
+  return <div className="max-w-[1000px] mx-auto px-5 md:px-8 py-12 md:py-16">
+    <span className="eyebrow eyebrow-tick">{t('Chia sẻ quán từ video', 'Share a place from a video')}</span>
+    <h1 className="text-3xl md:text-4xl font-bold mt-3">{t('Thấy quán hay? Chia sẻ cùng mọi người.', 'Found a great place? Share it with everyone.')}</h1>
+    <p className="text-ink-muted mt-3 max-w-[70ch]">{t('Dán link TikTok, YouTube, Facebook hoặc Instagram. Tìm địa điểm từ tiêu đề video hoặc nhập tên quán, kiểm tra địa chỉ rồi đăng chia sẻ của bạn.', 'Paste a TikTok, YouTube, Facebook or Instagram link. Find suggestions from the video title or enter a place name, check the address, then publish your post.')}</p>
+    <p className="text-sm text-ink-faint mt-2">{t('Gợi ý từ tiêu đề có thể chưa đầy đủ; tính năng này không xem toàn bộ video. Video riêng tư hoặc bị giới hạn có thể không phát được.', 'Title-based suggestions may be incomplete; this feature does not watch the entire video. Private or restricted videos may not play.')}</p>
 
-  return (
-    <div className="max-w-[900px] mx-auto px-5 md:px-8 py-12 md:py-16">
-      <motion.div initial="hidden" animate="show" variants={staggerContainer(0.08)} className="mb-10">
-        <motion.span variants={fadeUp} className="font-utility text-[12.5px] font-bold uppercase tracking-[0.14em] text-chili inline-flex items-center gap-2 before:content-[''] before:w-4 before:h-[1.5px] before:bg-chili">
-          {c.eyebrow}
-        </motion.span>
-        <motion.h1 variants={fadeUp} className="text-[28px] md:text-[38px] font-bold leading-[1.15] mt-3">{c.title}</motion.h1>
-        <motion.p variants={fadeUp} className="text-[15px] text-ink-muted mt-3 max-w-[62ch]">{c.sub}</motion.p>
-      </motion.div>
-
-      {step === 'input' && (
-        <form onSubmit={handleAnalyze} className="flex gap-2">
-          <div className="flex-1 flex items-center gap-2 rounded-full border-[1.5px] border-line-strong px-4 py-3 focus-within:border-chili transition-colors">
-            <LinkIcon size={18} className="text-ink-faint shrink-0" />
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={c.placeholder}
-              required
-              type="url"
-              className="flex-1 min-w-0 bg-transparent text-[14.5px] outline-none"
-            />
-          </div>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-3 rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow shrink-0"
-          >
-            <MagicWand size={16} /> {c.submit}
-          </button>
-        </form>
-      )}
-
-      {notice && step === 'input' && (
-        <p className="mt-3 text-[13.5px] text-lantern">{notice}</p>
-      )}
-
-      {(step === 'analyzing' || step === 'verifying') && (
-        <div className="flex flex-col items-center gap-4 py-16 text-center">
-          <motion.div
-            className="w-9 h-9 rounded-full border-[3px] border-line-strong border-t-chili"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
-          />
-          <p className="text-ink-muted text-[14.5px]">{step === 'analyzing' ? c.analyzing : c.verifying}</p>
+    <div role="status" aria-live="polite" className="mt-5">{notice && <p className="rounded-xl bg-paper-2 p-4 text-herb">{notice}</p>}</div>
+    {error && <p role="alert" className="mt-3 rounded-xl border border-chili p-4 text-chili">{error}</p>}
+    <form onSubmit={publish} className="mt-6 rounded-2xl border border-line bg-surface p-5 md:p-7 space-y-4" aria-busy={Boolean(busy)}>
+      <h2 className="text-xl font-bold">{editing ? t('Chỉnh sửa bài chia sẻ', 'Edit your post') : t('1. Thêm video và tìm quán', '1. Add a video and find the place')}</h2>
+      <fieldset disabled={Boolean(busy)} className="space-y-4">
+        <label className="block space-y-2"><span>{t('Link video / bài đăng', 'Video / post link')}</span><input type="url" required maxLength={2048} className={field} value={draft.videoUrl} onChange={(e) => change('videoUrl', e.target.value)} placeholder="https://…" /></label>
+        <button type="button" className={button} onClick={analyze}>{t('Tìm quán từ video', 'Find places from video')}</button>
+        {parseVideoUrl(draft.videoUrl) && <ReviewMedia key={draft.videoUrl} review={{ videoUrl: draft.videoUrl, placeName: draft.placeName, platform: parseVideoUrl(draft.videoUrl).platform }} vi={vi} />}
+        <div className="grid md:grid-cols-2 gap-4">
+          <label className="block space-y-2"><span>{t('Tên quán', 'Place name')}</span><input required={!selected.length} maxLength={200} className={field} value={draft.placeName} onChange={(e) => change('placeName', e.target.value)} placeholder={t('Ví dụ: The Orange Coffee', 'Example: The Orange Coffee')} /></label>
+          <label className="block space-y-2"><span>{t('Địa chỉ / quận / thành phố', 'Address / district / city')}</span><input maxLength={500} className={field} value={draft.address} onChange={(e) => change('address', e.target.value)} placeholder={t('Nhập khu vực để tránh nhầm chi nhánh', 'Add an area to find the right branch')} /></label>
         </div>
-      )}
+        <button type="button" className={button} onClick={search}><MapPin size={16} />{t('Tìm địa điểm trên bản đồ', 'Search the map')}</button>
+        {candidates.length > 0 && <section className="rounded-xl bg-paper-2 p-4 space-y-3">
+          <h3 className="font-bold">{t('2. Chọn đúng địa điểm trong video', '2. Select the correct places in the video')}</h3>
+          {candidates.map((p) => <div key={p.placeId} className="rounded-xl border border-line bg-surface p-3">
+            <label className="flex gap-3 cursor-pointer"><input type={editing ? 'radio' : 'checkbox'} name="place" checked={selected.includes(p.placeId)} onChange={() => setSelected((prev) => editing ? [p.placeId] : prev.includes(p.placeId) ? prev.filter((id) => id !== p.placeId) : [...prev, p.placeId])} /><span><span className="block font-semibold">{p.name}</span><span className="text-sm text-ink-muted">{p.address}</span></span></label>
+            {selected.includes(p.placeId) && <div className="mt-3"><PlaceMiniMap location={p.location} title={p.name} className="h-[180px]" /><a className="text-sm underline inline-block mt-2" target="_blank" rel="noreferrer" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.name} ${p.address || ''}`)}`}>{t('Đối chiếu trên Google Maps', 'Check on Google Maps')}</a></div>}
+          </div>)}
+          <button type="button" className={button} onClick={() => { setCandidates([]); setSelected([]) }}>{t('Không đúng, dùng thông tin tự nhập', 'Use manually entered details instead')}</button>
+        </section>}
+        <label className="block space-y-2"><span>{t('Cảm nhận / món nên thử (không bắt buộc)', 'Your review / recommended dishes (optional)')}</span><textarea rows={3} maxLength={1000} className={field} value={draft.note} onChange={(e) => change('note', e.target.value)} /></label>
+        <div className="rounded-xl bg-paper-2 p-4 text-sm">
+          {selected.length ? t(`Sẽ đăng ${selected.length} địa điểm đã chọn, kèm video và bản đồ.`, `${selected.length} selected places will be published with the video and map.`) : t('Bài đăng dùng tên và địa chỉ bạn tự nhập; chưa có vị trí trên bản đồ.', 'This post uses your entered name and address; no map location is attached.')}
+          <p className="mt-1">{t('Bài chia sẻ sẽ hiển thị công khai. Chỉ chia sẻ video và nội dung bạn có quyền chia sẻ.', 'Your post will be public. Share only videos and content you are allowed to share.')}</p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <button type="submit" disabled={authLoading} className={`${button} bg-chili text-chili-ink`}>{!user ? t('Đăng nhập để đăng bài', 'Log in to publish') : editing ? t('Lưu chỉnh sửa', 'Save changes') : t('Đăng bài chia sẻ', 'Publish post')}</button>
+          <button type="button" className={button} onClick={() => { reset(); setNotice('') }}>{editing ? t('Hủy chỉnh sửa', 'Cancel editing') : t('Làm mới nội dung', 'Clear draft')}</button>
+        </div>
+      </fieldset>
+      {busy && <p role="status" className="text-herb">{busy === 'analyze' ? t('Đang đọc tiêu đề và tìm gợi ý…', 'Reading the title and finding suggestions…') : busy === 'search' ? t('Đang tìm địa điểm…', 'Searching places…') : t('Đang lưu thay đổi…', 'Saving changes…')}</p>}
+    </form>
 
-      {step === 'multi-found' && foundPlaces.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }} className="rounded-xl border border-line bg-surface p-5">
-          <div className="flex items-center gap-2 font-bold text-[16px] mb-1">
-            <ListChecks size={19} weight="bold" className="text-herb" /> {c.multiFoundTitle(foundPlaces.length)}
-          </div>
-          <p className="text-[13.5px] text-ink-muted mb-4">{c.multiFoundHint}</p>
-
-          <div className="flex flex-col gap-3 mb-4">
-            {foundPlaces.map((v) => (
-              <label
-                key={v.placeId}
-                className={`flex flex-col gap-2 rounded-lg border-[1.5px] px-4 py-3 cursor-pointer transition-colors ${selectedIds.has(v.placeId) ? 'border-chili bg-paper-2' : 'border-line-strong'}`}
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedIds.has(v.placeId)}
-                    onChange={() => toggleFound(v.placeId)}
-                    className="accent-[var(--chili)] mt-1 shrink-0"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-[14.5px] flex items-center gap-1.5">
-                      <MapPin size={14} className="text-chili shrink-0" /> {v.name}
-                    </div>
-                    <div className="text-[12.5px] text-ink-faint mt-0.5">{v.address}</div>
-                  </div>
-                </div>
-                {selectedIds.has(v.placeId) && (
-                  <PlaceMiniMap location={v.location} title={v.name} className="h-[140px] w-full" />
-                )}
-              </label>
-            ))}
-          </div>
-
-          <div className="flex gap-3 flex-wrap">
-            <button
-              onClick={confirmMultiFound}
-              disabled={selectedIds.size === 0}
-              className="inline-flex items-center gap-2 font-utility font-semibold text-[14px] px-5 py-2.5 rounded-full bg-chili text-chili-ink disabled:opacity-50"
-            >
-              <CheckCircle size={16} /> {c.confirmMulti(selectedIds.size)}
-            </button>
-            <button
-              onClick={() => setStep('manual')}
-              className="inline-flex items-center gap-2 font-utility font-semibold text-[14px] px-5 py-2.5 rounded-full border-[1.5px] border-line-strong hover:border-chili"
-            >
-              <PencilSimple size={16} /> {c.reject}
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {step === 'manual' && (
-        <motion.form onSubmit={handleManualSearch} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: easeOut }} className="rounded-xl border border-line bg-surface p-5 flex flex-col gap-3">
-          {notice && <p className="text-[13.5px] text-lantern mb-1">{notice}</p>}
-          <div className="font-bold text-[16px]">{c.manualTitle}</div>
-          <input
-            value={manualName}
-            onChange={(e) => setManualName(e.target.value)}
-            placeholder={c.manualName}
-            className="rounded-full border-[1.5px] border-line-strong px-4 py-2.5 text-[14px] outline-none focus:border-chili"
-          />
-          <input
-            value={manualAddress}
-            onChange={(e) => setManualAddress(e.target.value)}
-            placeholder={c.manualAddress}
-            className="rounded-full border-[1.5px] border-line-strong px-4 py-2.5 text-[14px] outline-none focus:border-chili"
-          />
-          <div className="flex gap-3 flex-wrap mt-1">
-            <button type="submit" className="inline-flex items-center gap-2 font-utility font-semibold text-[14px] px-5 py-2.5 rounded-full bg-chili text-chili-ink">
-              <MagicWand size={16} /> {c.manualSearch}
-            </button>
-            <button type="button" onClick={saveManual} className="inline-flex items-center gap-2 font-utility font-semibold text-[14px] px-5 py-2.5 rounded-full border-[1.5px] border-line-strong hover:border-chili">
-              {c.manualSave}
-            </button>
-          </div>
-        </motion.form>
-      )}
-
-      {step !== 'input' && (
-        <button onClick={reset} className="mt-4 font-utility text-[13px] font-semibold text-ink-muted hover:text-chili transition-colors">
-          ← {c.reset}
-        </button>
-      )}
-
-      <div className="mt-14">
-        <h2 className="text-[20px] font-bold mb-5">{c.savedListTitle}</h2>
-        {reviews.length === 0 ? (
-          <p className="text-[14px] text-ink-muted">{c.empty}</p>
-        ) : (
-          <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-            {reviews.map((r) => (
-              <div key={r.id} className="flex flex-col gap-3">
-                <VideoReviewCard review={r} />
-                {r.location && <PlaceMiniMap location={r.location} title={r.placeName} className="h-[160px] w-full" />}
-                <div className="flex items-center justify-between">
-                  <div className="min-w-0">
-                    <div className="font-semibold text-[14px] truncate">{r.placeName}</div>
-                    {r.address && <div className="text-[12.5px] text-ink-faint truncate">{r.address}</div>}
-                  </div>
-                  <button onClick={() => handleDelete(r.id)} aria-label={c.delete} className="shrink-0 p-2 text-ink-faint hover:text-chili transition-colors">
-                    <Trash size={16} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
+    <section className="mt-12">
+      <div className="flex flex-wrap gap-3 items-center justify-between mb-5"><h2 className="text-2xl font-bold">{t('Các quán đã chia sẻ', 'Shared places')}</h2><div className="flex gap-2"><button className={button} aria-pressed={!mine || !user} onClick={() => setMine(false)}>{t('Cộng đồng', 'Community')}</button>{user && <button className={button} aria-pressed={mine} onClick={() => setMine(true)}>{t('Bài của tôi', 'My posts')}</button>}<button className={button} disabled={listBusy} onClick={() => setReload((n) => n + 1)}>{t('Tải lại', 'Refresh')}</button></div></div>
+      {listError && <p role="alert" className="text-chili mb-4">{t('Không tải được bài chia sẻ. Nhấn Tải lại hoặc Tải thêm để thử lại.', 'Could not load posts. Use Refresh or Load more to retry.')}</p>}
+      {listBusy ? <p role="status">{t('Đang tải bài chia sẻ…', 'Loading posts…')}</p> : !listError && !reviews.length ? <EmptyState icon={FilmSlate} title={t('Chưa có bài chia sẻ', 'No posts yet')} body={t('Chia sẻ quán đầu tiên bằng biểu mẫu phía trên.', 'Share your first place using the form above.')} /> : <div className="grid md:grid-cols-2 gap-5">
+        {reviews.map((r) => <article key={r.id} className="rounded-xl border border-line bg-surface p-5 space-y-3">
+          <h3 className="font-bold text-xl break-words">{r.placeName}</h3><p className="text-sm text-ink-muted break-words">{r.address}</p>
+          <p className="text-xs text-ink-faint">{new Date(r.addedAt).toLocaleDateString(vi ? 'vi-VN' : 'en-US')} · {r.location ? t('Có vị trí bản đồ', 'Map attached') : t('Địa chỉ do người đăng cung cấp', 'Address supplied by contributor')}</p>
+          {r.note && <p className="whitespace-pre-wrap break-words">{r.note}</p>}
+          <ReviewMedia review={r} vi={vi} />
+          <div className="flex flex-wrap gap-2"><button className={button} onClick={() => share(r)}><ShareNetwork size={16} />{t('Chia sẻ', 'Share')}</button>{user?.id === r.userId && <><button className={button} disabled={Boolean(busy)} onClick={() => edit(r)}><PencilSimple size={16} />{t('Sửa', 'Edit')}</button><button className={button} disabled={Boolean(busy)} onClick={() => setDeleteId(r.id)}><Trash size={16} />{t('Xóa', 'Delete')}</button></>}</div>
+          {deleteId === r.id && <div className="rounded-xl border border-chili p-3" role="group" aria-label={t('Xác nhận xóa bài', 'Confirm deletion')}><p>{t('Xóa bài chia sẻ này? Thao tác này không thể hoàn tác.', 'Delete this post? This cannot be undone.')}</p><div className="flex gap-2 mt-2"><button className={button} disabled={Boolean(busy)} onClick={() => remove(r.id)}>{t('Xác nhận xóa', 'Confirm delete')}</button><button className={button} disabled={Boolean(busy)} onClick={() => setDeleteId(null)}>{t('Giữ lại', 'Keep post')}</button></div></div>}
+        </article>)}
+      </div>}
+      {hasMore && !listBusy && <button className={`${button} mt-5`} disabled={moreBusy} onClick={loadMore}>{moreBusy ? t('Đang tải…', 'Loading…') : t('Tải thêm', 'Load more')}</button>}
+    </section>
+    {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
+  </div>
 }

@@ -18,7 +18,7 @@ const C = {
  * (TikTok has no public search API, so this searches Google's index of
  * tiktok.com instead — works for TikTok specifically, not Facebook/Instagram
  * which Google barely indexes). */
-export default function TikTokAutoSuggestSection({ query }) {
+export default function TikTokAutoSuggestSection({ query, name = query, location = '' }) {
   const { lang } = useLanguage()
   const c = C[lang]
   const [status, setStatus] = useState('loading')
@@ -29,7 +29,7 @@ export default function TikTokAutoSuggestSection({ query }) {
     let cancelled = false
     setStatus('loading')
 
-    fetchTikTokAutoSuggestions(query)
+    fetchTikTokAutoSuggestions(query, name, location)
       .then((res) => {
         if (cancelled) return
         if (res.status === 'no-key') return setStatus('no-key')
@@ -44,15 +44,15 @@ export default function TikTokAutoSuggestSection({ query }) {
     return () => {
       cancelled = true
     }
-  }, [query])
+  }, [query, name, location])
 
   if (status !== 'ok') return null
 
   return (
     <div className="max-w-[1180px] mx-auto px-5 md:px-8 mt-14">
       <div className="flex items-baseline justify-between gap-3 mb-5 flex-wrap">
-        <h2 className="text-[22px] font-bold">{c.title}</h2>
-        <span className="font-utility text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{c.hint}</span>
+        <h2 className="text-xl font-bold">{c.title}</h2>
+        <span className="font-utility text-2xs font-semibold uppercase tracking-wide text-ink-faint">{c.hint}</span>
       </div>
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         {videos.map((v) => (

@@ -27,7 +27,7 @@ const C = {
 /** Auto-discovers real YouTube Shorts about a place via search — unlike the
  * TikTok/Facebook/Instagram share flow, this needs no manual link submission
  * since YouTube (unlike those platforms) has a public search API. */
-export default function YoutubeShortsSection({ query }) {
+export default function YoutubeShortsSection({ query, name = query, location = '' }) {
   const { lang } = useLanguage()
   const c = C[lang]
   const [status, setStatus] = useState('loading') // loading | ok | empty | no-key | error
@@ -42,7 +42,7 @@ export default function YoutubeShortsSection({ query }) {
     setVideos([])
     setOpenId(null)
 
-    fetchYoutubeShorts(query)
+    fetchYoutubeShorts(query, name, location)
       .then((res) => {
         if (cancelled) return
         if (res.status === 'no-key') return setStatus('no-key')
@@ -57,22 +57,22 @@ export default function YoutubeShortsSection({ query }) {
     return () => {
       cancelled = true
     }
-  }, [query, requestId])
+  }, [query, name, location, requestId])
 
   const statusMessage = status === 'no-key' ? c.noKey : c[status] || c.empty
 
   return (
     <section className="mx-auto mt-14 max-w-[1180px] px-5 md:px-8" aria-labelledby="youtube-videos-title">
       <div className="flex items-baseline justify-between gap-3 mb-5 flex-wrap">
-        <h2 id="youtube-videos-title" className="text-[22px] font-bold">{c.title}</h2>
-        <span className="font-utility text-[11px] font-semibold uppercase tracking-wide text-ink-faint">{c.hint}</span>
+        <h2 id="youtube-videos-title" className="text-xl font-bold">{c.title}</h2>
+        <span className="font-utility text-2xs font-semibold uppercase tracking-wide text-ink-faint">{c.hint}</span>
       </div>
       {status !== 'ok' ? (
         <div className="flex min-h-[150px] items-center justify-center rounded-2xl border border-line bg-surface px-5 py-8 text-center">
           <div className="flex max-w-[38ch] flex-col items-center gap-3">
             {status === 'loading' ? <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-line-strong border-t-chili" /> : status === 'error' ? <WarningCircle size={28} className="text-chili" /> : <VideoCamera size={28} className="text-ink-faint" />}
-            <p className="text-[13.5px] text-ink-muted">{statusMessage}</p>
-            {status === 'error' && <button type="button" onClick={() => setRequestId((value) => value + 1)} className="inline-flex items-center gap-1.5 rounded-full border border-line-strong px-4 py-2 font-utility text-[12px] font-semibold hover:border-chili"><ArrowClockwise size={14} />{c.retry}</button>}
+            <p className="text-md text-ink-muted">{statusMessage}</p>
+            {status === 'error' && <button type="button" onClick={() => setRequestId((value) => value + 1)} className="inline-flex items-center gap-1.5 rounded-full border border-line-strong px-4 py-2 font-utility text-xs font-semibold hover:border-chili"><ArrowClockwise size={14} />{c.retry}</button>}
           </div>
         </div>
       ) : <div className="no-scrollbar flex snap-x snap-mandatory gap-4 overflow-x-auto pb-3">
@@ -100,7 +100,7 @@ export default function YoutubeShortsSection({ query }) {
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
               <PlayCircle size={30} weight="fill" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/90 group-hover:scale-110 transition-transform" />
               <div className="absolute bottom-0 inset-x-0 p-2.5">
-                <p className="text-white text-[12px] font-semibold leading-snug line-clamp-3">{v.title}</p>
+                <p className="text-white text-xs font-semibold leading-snug line-clamp-3">{v.title}</p>
               </div>
             </button>
           )
