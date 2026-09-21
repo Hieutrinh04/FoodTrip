@@ -1,11 +1,7 @@
+import { ACCENT_GRADIENT } from '../lib/visualTokens.js'
+
 const OVERLAY = 'rgba(255,255,255,.8)'
 const OVERLAY_SOFT = 'rgba(255,255,255,.6)'
-
-export const ACCENT_GRADIENT = {
-  chili: 'linear-gradient(135deg, var(--chili), var(--lantern))',
-  lantern: 'linear-gradient(135deg, var(--lantern), var(--chili))',
-  herb: 'linear-gradient(135deg, var(--herb), var(--lantern))',
-}
 
 function Rooftops() {
   return (

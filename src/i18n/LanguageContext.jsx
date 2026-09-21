@@ -1,3 +1,4 @@
+/* oxlint-disable react/only-export-components -- provider and language hooks intentionally share one private context */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 
 const LanguageContext = createContext(null)
