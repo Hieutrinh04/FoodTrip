@@ -21,9 +21,11 @@ export default function PlaceMiniMap({ location, title, className = '' }) {
   const { lang } = useLanguage()
   const c = C[lang]
   const mapElRef = useRef(null)
+  const lat = location?.lat
+  const lng = location?.lng
 
   useEffect(() => {
-    if (!hasMapsKey || !location || !mapElRef.current) return
+    if (!hasMapsKey || lat == null || lng == null || !mapElRef.current) return
     let cancelled = false
     let map = null
 
@@ -34,7 +36,7 @@ export default function PlaceMiniMap({ location, title, className = '' }) {
           container: mapElRef.current,
           style,
           transformRequest: mapRequestTransform,
-          center: [location.lng, location.lat],
+          center: [lng, lat],
           zoom: 16,
         })
         map.addControl(new NavigationControl({ showCompass: false }), 'top-right')
@@ -43,7 +45,7 @@ export default function PlaceMiniMap({ location, title, className = '' }) {
         el.title = title ?? ''
         const chili = resolveCssColor('--chili', '#d8481f')
         el.style.cssText = `width:22px;height:22px;border-radius:50%;background:${chili};border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.3)`
-        new Marker({ element: el }).setLngLat([location.lng, location.lat]).addTo(map)
+        new Marker({ element: el }).setLngLat([lng, lat]).addTo(map)
       })
       .catch(() => {
         // Style unavailable — the container simply stays empty.
@@ -53,11 +55,11 @@ export default function PlaceMiniMap({ location, title, className = '' }) {
       cancelled = true
       map?.remove()
     }
-  }, [location?.lat, location?.lng, title])
+  }, [lat, lng, title])
 
   if (!hasMapsKey || !location) {
     return (
-      <div className={`flex items-center justify-center rounded-xl border border-line-strong bg-paper-2 p-4 text-[13px] text-ink-muted ${className}`}>
+      <div className={`flex items-center justify-center rounded-xl border border-line-strong bg-paper-2 p-4 text-sm text-ink-muted ${className}`}>
         {c.noKey}
       </div>
     )

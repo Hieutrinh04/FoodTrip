@@ -30,11 +30,11 @@ export default function PlaceCard({ place, index = 0 }) {
           </div>
           <div className="p-4 pb-5 flex flex-col gap-2 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-display font-bold text-[18px] leading-snug">{place.name[lang]}</span>
+              <span className="font-display font-bold text-lg leading-snug">{place.name[lang]}</span>
               <RatingStars rating={place.rating} />
             </div>
-            <p className="text-[13.5px] text-ink-muted line-clamp-2 flex-1">{place.shortDesc[lang]}</p>
-            <div className="flex items-center justify-between text-[12px] font-utility font-semibold text-ink-faint pt-1">
+            <p className="text-md text-ink-muted line-clamp-2 flex-1">{place.shortDesc[lang]}</p>
+            <div className="flex items-center justify-between text-xs font-utility font-semibold text-ink-faint pt-1">
               <span>{city.name[lang]}</span>
               <span>{CATEGORY_LABEL[place.category][lang]}</span>
             </div>

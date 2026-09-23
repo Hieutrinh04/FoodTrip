@@ -3,7 +3,7 @@ import { Map as MapLibreMap, Marker, NavigationControl, LngLatBounds } from 'map
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '../../lib/maplibreSetup.js'
 import { NavigationArrow, Warning, X, FilmSlate, Play, Stop, ArrowCounterClockwise } from '@phosphor-icons/react'
-import { hasMapsKey, loadMapStyle, mapRequestTransform, fetchRoute } from '../../lib/trackAsia.js'
+import { hasMapsKey, loadMapStyle, mapRequestTransform, fetchRouteDetails } from '../../lib/trackAsia.js'
 import { buildRouteWalker, playRoute } from '../../lib/routeAnimation.js'
 import { getPlace } from '../../data/destinations.js'
 import { useVideoReviewsForPlace } from '../../hooks/useVideoReviewsForPlace.js'
@@ -23,7 +23,8 @@ const C = {
     noReviews: 'Chưa có video review nào cho quán này.',
     start: 'Điểm bắt đầu', end: 'Điểm kết thúc',
     play: 'Xem mô phỏng hành trình', stop: 'Dừng mô phỏng', reset: 'Xem toàn tuyến',
-    estimatedRoute: 'Tuyến nối ước tính', liveRoute: 'Tuyến đường thực tế', overview: 'Tổng quan các ngày', loadingRoute: 'Đang tính tuyến',
+    estimatedRoute: 'Tuyến nối ước tính', liveRoute: 'Tuyến đường thực tế', overview: 'Tổng quan các ngày', loadingRoute: 'Đang chuẩn bị bản đồ',
+    preparing: 'Đang tải nền bản đồ và tuyến đường…',
   },
   en: {
     noKey: 'Live map needs a Track-Asia API key configured (see .env.example).',
@@ -37,7 +38,8 @@ const C = {
     noReviews: 'No video reviews for this place yet.',
     start: 'Start', end: 'Finish',
     play: 'Play trip animation', stop: 'Stop animation', reset: 'View full route',
-    estimatedRoute: 'Estimated route', liveRoute: 'Live road route', overview: 'All-day overview', loadingRoute: 'Calculating route',
+    estimatedRoute: 'Estimated route', liveRoute: 'Live road route', overview: 'All-day overview', loadingRoute: 'Preparing map',
+    preparing: 'Loading the basemap and road route…',
   },
 }
 
@@ -103,12 +105,66 @@ function buildVehicleElement(transport, accent) {
   return wrap
 }
 
-export default function LiveTripMap({ stops = [], transport, className = '', showRoute = true, overviewRoutes = [] }) {
+function buildMemberElement(member) {
+  const wrap = document.createElement('div')
+  wrap.style.cssText = 'display:flex;flex-direction:column;align-items:center;pointer-events:none'
+
+  const accuracy = document.createElement('div')
+  accuracy.dataset.role = 'accuracy'
+  accuracy.style.cssText = `position:absolute;width:38px;height:38px;border-radius:50%;background:${member.color}24;border:1px solid ${member.color}55`
+  wrap.appendChild(accuracy)
+
+  const dot = document.createElement('div')
+  dot.dataset.role = 'avatar'
+  dot.style.cssText = `position:relative;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:${member.color};color:#fff;border:3px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.35);font:700 10px system-ui,sans-serif`
+  dot.textContent = member.name.slice(0, 2).toUpperCase()
+  wrap.appendChild(dot)
+
+  const label = document.createElement('span')
+  label.dataset.role = 'name'
+  label.style.cssText = `margin-top:3px;max-width:120px;overflow:hidden;text-overflow:ellipsis;background:${member.color};color:#fff;font:700 10px system-ui,sans-serif;padding:2px 7px;border-radius:99px;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.25)`
+  label.textContent = member.name
+  wrap.appendChild(label)
+  wrap.title = member.name
+  return wrap
+}
+
+function updateMemberElement(element, member) {
+  element.title = member.name
+  const avatar = element.querySelector('[data-role="avatar"]')
+  const label = element.querySelector('[data-role="name"]')
+  const accuracy = element.querySelector('[data-role="accuracy"]')
+  if (avatar) {
+    avatar.textContent = member.name.slice(0, 2).toUpperCase()
+    avatar.style.background = member.color
+  }
+  if (label) {
+    label.textContent = member.name
+    label.style.background = member.color
+  }
+  if (accuracy) {
+    accuracy.style.background = `${member.color}24`
+    accuracy.style.borderColor = `${member.color}55`
+  }
+}
+
+export default function LiveTripMap({
+  stops = [],
+  transport,
+  className = '',
+  showRoute = true,
+  overviewRoutes = [],
+  onRouteMetrics,
+  memberLocations = [],
+  showLocateControl = true,
+  followMemberId = null,
+}) {
   const { lang } = useLanguage()
   const c = C[lang]
   const mapElRef = useRef(null)
   const mapRef = useRef(null)
   const userMarkerRef = useRef(null)
+  const memberMarkersRef = useRef(new Map())
   const watchIdRef = useRef(null)
 
   const validStops = stops.filter((s) => s.location)
@@ -121,6 +177,7 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
     .join('::')
 
   const [status, setStatus] = useState(() => (!hasMapsKey ? 'no-key' : !validStops.length ? 'no-location' : 'loading'))
+  const [mapReady, setMapReady] = useState(false)
   const [tracking, setTracking] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [locError, setLocError] = useState(null)
@@ -139,6 +196,14 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
   useEffect(() => {
     if (!hasMapsKey || !validStops.length || !mapElRef.current) return
     let cancelled = false
+    const memberMarkers = memberMarkersRef.current
+
+    // Routing and basemap setup are independent network operations. Start the
+    // route immediately instead of waiting for MapLibre's style/tiles to load;
+    // on a cold cache this removes a noticeable serial delay.
+    const routePromise = !overviewRoutes.length && showRoute && validStops.length >= 2
+      ? fetchRouteDetails(validStops.map((stop) => stop.location), transport)
+      : Promise.resolve(null)
 
     const chili = resolveCssColor('--chili', '#d8481f')
     const chiliInk = resolveCssColor('--chili-ink', '#fff7ee')
@@ -147,7 +212,7 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
 
     let map = null
 
-    loadMapStyle()
+    loadMapStyle({ lightweight: true })
       .then((style) => {
         if (cancelled || !mapElRef.current) return
         map = new MapLibreMap({
@@ -246,6 +311,7 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
 
         map.on('load', async () => {
           if (cancelled) return
+          setMapReady(true)
           if (validStops.length > 1) map.fitBounds(bounds, { padding: 64, maxZoom: 15 })
           map.once('idle', spreadOverlappingMarkers)
 
@@ -284,11 +350,16 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
             setStatus('ready')
             return
           }
-          const geometry = await fetchRoute(validStops.map((s) => s.location), transport)
+          const routeDetails = await routePromise
           if (cancelled || !mapRef.current) return
           const coordinates =
-            geometry?.coordinates ?? validStops.map((s) => [s.location.lng, s.location.lat])
-          setRouteQuality(geometry ? 'live' : 'estimated')
+            routeDetails?.geometry?.coordinates ?? validStops.map((s) => [s.location.lng, s.location.lat])
+          setRouteQuality(routeDetails?.geometry ? 'live' : 'estimated')
+          onRouteMetrics?.(routeDetails ? {
+            distanceMeters: routeDetails.distanceMeters,
+            durationSeconds: routeDetails.durationSeconds,
+            source: 'road',
+          } : null)
           routeCoordsRef.current = coordinates
 
           map.addSource('trip-route', {
@@ -328,6 +399,8 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
       setPlaying(false)
       map?.remove()
       mapRef.current = null
+      setMapReady(false)
+      memberMarkers.clear()
       vehicleMarkerRef.current = null
       routeCoordsRef.current = null
       overviewBoundsRef.current = null
@@ -337,6 +410,47 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
     // moment it finished loading.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopsKey, transport, lang, showRoute, overviewRoutesKey])
+
+  // Presence updates only move lightweight markers. They deliberately live in
+  // a separate effect so a GPS tick never reloads map tiles or recalculates the
+  // itinerary route.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+    const visibleIds = new Set()
+
+    for (const member of memberLocations) {
+      if (!member?.id || !member.location) continue
+      visibleIds.add(member.id)
+      let entry = memberMarkersRef.current.get(member.id)
+      if (!entry) {
+        const element = buildMemberElement(member)
+        const marker = new Marker({ element, anchor: 'bottom' })
+          .setLngLat([member.location.lng, member.location.lat])
+          .addTo(map)
+        entry = { marker, element }
+        memberMarkersRef.current.set(member.id, entry)
+      } else {
+        entry.marker.setLngLat([member.location.lng, member.location.lat])
+        updateMemberElement(entry.element, member)
+      }
+    }
+
+    for (const [memberId, entry] of memberMarkersRef.current) {
+      if (visibleIds.has(memberId)) continue
+      entry.marker.remove()
+      memberMarkersRef.current.delete(memberId)
+    }
+
+    const followedMember = memberLocations.find((member) => member.id === followMemberId)
+    if (followedMember?.location) {
+      map.easeTo({
+        center: [followedMember.location.lng, followedMember.location.lat],
+        zoom: Math.max(map.getZoom(), 16),
+        duration: 750,
+      })
+    }
+  }, [followMemberId, mapReady, memberLocations])
 
   useEffect(() => {
     return () => {
@@ -447,7 +561,7 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
 
   if (status === 'no-key' || status === 'no-location' || status === 'error') {
     return (
-      <div className={`flex items-center gap-2.5 rounded-xl border border-line-strong bg-paper-2 p-5 text-[13.5px] text-ink-muted ${className}`}>
+      <div className={`flex items-center gap-2.5 rounded-xl border border-line-strong bg-paper-2 p-5 text-md text-ink-muted ${className}`}>
         <Warning size={18} className="shrink-0 text-lantern" />
         {status === 'no-key' ? c.noKey : status === 'error' ? c.mapError : c.noLocation}
       </div>
@@ -456,9 +570,17 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
 
   return (
     <div className={className}>
-      <div className="relative overflow-hidden rounded-xl border border-line-strong">
-        <div ref={mapElRef} className="h-[420px] w-full bg-paper-2" />
-        <div className="absolute left-3 top-3 z-10 rounded-full bg-surface/95 px-3 py-1.5 font-utility text-[10.5px] font-bold uppercase tracking-wide text-ink-muted shadow-soft backdrop-blur-sm">
+        <div className="relative overflow-hidden rounded-xl border border-line-strong">
+          <div ref={mapElRef} className="h-[420px] w-full bg-paper-2" />
+          {routeQuality === 'loading' && (
+            <div className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-paper-2/75 backdrop-blur-[1px]">
+              <div className="flex items-center gap-3 rounded-full border border-line bg-surface px-4 py-3 font-utility text-sm font-semibold text-ink-muted shadow-soft">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-chili" />
+                {c.preparing}
+              </div>
+            </div>
+          )}
+        <div className="absolute left-3 top-3 z-10 rounded-full bg-surface/95 px-3 py-1.5 font-utility text-2xs font-bold uppercase tracking-wide text-ink-muted shadow-soft backdrop-blur-sm">
           {routeQuality === 'overview' ? c.overview : routeQuality === 'estimated' ? c.estimatedRoute : routeQuality === 'loading' ? c.loadingRoute : c.liveRoute}
         </div>
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 flex-wrap justify-center px-3">
@@ -466,7 +588,7 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
             <button
               onClick={handlePlayRoute}
               disabled={!routeCoordsRef.current}
-              className={`inline-flex items-center gap-2 rounded-full px-5 py-3 font-utility text-[13px] font-semibold shadow-lifted transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${playing ? 'bg-chili text-chili-ink' : 'bg-surface hover:text-chili'}`}
+              className={`inline-flex items-center gap-2 rounded-full px-5 py-3 font-utility text-sm font-semibold shadow-lifted transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${playing ? 'bg-chili text-chili-ink' : 'bg-surface hover:text-chili'}`}
             >
               {playing ? <Stop size={15} weight="fill" /> : <Play size={15} weight="fill" />}
               {playing ? c.stop : c.play}
@@ -474,20 +596,22 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
           )}
           <button
             onClick={showOverview}
-            className="inline-flex items-center gap-2 rounded-full bg-surface px-4 py-3 font-utility text-[13px] font-semibold shadow-lifted hover:text-chili transition-colors"
+            className="inline-flex items-center gap-2 rounded-full bg-surface px-4 py-3 font-utility text-sm font-semibold shadow-lifted hover:text-chili transition-colors"
           >
             <ArrowCounterClockwise size={16} /> {c.reset}
           </button>
-          <button
-            onClick={handleLocateMe}
-            className="inline-flex items-center gap-2 rounded-full bg-surface px-5 py-3 font-utility text-[13px] font-semibold shadow-lifted hover:text-chili transition-colors"
-          >
-            <NavigationArrow size={16} weight="fill" className={tracking ? 'text-chili' : ''} />
-            {tracking ? c.locating : c.locate}
-          </button>
+          {showLocateControl && (
+            <button
+              onClick={handleLocateMe}
+              className="inline-flex items-center gap-2 rounded-full bg-surface px-5 py-3 font-utility text-sm font-semibold shadow-lifted hover:text-chili transition-colors"
+            >
+              <NavigationArrow size={16} weight="fill" className={tracking ? 'text-chili' : ''} />
+              {tracking ? c.locating : c.locate}
+            </button>
+          )}
         </div>
         {locError && (
-          <div className="absolute top-3 left-3 right-3 z-10 rounded-lg bg-surface/95 px-3.5 py-2.5 text-[12.5px] text-chili shadow-soft">
+          <div className="absolute top-3 left-3 right-3 z-10 rounded-lg bg-surface/95 px-3.5 py-2.5 text-sm text-chili shadow-soft">
             {locError}
           </div>
         )}
@@ -497,8 +621,8 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
         <div className="mt-4 rounded-xl border border-line bg-surface p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div>
-              <div className="font-bold text-[16px]">{selectedStop.kind === 'hotel' ? selectedStop.name : selectedPlace ? selectedPlace.name[lang] : selectedStop.time}</div>
-              <div className="font-utility text-[11.5px] font-bold uppercase tracking-wide text-chili mt-1">
+              <div className="font-bold text-base">{selectedStop.kind === 'hotel' ? selectedStop.name : selectedPlace ? selectedPlace.name[lang] : selectedStop.time}</div>
+              <div className="font-utility text-xs font-bold uppercase tracking-wide text-chili mt-1">
                 {selectedStop.kind === 'hotel' ? (lang === 'vi' ? 'Điểm bắt đầu và kết thúc mỗi ngày' : 'Daily start and finish') : c.reviewsTitle}
               </div>
             </div>
@@ -508,7 +632,7 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
           </div>
 
           {selectedStop.kind === 'hotel' ? (
-            <div className="flex items-start gap-2.5 rounded-lg bg-paper-2 px-4 py-3 text-[13.5px] text-ink-muted">
+            <div className="flex items-start gap-2.5 rounded-lg bg-paper-2 px-4 py-3 text-md text-ink-muted">
               <NavigationArrow size={17} className="mt-0.5 shrink-0 text-herb" />
               <span>{selectedStop.address || (lang === 'vi' ? 'Nơi lưu trú đã chọn cho chuyến đi.' : 'Selected accommodation for this trip.')}</span>
             </div>
@@ -519,7 +643,7 @@ export default function LiveTripMap({ stops = [], transport, className = '', sho
               ))}
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 rounded-lg bg-paper-2 px-4 py-3 text-[13.5px] text-ink-muted">
+            <div className="flex items-center gap-2.5 rounded-lg bg-paper-2 px-4 py-3 text-md text-ink-muted">
               <FilmSlate size={17} className="shrink-0 text-ink-faint" />
               {c.noReviews}
             </div>

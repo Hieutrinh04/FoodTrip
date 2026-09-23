@@ -1,5 +1,5 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
-import { hasExactPlaceMention, hasLocationEvidence } from '../_shared/relevance.ts'
+import { hasLocationEvidence, isRelevantToPlace, primaryName } from '../_shared/relevance.ts'
 
 const SEARCH_URL = 'https://google.serper.dev/search'
 const TIKTOK_VIDEO_URL_RE = /^https:\/\/(www\.)?tiktok\.com\/@[\w.-]+\/video\/\d+/
@@ -22,18 +22,21 @@ async function searchTikTokVideos(query: string, placeName: string, location: st
   const apiKey = Deno.env.get('SERPER_API_KEY')
   if (!apiKey) return { status: 'no-key', videos: [] }
 
+  const name = primaryName(placeName)
   const res = await fetch(SEARCH_URL, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify({ q: `"${query}" review site:tiktok.com`, num: 10, gl: 'vn', hl: 'vi' }),
+    body: JSON.stringify({ q: `"${name}" ${location} review site:tiktok.com`.replace(/\s+/g, ' ').trim(), num: 12, gl: 'vn', hl: 'vi' }),
   })
   if (!res.ok) throw new Error(`Serper ${res.status}: ${(await res.text()).slice(0, 200)}`)
   const json = await res.json()
   const candidateLinks = (json.organic || [])
-    .filter((it: { title?: string; snippet?: string }) => hasExactPlaceMention(it.title || '', placeName) && hasLocationEvidence(`${it.title || ''} ${it.snippet || ''}`, location))
+    .filter((it: { title?: string; snippet?: string }) =>
+      isRelevantToPlace(it.title || '', name) &&
+      (!location.trim() || hasLocationEvidence(`${it.title || ''} ${it.snippet || ''}`, location)))
     .map((it: { link?: string }) => it.link)
     .filter((link: string | undefined) => TIKTOK_VIDEO_URL_RE.test(link || ''))
-    .slice(0, 5)
+    .slice(0, 6)
 
   if (!candidateLinks.length) return { status: 'ok', videos: [] }
 
@@ -41,7 +44,8 @@ async function searchTikTokVideos(query: string, placeName: string, location: st
     candidateLinks.map(async (link: string) => {
       try {
         const oe = await fetchTikTokOEmbedData(link)
-        if (!oe || !hasExactPlaceMention(oe.title || '', placeName) || !hasLocationEvidence(oe.title || '', location)) return null
+        if (!oe || !isRelevantToPlace(oe.title || '', name)) return null
+        if (location.trim() && !hasLocationEvidence(oe.title || '', location)) return null
         return { videoUrl: link, title: oe.title, authorName: oe.author_name, thumbnailUrl: oe.thumbnail_url, embedHtml: oe.html }
       } catch {
         return null

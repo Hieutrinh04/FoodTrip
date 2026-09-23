@@ -1,3 +1,4 @@
+/* oxlint-disable react/only-export-components -- provider and its hook intentionally share one private context */
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { supabase, hasSupabase } from '../lib/supabaseClient.js'
 

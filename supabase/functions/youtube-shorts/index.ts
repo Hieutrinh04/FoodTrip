@@ -1,5 +1,5 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
-import { hasExactPlaceMention, hasLocationEvidence } from '../_shared/relevance.ts'
+import { hasLocationEvidence, isRelevantToPlace, primaryName } from '../_shared/relevance.ts'
 
 const SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search'
 const VIDEOS_URL = 'https://www.googleapis.com/youtube/v3/videos'
@@ -22,8 +22,8 @@ async function searchYoutubeShorts(query: string, placeName: string, location: s
   const searchParams = new URLSearchParams({
     part: 'snippet',
     type: 'video',
-    maxResults: '12',
-    q: `${query} review`,
+    maxResults: '15',
+    q: `${primaryName(placeName)} ${location} review`.replace(/\s+/g, ' ').trim(),
     key: apiKey,
   })
   const searchRes = await fetch(`${SEARCH_URL}?${searchParams}`)
@@ -50,10 +50,12 @@ async function searchYoutubeShorts(query: string, placeName: string, location: s
     .filter((v: { durationSeconds: number | null }) => v.durationSeconds != null)
     // Channel names are not evidence that a video is about the venue: a
     // creator can coincidentally share the owner's name. Require the venue's
-    // distinctive words in the video title itself.
+    // distinctive words in the video title, plus the city in the title or
+    // description, so a same-named place in another province doesn't slip in.
     .filter((v: { title?: string; description?: string }) => {
-      const evidence = `${v.title || ''} ${v.description || ''}`
-      return hasExactPlaceMention(v.title || '', placeName) && hasLocationEvidence(evidence, location)
+      const title = v.title || ''
+      const all = `${title} ${v.description || ''}`
+      return isRelevantToPlace(title, placeName) && (!location.trim() || hasLocationEvidence(all, location))
     })
     .slice(0, 8)
 

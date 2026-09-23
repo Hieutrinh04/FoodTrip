@@ -26,14 +26,19 @@ export default function BookingReturn() {
   const [params] = useSearchParams()
   const { lang } = useLanguage()
   const c = C[lang]
-  const status = params.get('status') ?? 'pending'
   const bookingId = params.get('bookingId')
+  const requestedStatus = params.get('status')
+  const validStatuses = new Set(['paid', 'failed', 'pending', 'error', 'invalid-signature'])
+  const status = bookingId && validStatuses.has(requestedStatus) ? requestedStatus : 'error'
   const isDemo = params.get('demo') === '1'
   const [booking, setBooking] = useState(null)
+  const [loadingBooking, setLoadingBooking] = useState(Boolean(bookingId))
 
   useEffect(() => {
     if (!bookingId) return
-    getBooking(bookingId).then(setBooking)
+    // A failed lookup must not leave an unhandled rejection: the payment
+    // result above is the important part and stands on its own.
+    getBooking(bookingId).then(setBooking).catch(() => setBooking(null)).finally(() => setLoadingBooking(false))
   }, [bookingId])
 
   const Icon = STATUS_ICON[status] ?? Clock
@@ -42,11 +47,12 @@ export default function BookingReturn() {
   return (
     <div className="max-w-[560px] mx-auto px-5 md:px-8 py-16 md:py-24 text-center">
       <Icon size={48} weight="fill" className={status === 'paid' ? 'text-herb mx-auto' : status === 'failed' || status === 'error' || status === 'invalid-signature' ? 'text-chili mx-auto' : 'text-lantern mx-auto'} />
-      <h1 className="text-[24px] font-bold mt-4">{message}</h1>
-      {isDemo && <p className="text-[13.5px] text-ink-faint mt-2">{c.demoNote}</p>}
+      <h1 className="text-2xl font-bold mt-4">{message}</h1>
+      {isDemo && <p className="text-md text-ink-faint mt-2">{c.demoNote}</p>}
 
+      {loadingBooking && <p className="mt-6 font-utility text-sm text-ink-faint">{c.loading}</p>}
       {booking && (
-        <div className="mt-6 rounded-xl border border-line-strong p-5 text-left text-[14px]">
+        <div className="mt-6 rounded-xl border border-line-strong p-5 text-left text-md">
           <div className="font-bold">{booking.hotel_name}</div>
           <div className="text-ink-muted mt-1">{booking.room_name} · {booking.nights} {lang === 'vi' ? 'đêm' : 'nights'}</div>
           <div className="text-ink-muted">{booking.check_in} → {booking.check_out}</div>
@@ -55,10 +61,10 @@ export default function BookingReturn() {
       )}
 
       <div className="flex justify-center gap-3 mt-8 flex-wrap">
-        <Link to="/bookings" className="inline-flex items-center gap-2 font-utility font-semibold text-[14px] px-6 py-3 rounded-full bg-chili text-chili-ink">
+        <Link to="/bookings" className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-3 rounded-full bg-chili text-chili-ink">
           {c.viewBookings}
         </Link>
-        <Link to="/" className="inline-flex items-center gap-2 font-utility font-semibold text-[14px] px-6 py-3 rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors">
+        <Link to="/" className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-3 rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors">
           {c.backHome}
         </Link>
       </div>

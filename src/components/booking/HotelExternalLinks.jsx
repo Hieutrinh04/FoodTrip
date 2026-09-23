@@ -38,7 +38,7 @@ export default function HotelExternalLinks({ hotelName, cityName }) {
           target="_blank"
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 font-utility text-[12px] font-semibold text-chili hover:underline"
+          className="inline-flex items-center gap-1 font-utility text-xs font-semibold text-chili hover:underline"
         >
           Agoda <ArrowSquareOut size={12} />
         </a>
@@ -47,11 +47,11 @@ export default function HotelExternalLinks({ hotelName, cityName }) {
           target="_blank"
           rel="noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex items-center gap-1 font-utility text-[12px] font-semibold text-chili hover:underline"
+          className="inline-flex items-center gap-1 font-utility text-xs font-semibold text-chili hover:underline"
         >
           Traveloka <ArrowSquareOut size={12} />
         </a>
-        <span className="font-utility text-[10.5px] text-ink-faint">{links.exact ? c.exactNote : c.fallbackNote}</span>
+        <span className="font-utility text-2xs text-ink-faint">{links.exact ? c.exactNote : c.fallbackNote}</span>
       </div>
     )
   }
@@ -61,7 +61,7 @@ export default function HotelExternalLinks({ hotelName, cityName }) {
       type="button"
       onClick={handleClick}
       disabled={status === 'searching'}
-      className="inline-flex items-center gap-1.5 font-utility text-[12px] font-semibold text-ink-muted hover:text-chili transition-colors disabled:opacity-60"
+      className="inline-flex items-center gap-1.5 font-utility text-xs font-semibold text-ink-muted hover:text-chili transition-colors disabled:opacity-60"
     >
       <MagnifyingGlass size={13} /> {status === 'searching' ? c.searching : c.compare}
     </button>

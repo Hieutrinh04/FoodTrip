@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ArrowRight, Minus, Plus, Motorcycle, Car, PersonSimpleWalk, Taxi, ArrowCounterClockwise, MapTrifold, MagicWand, Warning,
-  FileXls, FilePdf, Sparkle, BookmarkSimple, ShareNetwork, Check, Bed, CalendarBlank, Path, Clock, ArrowsOut, ArrowsIn,
+  FileXls, FilePdf, Sparkle, BookmarkSimple, ShareNetwork, Check, Bed, CalendarBlank, Path, Clock, ArrowsOut, ArrowsIn, PlayCircle,
 } from '@phosphor-icons/react'
 import CityPattern from '../components/CityPattern.jsx'
 import CategoryIcon from '../components/ui/CategoryIcon.jsx'
@@ -10,6 +11,7 @@ import Chip from '../components/ui/Chip.jsx'
 import ItineraryTicket from '../components/ticket/ItineraryTicket.jsx'
 import LiveTripMap from '../components/map/LiveTripMap.jsx'
 import HotelCard from '../components/booking/HotelCard.jsx'
+import TripWeatherAdvice from '../components/planner/TripWeatherAdvice.jsx'
 import { CITIES, TAGS, TRANSPORT, CATEGORY_LABEL, getCity, getPlacesByCity, registerCustomPlaces } from '../data/destinations.js'
 import { generateItinerary } from '../lib/itineraryEngine.js'
 import { searchCityPlaces } from '../lib/citySearch.js'
@@ -20,7 +22,9 @@ import { parseTripRequestText, resolveDestinationQuery } from '../lib/tripReques
 import { cacheCustomPlaces } from '../lib/customPlacesCache.js'
 import { saveItinerary, setItineraryPublic } from '../lib/itineraries.js'
 import { shareOrCopyLink } from '../lib/shareLink.js'
-import { haversineKm } from '../lib/trackAsia.js'
+import { createLiveRoomToken } from '../lib/liveTripRoom.js'
+import { destinationWeatherLocation } from '../lib/tripWeather.js'
+import { fetchRouteDetails, hasMapsKey, haversineKm, loadMapStyle } from '../lib/trackAsia.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { fadeUp, staggerContainer, easeOut } from '../motion/variants.js'
@@ -34,10 +38,11 @@ const C = {
     title: 'Cùng dựng lịch trình vừa ý bạn.',
     steps: ['Điểm đến', 'Thời gian & ngân sách', 'Chọn khách sạn', 'Sở thích & di chuyển', 'Lịch trình của bạn'],
     stepCity: 'Bạn muốn đi đâu?',
-    stepTime: 'Đi bao lâu, với ngân sách nào?',
+    stepTime: 'Khi nào, đi bao lâu và với ngân sách nào?',
+    startDate: 'Ngày khởi hành',
     duration: 'Thời gian',
     durationMinus: 'Giảm số ngày', durationPlus: 'Tăng số ngày',
-    budget: 'Ngân sách / người',
+    budget: 'Ngân sách / người / chuyến',
     people: 'Số người',
     stepHotel: 'Bạn muốn ở khách sạn nào?',
     hotelHint: 'FoodTrip tìm khách sạn thật quanh điểm đến, xếp theo tầm giá bạn vừa chọn. Chọn 1 khách sạn hoặc bỏ qua, chọn sau cũng được.',
@@ -54,10 +59,10 @@ const C = {
     transport: 'Phương tiện di chuyển',
     back: 'Quay lại', next: 'Tiếp tục', generate: 'Tạo lịch trình',
     resultTitle: (city) => `Lịch trình ${city} đã sẵn sàng!`,
-    resultSub: 'FoodTrip đã kiểm tra giờ mở cửa và khoảng cách giữa các điểm cho bạn.',
+    resultSub: 'FoodTrip đã đối chiếu khung giờ có dữ liệu và tối ưu thời gian di chuyển theo tuyến đường thực tế.',
     restart: 'Tạo lịch trình khác',
     people1: 'người', peopleN: 'người',
-    generating: 'Đang chấm điểm địa điểm theo đánh giá Google và sở thích của bạn…',
+    generating: 'Đang xếp hạng địa điểm và so sánh các tuyến đường phù hợp…',
     showMap: 'Xem bản đồ trực tiếp', hideMap: 'Ẩn bản đồ',
     orOther: 'Hoặc nhập điểm đến khác',
     otherPlaceholder: 'vd: Phan Thiết, Quy Nhơn, Phú Quốc…',
@@ -74,6 +79,7 @@ const C = {
     shareTrip: 'Chia sẻ cho bạn bè', shareTripCopied: 'Đã sao chép liên kết!', shareTripShared: 'Đã chia sẻ!', shareTripError: 'Chia sẻ thất bại, thử lại nhé.',
     shareTripTitle: (dest) => `Lịch trình ${dest} trên FoodTrip`,
     shareTripText: 'Xem lịch trình mình vừa tạo trên FoodTrip nè!',
+    startLiveTrip: 'Bắt đầu hành trình chung', startLiveTripStarting: 'Đang mở phòng…', startLiveTripError: 'Không thể mở phòng hành trình, thử lại nhé.',
     quickTitle: 'Mô tả nhanh chuyến đi của bạn (AI tự điền)',
     quickPlaceholder: 'vd: Lên lịch 3 ngày biển dưới 2 triệu, thích hải sản, đi xe máy…',
     quickSubmit: 'Điền tự động',
@@ -87,10 +93,11 @@ const C = {
     title: 'Let’s build a plan you’ll love.',
     steps: ['Destination', 'Time & budget', 'Choose a hotel', 'Preferences & transport', 'Your itinerary'],
     stepCity: 'Where do you want to go?',
-    stepTime: 'How long, and what budget?',
+    stepTime: 'When, for how long, and what budget?',
+    startDate: 'Departure date',
     duration: 'Duration',
     durationMinus: 'Decrease days', durationPlus: 'Increase days',
-    budget: 'Budget / person',
+    budget: 'Budget / person / trip',
     people: 'Group size',
     stepHotel: 'Which hotel would you like to stay at?',
     hotelHint: "FoodTrip finds real hotels near your destination, ranked by the budget you just set. Pick one or skip this — you can always choose later.",
@@ -107,10 +114,10 @@ const C = {
     transport: 'Transport',
     back: 'Back', next: 'Continue', generate: 'Generate itinerary',
     resultTitle: (city) => `Your ${city} itinerary is ready!`,
-    resultSub: 'FoodTrip checked real opening hours and distances between stops.',
+    resultSub: 'FoodTrip checked the available opening-hour data and optimised travel time using real road routes.',
     restart: 'Plan another trip',
     people1: 'person', peopleN: 'people',
-    generating: 'Scoring places by Google ratings and your preferences…',
+    generating: 'Ranking places and comparing suitable road routes…',
     showMap: 'Show live map', hideMap: 'Hide map',
     orOther: 'Or enter another destination',
     otherPlaceholder: 'e.g. Phan Thiet, Quy Nhon, Phu Quoc…',
@@ -127,6 +134,7 @@ const C = {
     shareTrip: 'Share with friends', shareTripCopied: 'Link copied!', shareTripShared: 'Shared!', shareTripError: 'Share failed — please try again.',
     shareTripTitle: (dest) => `${dest} itinerary on FoodTrip`,
     shareTripText: 'Check out this trip I planned on FoodTrip!',
+    startLiveTrip: 'Start live journey', startLiveTripStarting: 'Opening room…', startLiveTripError: 'Could not open the live journey room — please try again.',
     quickTitle: 'Describe your trip in a sentence (AI fills it in)',
     quickPlaceholder: 'e.g. Plan a 3-day beach trip under 2 million, love seafood, on a motorbike…',
     quickSubmit: 'Auto-fill',
@@ -146,7 +154,17 @@ function durationLabel(n, lang) {
   return lang === 'vi' ? `${n} ngày ${n - 1} đêm` : `${n} days, ${n - 1} nights`
 }
 
+function dateInputValue(offsetDays = 0) {
+  const date = new Date()
+  date.setDate(date.getDate() + offsetDays)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function Planner() {
+  const navigate = useNavigate()
   const { lang } = useLanguage()
   const c = C[lang]
   const { user } = useAuth()
@@ -154,7 +172,11 @@ export default function Planner() {
   const [cityId, setCityId] = useState('hoian')
   const [destMode, setDestMode] = useState('curated') // 'curated' | 'custom'
   const [duration, setDuration] = useState(2)
+  const [startDate, setStartDate] = useState(() => dateInputValue(1))
   const [budget, setBudget] = useState(1500000)
+  // The slider is one traveller's budget for the whole trip; hotel price bands
+  // and the itinerary's place scoring both work per night / per day.
+  const budgetPerDay = budget / Math.max(duration, 1)
   const [people, setPeople] = useState(2)
   const [prefs, setPrefs] = useState(['seafood', 'coffee'])
   const [transport, setTransport] = useState('bike')
@@ -180,8 +202,50 @@ export default function Planner() {
   const [saveTripStatus, setSaveTripStatus] = useState('idle') // idle | saving | saved | error
   const [savedTripId, setSavedTripId] = useState(null)
   const [shareStatus, setShareStatus] = useState('idle') // idle | sharing | copied | shared | error
+  const [liveTripStatus, setLiveTripStatus] = useState('idle') // idle | starting | error
+
+  /**
+   * Back to the first step for a new itinerary. What the traveller entered —
+   * destination, dates, budget, party, tastes — is kept so a second plan is a
+   * tweak rather than a retype; everything produced for the previous plan is
+   * cleared, including its saved/shared status, which otherwise carried over
+   * and showed "Đã lưu" on a plan that had never been saved.
+   */
+  function startOver() {
+    setStep(0)
+    setDays(null)
+    setHotels([])
+    setHotelStatus('idle')
+    setSelectedHotelId(null)
+    setShowMap(false)
+    setActiveMapDay(0)
+    setSaveTripStatus('idle')
+    setSavedTripId(null)
+    setShareStatus('idle')
+    setLiveTripStatus('idle')
+    setQuickNotice(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // The nav's "Tạo lịch trình" button points at this same page. Clicked from
+  // here, a plain link did nothing at all, so it sends a fresh token in the
+  // navigation state and the planner starts over when it sees a new one.
+  const location = useLocation()
+  const startOverToken = location.state?.startOver
+  useEffect(() => {
+    if (startOverToken) startOver()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startOverToken])
 
   const city = destMode === 'custom' ? customCity : getCity(cityId)
+  const weatherLocation = useMemo(() => destinationWeatherLocation(
+    destMode === 'curated' ? cityId : null,
+    destMode === 'custom' ? (confirmedCustomPlaces ?? cityCandidates) : [],
+  ), [cityCandidates, cityId, confirmedCustomPlaces, destMode])
+
+  useEffect(() => {
+    if (hasMapsKey) void loadMapStyle({ lightweight: true }).catch(() => null)
+  }, [])
 
   function selectCuratedCity(id) {
     setDestMode('curated')
@@ -234,15 +298,23 @@ export default function Planner() {
       }
 
       if (parsed.duration) setDuration(Math.min(14, Math.max(1, parsed.duration)))
-      if (parsed.budgetPerPerson) setBudget(Math.min(3000000, Math.max(500000, parsed.budgetPerPerson)))
+      if (parsed.budgetPerPerson) setBudget(Math.min(15000000, Math.max(500000, parsed.budgetPerPerson)))
       if (parsed.people) setPeople(Math.min(8, Math.max(1, parsed.people)))
       if (parsed.transport && TRANSPORT[parsed.transport]) setTransport(parsed.transport)
       if (parsed.prefs?.length) setPrefs(parsed.prefs.filter((t) => PREFERENCE_TAGS.includes(t)))
 
-      const resolved = resolveDestinationQuery(parsed.destinationQuery)
       setQuickStatus('idle')
       setQuickNotice(c.quickApplied)
 
+      // A grounded cityId from retrieval is authoritative — no re-resolve, and
+      // no live city search needed. Only an unrecognised destination falls
+      // through to resolveDestinationQuery / the Google city search.
+      if (parsed.cityId && CITIES.some((ci) => ci.id === parsed.cityId)) {
+        selectCuratedCity(parsed.cityId)
+        goNext()
+        return
+      }
+      const resolved = resolveDestinationQuery(parsed.destinationQuery)
       if (resolved?.type === 'curated') {
         selectCuratedCity(resolved.cityId)
         goNext()
@@ -258,7 +330,8 @@ export default function Planner() {
   function toggleCandidate(id) {
     setSelectedCandidateIds((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -297,8 +370,15 @@ export default function Planner() {
     setSelectedHotelId(null)
     setHotelStatus('searching')
     try {
-      const budgetPerPersonPerDay = budget / Math.max(people, 1)
-      const results = await searchHotelsForCity({ cityName: city.name.vi, budgetPerPersonPerDay })
+      // Hotelbeds prices per occupancy, so the party size decides which rates
+      // come back at all — a room for four is not the same tariff as for two.
+      // The budget is one traveller's for the whole trip, so what a night can
+      // cost is that spread across the days; the party size never divides it.
+      const results = await searchHotelsForCity({
+        cityName: city.name.vi,
+        budgetPerPersonPerDay: budgetPerDay,
+        adults: people,
+      })
       if (results === null) {
         setHotelStatus('no-key')
         return
@@ -327,21 +407,38 @@ export default function Planner() {
     setSaveTripStatus('idle')
     setSavedTripId(null)
     setShareStatus('idle')
+    // Warm the external style while itinerary scoring/routing runs. By the time
+    // the user opens the map, the style is normally already in memory.
+    void loadMapStyle({ lightweight: true }).catch(() => null)
+    const selectedHotel = hotels.find((hotel) => hotel.id === selectedHotelId) ?? null
     const generatedDays = await generateItinerary({
       cityId: destMode === 'curated' ? cityId : undefined,
       places: destMode === 'custom' ? confirmedCustomPlaces : undefined,
       duration,
+      startDate,
       budget,
       people,
       prefs,
       transport,
+      startLocation: selectedHotel?.location ?? null,
+      endLocation: selectedHotel?.location ?? null,
     })
     setDays(withStopIds(generatedDays))
+    const firstDayRoutePoints = [
+      ...(selectedHotel?.location ? [selectedHotel.location] : []),
+      ...(generatedDays[0] ?? []).map((stop) => stop.location).filter(Boolean),
+      ...(selectedHotel?.location ? [selectedHotel.location] : []),
+    ]
+    if (firstDayRoutePoints.length >= 2) {
+      // Cache the most likely first map view, including geometry. This request
+      // is deliberately non-blocking: itinerary results remain instant.
+      void fetchRouteDetails(firstDayRoutePoints, transport).catch(() => null)
+    }
     setGenerating(false)
   }
 
   function handleExportExcel() {
-    exportItineraryToExcel({ city, days, hotels, people, budget, transport, lang })
+    exportItineraryToExcel({ city, days, hotels, startDate, people, budget, transport, lang })
   }
 
   function handleExportPdf() {
@@ -354,12 +451,13 @@ export default function Planner() {
       cityId: destMode === 'curated' ? cityId : null,
       customCityName: destMode === 'custom' ? customCityName.trim() : null,
       duration,
+      startDate,
       budget,
       people,
       transport,
       prefs,
       days,
-      hotels,
+      hotels: hotels.map((hotel) => ({ ...hotel, selected: hotel.id === selectedHotelId })),
       isPublic,
     })
     setSavedTripId(id)
@@ -395,13 +493,26 @@ export default function Planner() {
     }
   }
 
+  async function handleStartLiveTrip() {
+    if (!user) return
+    setLiveTripStatus('starting')
+    try {
+      const id = savedTripId ?? (await persistTrip(true))
+      if (savedTripId) await setItineraryPublic(id, true)
+      setSaveTripStatus('saved')
+      navigate(`/live/${id}?room=${encodeURIComponent(createLiveRoomToken())}`)
+    } catch {
+      setLiveTripStatus('error')
+    }
+  }
+
   return (
     <div className="max-w-[1180px] mx-auto px-5 md:px-8 py-12 md:py-16">
       <motion.div initial="hidden" animate="show" variants={staggerContainer(0.08)} className="no-print max-w-[700px] mb-10">
-        <motion.span variants={fadeUp} className="font-utility text-[12.5px] font-bold uppercase tracking-[0.14em] text-chili inline-flex items-center gap-2 before:content-[''] before:w-4 before:h-[1.5px] before:bg-chili">
+        <motion.span variants={fadeUp} className="eyebrow eyebrow-tick">
           {c.eyebrow}
         </motion.span>
-        <motion.h1 variants={fadeUp} className="text-[32px] md:text-[44px] font-bold leading-[1.15] mt-3">{c.title}</motion.h1>
+        <motion.h1 variants={fadeUp} className="text-3xl md:text-4xl font-bold leading-[1.15] mt-3">{c.title}</motion.h1>
       </motion.div>
 
       <div className="no-print">
@@ -412,7 +523,7 @@ export default function Planner() {
         {step === 0 && (
           <>
             <div className="mb-8 rounded-xl border-[1.5px] border-dashed border-line-strong p-4 sm:p-5">
-              <label className="font-utility text-[12px] font-bold uppercase tracking-wide text-chili flex items-center gap-1.5 mb-2">
+              <label className="font-utility text-xs font-bold uppercase tracking-wide text-chili flex items-center gap-1.5 mb-2">
                 <Sparkle size={14} weight="fill" /> {c.quickTitle}
               </label>
               <form onSubmit={handleQuickFill} className="flex gap-2 flex-col sm:flex-row">
@@ -420,23 +531,23 @@ export default function Planner() {
                   value={quickText}
                   onChange={(e) => setQuickText(e.target.value)}
                   placeholder={c.quickPlaceholder}
-                  className="flex-1 min-w-0 rounded-full border-[1.5px] border-line-strong px-4 py-2.5 text-[14px] outline-none focus:border-chili"
+                  className="flex-1 min-w-0 rounded-full border-[1.5px] border-line-strong px-4 py-2.5 text-md outline-none focus:border-chili"
                 />
                 <button
                   type="submit"
                   disabled={quickStatus === 'parsing'}
-                  className="inline-flex items-center justify-center gap-2 font-utility font-semibold text-[13.5px] px-5 py-2.5 rounded-full bg-chili text-chili-ink shrink-0 disabled:opacity-60"
+                  className="inline-flex items-center justify-center gap-2 font-utility font-semibold text-md px-5 py-2.5 rounded-full bg-chili text-chili-ink shrink-0 disabled:opacity-60"
                 >
                   <MagicWand size={15} /> {c.quickSubmit}
                 </button>
               </form>
-              {quickStatus === 'parsing' && <p className="mt-2.5 text-[13px] text-ink-muted">{c.quickParsing}</p>}
-              {quickStatus === 'no-key' && <p className="mt-2.5 text-[13px] text-lantern">{c.quickNoKey}</p>}
-              {quickStatus === 'error' && <p className="mt-2.5 text-[13px] text-lantern">{c.quickErrorText}</p>}
-              {quickNotice && quickStatus === 'idle' && <p className="mt-2.5 text-[13px] text-herb font-medium">{quickNotice}</p>}
+              {quickStatus === 'parsing' && <p className="mt-2.5 text-sm text-ink-muted">{c.quickParsing}</p>}
+              {quickStatus === 'no-key' && <p className="mt-2.5 text-sm text-lantern">{c.quickNoKey}</p>}
+              {quickStatus === 'error' && <p className="mt-2.5 text-sm text-lantern">{c.quickErrorText}</p>}
+              {quickNotice && quickStatus === 'idle' && <p className="mt-2.5 text-sm text-herb font-medium">{quickNotice}</p>}
             </div>
 
-            <h2 className="text-[20px] font-bold mb-5">{c.stepCity}</h2>
+            <h2 className="text-xl font-bold mb-5">{c.stepCity}</h2>
             <div className="grid gap-4 grid-cols-2 sm:grid-cols-3">
               {CITIES.map((ci) => (
                 <button
@@ -450,35 +561,35 @@ export default function Planner() {
                     <CityPattern pattern={ci.pattern} accent={ci.accent} className="h-[100px]" />
                   )}
                   <div className="bg-surface p-3">
-                    <div className="font-bold text-[14.5px]">{ci.name[lang]}</div>
+                    <div className="font-bold text-md">{ci.name[lang]}</div>
                   </div>
                 </button>
               ))}
             </div>
 
             <div className="mt-8 pt-6 border-t border-dashed border-line">
-              <label className="font-utility text-[12px] font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.orOther}</label>
+              <label className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.orOther}</label>
               <form onSubmit={handleSearchDestination} className="flex gap-2 max-w-[480px]">
                 <input
                   value={customCityName}
                   onChange={(e) => setCustomCityName(e.target.value)}
                   placeholder={c.otherPlaceholder}
-                  className="flex-1 min-w-0 rounded-full border-[1.5px] border-line-strong px-4 py-2.5 text-[14px] outline-none focus:border-chili"
+                  className="flex-1 min-w-0 rounded-full border-[1.5px] border-line-strong px-4 py-2.5 text-md outline-none focus:border-chili"
                 />
                 <button
                   type="submit"
                   disabled={citySearchStatus === 'searching'}
-                  className="inline-flex items-center gap-2 font-utility font-semibold text-[13.5px] px-5 py-2.5 rounded-full bg-chili text-chili-ink shrink-0 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 font-utility font-semibold text-md px-5 py-2.5 rounded-full bg-chili text-chili-ink shrink-0 disabled:opacity-60"
                 >
                   <MagicWand size={15} /> {c.searchDest}
                 </button>
               </form>
 
               {citySearchStatus === 'searching' && (
-                <p className="mt-3 text-[13.5px] text-ink-muted">{c.searchingDest(customCityName.trim())}</p>
+                <p className="mt-3 text-md text-ink-muted">{c.searchingDest(customCityName.trim())}</p>
               )}
               {(citySearchStatus === 'no-key' || citySearchStatus === 'empty' || citySearchStatus === 'error') && (
-                <p className="mt-3 flex items-start gap-2 text-[13.5px] text-lantern">
+                <p className="mt-3 flex items-start gap-2 text-md text-lantern">
                   <Warning size={16} className="shrink-0 mt-0.5" />
                   {citySearchStatus === 'no-key' ? c.noKeyDest : citySearchStatus === 'empty' ? c.emptyDest(customCityName.trim()) : c.errorDest}
                 </p>
@@ -486,7 +597,7 @@ export default function Planner() {
 
               {citySearchStatus === 'results' && (
                 <div className="mt-5">
-                  <p className="text-[13.5px] text-ink-muted mb-3">{c.resultsHint}</p>
+                  <p className="text-md text-ink-muted mb-3">{c.resultsHint}</p>
                   <div className="grid gap-2.5 sm:grid-cols-2">
                     {cityCandidates.map((p) => (
                       <label
@@ -501,13 +612,13 @@ export default function Planner() {
                         />
                         <CategoryIcon category={p.category} size={16} className="shrink-0 text-ink-faint" />
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-[13.5px] truncate">{p.name[lang]}</div>
-                          <div className="font-utility text-[11px] text-ink-faint">{CATEGORY_LABEL[p.category][lang]} · {p.rating?.toFixed(1) ?? '–'}★</div>
+                          <div className="font-semibold text-md truncate">{p.name[lang]}</div>
+                          <div className="font-utility text-2xs text-ink-faint">{CATEGORY_LABEL[p.category][lang]} · {p.rating?.toFixed(1) ?? '–'}★</div>
                         </div>
                       </label>
                     ))}
                   </div>
-                  <p className="mt-3 font-utility text-[12px] font-semibold text-chili">{c.selectedCount(selectedCandidateIds.size)}</p>
+                  <p className="mt-3 font-utility text-xs font-semibold text-chili">{c.selectedCount(selectedCandidateIds.size)}</p>
                 </div>
               )}
             </div>
@@ -518,10 +629,21 @@ export default function Planner() {
 
         {step === 1 && (
           <>
-            <h2 className="text-[20px] font-bold mb-5">{c.stepTime}</h2>
+            <h2 className="text-xl font-bold mb-5">{c.stepTime}</h2>
             <div className="flex flex-col gap-7 max-w-[520px]">
               <div>
-                <label className="font-utility text-[12px] font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.duration}</label>
+                <label htmlFor="trip-start-date" className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.startDate}</label>
+                <input
+                  id="trip-start-date"
+                  type="date"
+                  min={dateInputValue(0)}
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  className="w-full rounded-xl border-[1.5px] border-line-strong bg-surface px-4 py-3 font-utility text-md outline-none transition-colors focus:border-chili"
+                />
+              </div>
+              <div>
+                <label className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.duration}</label>
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setDuration((d) => Math.max(1, d - 1))}
@@ -530,7 +652,7 @@ export default function Planner() {
                   >
                     <Minus size={16} />
                   </button>
-                  <span className="font-display font-bold text-[22px] w-12 text-center tabular shrink-0">{duration}</span>
+                  <span className="font-display font-bold text-xl w-12 text-center tabular shrink-0">{duration}</span>
                   <button
                     onClick={() => setDuration((d) => Math.min(14, d + 1))}
                     aria-label={c.durationPlus}
@@ -543,14 +665,14 @@ export default function Planner() {
               </div>
 
               <div>
-                <label className="font-utility text-[12px] font-bold uppercase tracking-wide text-ink-faint block mb-2">
+                <label className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint block mb-2">
                   {c.budget}: <span className="text-chili tabular">{formatVnd(budget)}</span>
                 </label>
                 <input
                   type="range"
                   min={500000}
-                  max={3000000}
-                  step={100000}
+                  max={15000000}
+                  step={250000}
                   value={budget}
                   onChange={(e) => setBudget(Number(e.target.value))}
                   className="w-full accent-[var(--chili)]"
@@ -558,7 +680,7 @@ export default function Planner() {
               </div>
 
               <div>
-                <label className="font-utility text-[12px] font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.people}</label>
+                <label className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.people}</label>
                 <div className="flex items-center gap-4">
                   <button
                     onClick={() => setPeople((p) => Math.max(1, p - 1))}
@@ -567,7 +689,7 @@ export default function Planner() {
                   >
                     <Minus size={16} />
                   </button>
-                  <span className="font-display font-bold text-[22px] w-12 text-center tabular">{people}</span>
+                  <span className="font-display font-bold text-xl w-12 text-center tabular">{people}</span>
                   <button
                     onClick={() => setPeople((p) => Math.min(8, p + 1))}
                     aria-label="Tăng số người"
@@ -579,18 +701,27 @@ export default function Planner() {
                 </div>
               </div>
             </div>
+            <div className="mt-7 max-w-[820px]">
+              <TripWeatherAdvice
+                cityId={destMode === 'curated' ? cityId : null}
+                location={weatherLocation}
+                startDate={startDate}
+                duration={duration}
+                lang={lang}
+              />
+            </div>
             <NavRow onBack={goBack} onNext={confirmBudgetAndAdvance} backLabel={c.back} nextLabel={c.next} />
           </>
         )}
 
         {step === 2 && (
           <>
-            <h2 className="text-[20px] font-bold mb-2">{c.stepHotel}</h2>
-            <p className="text-[14px] text-ink-muted mb-5 max-w-[52ch]">{c.hotelHint}</p>
+            <h2 className="text-xl font-bold mb-2">{c.stepHotel}</h2>
+            <p className="text-md text-ink-muted mb-5 max-w-[52ch]">{c.hotelHint}</p>
 
-            {hotelStatus === 'searching' && <p className="text-ink-muted text-[14.5px]">{c.hotelSearching}</p>}
+            {hotelStatus === 'searching' && <p className="text-ink-muted text-md">{c.hotelSearching}</p>}
             {(hotelStatus === 'no-key' || hotelStatus === 'empty' || hotelStatus === 'error') && (
-              <p className="flex items-start gap-2 text-[13.5px] text-lantern">
+              <p className="flex items-start gap-2 text-md text-lantern">
                 <Warning size={16} className="shrink-0 mt-0.5" />
                 {hotelStatus === 'no-key' ? c.hotelNoKey : hotelStatus === 'empty' ? c.hotelEmpty : c.hotelError}
               </p>
@@ -603,11 +734,11 @@ export default function Planner() {
                   { key: 'value', label: c.tierValue },
                   { key: 'premium', label: c.tierPremium },
                 ].map(({ key, label }) => {
-                  const group = groupHotelsByBudgetTier(hotels, budget / Math.max(people, 1))[key]
+                  const group = groupHotelsByBudgetTier(hotels, budgetPerDay)[key]
                   if (!group.length) return null
                   return (
                     <div key={key}>
-                      <div className="font-utility text-[11.5px] font-bold uppercase tracking-wide text-chili mb-3">{label}</div>
+                      <div className="font-utility text-xs font-bold uppercase tracking-wide text-chili mb-3">{label}</div>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {group.map((hotel) => (
                           <HotelCard
@@ -631,8 +762,8 @@ export default function Planner() {
 
         {step === 3 && (
           <>
-            <h2 className="text-[20px] font-bold mb-2">{c.stepPref}</h2>
-            <p className="text-[14px] text-ink-muted mb-5 max-w-[52ch]">{c.prefHint}</p>
+            <h2 className="text-xl font-bold mb-2">{c.stepPref}</h2>
+            <p className="text-md text-ink-muted mb-5 max-w-[52ch]">{c.prefHint}</p>
             <div className="flex flex-wrap gap-2 mb-8">
               {PREFERENCE_TAGS.map((tag) => (
                 <Chip key={tag} active={prefs.includes(tag)} onClick={() => togglePref(tag)}>
@@ -641,7 +772,7 @@ export default function Planner() {
               ))}
             </div>
 
-            <label className="font-utility text-[12px] font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.transport}</label>
+            <label className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint block mb-2">{c.transport}</label>
             <div className="flex flex-wrap gap-2">
               {Object.entries(TRANSPORT).map(([key, label]) => {
                 const Icon = TRANSPORT_ICON[key]
@@ -649,7 +780,7 @@ export default function Planner() {
                   <button
                     key={key}
                     onClick={() => setTransport(key)}
-                    className={`flex items-center gap-2 font-utility text-[13px] font-semibold px-4 py-2.5 rounded-full border-[1.5px] transition-colors ${transport === key ? 'bg-herb border-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}
+                    className={`flex items-center gap-2 font-utility text-sm font-semibold px-4 py-2.5 rounded-full border-[1.5px] transition-colors ${transport === key ? 'bg-herb border-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}
                   >
                     <Icon size={16} /> {label[lang]}
                   </button>
@@ -669,12 +800,12 @@ export default function Planner() {
                   animate={{ rotate: 360 }}
                   transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
                 />
-                <p className="text-ink-muted text-[14.5px] max-w-[40ch]">{c.generating}</p>
+                <p className="text-ink-muted text-md max-w-[40ch]">{c.generating}</p>
               </div>
             ) : (
               <>
                 <div className="no-print text-center mb-8">
-                  <h2 className="text-[24px] md:text-[28px] font-bold mb-2">{c.resultTitle(city.name[lang])}</h2>
+                  <h2 className="text-2xl font-bold mb-2">{c.resultTitle(city.name[lang])}</h2>
                   <p className="text-ink-muted">{c.resultSub}</p>
                 </div>
                 <ItineraryTicket
@@ -682,6 +813,7 @@ export default function Planner() {
                   days={days}
                   hotels={hotels}
                   selectedHotelId={selectedHotelId}
+                  startDate={startDate}
                   people={people}
                   budget={budget}
                   transport={transport}
@@ -693,9 +825,19 @@ export default function Planner() {
                   cityId={destMode === 'curated' ? cityId : null}
                 />
                 <div className="no-print flex justify-center gap-3 mt-8 flex-wrap">
+                  {user && (
+                    <button
+                      onClick={handleStartLiveTrip}
+                      disabled={liveTripStatus === 'starting'}
+                      className="inline-flex items-center gap-2 rounded-full bg-herb px-6 py-[14px] font-utility text-md font-semibold text-herb-ink shadow-soft transition-shadow hover:shadow-lifted disabled:opacity-70"
+                    >
+                      <PlayCircle size={18} weight="fill" />
+                      {liveTripStatus === 'starting' ? c.startLiveTripStarting : c.startLiveTrip}
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowMap((v) => !v)}
-                    className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow"
+                    className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow"
                   >
                     <MapTrifold size={16} /> {showMap ? c.hideMap : c.showMap}
                   </button>
@@ -703,7 +845,7 @@ export default function Planner() {
                     <button
                       onClick={handleSaveTrip}
                       disabled={saveTripStatus === 'saving' || saveTripStatus === 'saved'}
-                      className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors disabled:opacity-70"
+                      className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors disabled:opacity-70"
                     >
                       <BookmarkSimple size={16} weight={saveTripStatus === 'saved' ? 'fill' : 'regular'} />
                       {saveTripStatus === 'saved' ? c.saveTripSaved : c.saveTrip}
@@ -713,7 +855,7 @@ export default function Planner() {
                     <button
                       onClick={handleShare}
                       disabled={shareStatus === 'sharing'}
-                      className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors disabled:opacity-70"
+                      className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors disabled:opacity-70"
                     >
                       {shareStatus === 'copied' || shareStatus === 'shared' ? <Check size={16} /> : <ShareNetwork size={16} />}
                       {shareStatus === 'copied' ? c.shareTripCopied : shareStatus === 'shared' ? c.shareTripShared : c.shareTrip}
@@ -721,26 +863,27 @@ export default function Planner() {
                   )}
                   <button
                     onClick={handleExportExcel}
-                    className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors"
+                    className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors"
                   >
                     <FileXls size={16} /> {c.exportExcel}
                   </button>
                   <button
                     onClick={handleExportPdf}
-                    className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors"
+                    className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors"
                   >
                     <FilePdf size={16} /> {c.exportPdf}
                   </button>
                   <button
-                    onClick={() => { setStep(0); setDays(null); setHotels([]); setHotelStatus('idle'); setSelectedHotelId(null) }}
-                    className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors"
+                    onClick={startOver}
+                    className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors"
                   >
                     <ArrowCounterClockwise size={16} /> {c.restart}
                   </button>
                 </div>
-                {!user && <p className="no-print text-center text-[13px] text-ink-faint mt-3">{c.saveTripLoginHint}</p>}
-                {saveTripStatus === 'error' && <p className="no-print text-center text-[13px] text-chili mt-3">{c.saveTripError}</p>}
-                {shareStatus === 'error' && <p className="no-print text-center text-[13px] text-chili mt-3">{c.shareTripError}</p>}
+                {!user && <p className="no-print text-center text-sm text-ink-faint mt-3">{c.saveTripLoginHint}</p>}
+                {saveTripStatus === 'error' && <p className="no-print text-center text-sm text-chili mt-3">{c.saveTripError}</p>}
+                {shareStatus === 'error' && <p className="no-print text-center text-sm text-chili mt-3">{c.shareTripError}</p>}
+                {liveTripStatus === 'error' && <p className="no-print text-center text-sm text-chili mt-3">{c.startLiveTripError}</p>}
                 {showMap && (
                   <div className="no-print mt-6 max-w-[880px] mx-auto">
                     <DailyItineraryMap
@@ -765,6 +908,7 @@ export default function Planner() {
 
 function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveDayChange, transport, lang }) {
   const [expanded, setExpanded] = useState(false)
+  const [liveRouteMetrics, setLiveRouteMetrics] = useState(null)
   const selectedHotel = hotels.find((hotel) => hotel.id === selectedHotelId) ?? null
   const isOverview = activeDay === 0
   const selectedDay = isOverview ? null : days[activeDay - 1]
@@ -812,6 +956,13 @@ function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveD
     : 0
   const speedKmH = { walk: 4.5, bike: 28, car: 32, taxi: 32 }[transport] ?? 28
   const estimatedMinutes = Math.max(0, Math.round((routeDistanceKm / speedKmH) * 60))
+  const hasRoadMetrics = liveRouteMetrics?.distanceMeters != null && liveRouteMetrics?.durationSeconds != null
+  const displayedDistanceKm = hasRoadMetrics ? liveRouteMetrics.distanceMeters / 1000 : routeDistanceKm
+  const displayedMinutes = hasRoadMetrics ? Math.max(1, Math.round(liveRouteMetrics.durationSeconds / 60)) : estimatedMinutes
+
+  useEffect(() => {
+    setLiveRouteMetrics(null)
+  }, [activeDay, selectedHotelId, transport])
 
   useEffect(() => {
     const resizeTimer = window.setTimeout(() => window.dispatchEvent(new Event('resize')), 50)
@@ -835,13 +986,13 @@ function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveD
       <div className="flex flex-col gap-4 border-b border-line px-4 py-4 sm:px-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <div className="flex items-center gap-2 font-bold text-[16px]">
+            <div className="flex items-center gap-2 font-bold text-base">
               {selectedHotel ? <Bed size={19} className="text-herb" weight="fill" /> : <CalendarBlank size={19} className="text-chili" />}
               {isOverview
                 ? (lang === 'vi' ? 'Tổng quan chuyến đi' : 'Trip overview')
                 : (lang === 'vi' ? `Tuyến đường ngày ${activeDay}` : `Day ${activeDay} route`)}
             </div>
-            <p className="mt-1 text-[12.5px] text-ink-muted">
+            <p className="mt-1 text-sm text-ink-muted">
               {selectedHotel
                 ? (isOverview
                     ? (lang === 'vi' ? `Mỗi ngày bắt đầu và kết thúc tại ${selectedHotel.name}.` : `Every day starts and ends at ${selectedHotel.name}.`)
@@ -851,7 +1002,7 @@ function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveD
           </div>
           <div className="flex items-center gap-2">
             {!isOverview && (
-              <span className="rounded-full bg-paper-2 px-3 py-1.5 font-utility text-[11px] font-bold uppercase tracking-wide text-herb">
+              <span className="rounded-full bg-paper-2 px-3 py-1.5 font-utility text-2xs font-bold uppercase tracking-wide text-herb">
                 {dayStops.length} {lang === 'vi' ? 'điểm dừng' : 'stops'}
               </span>
             )}
@@ -878,7 +1029,7 @@ function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveD
           ))}
         </div>
         {isOverview && (
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-[11.5px] text-ink-muted">
+          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-ink-muted">
             {days.map((_, index) => (
               <span key={index} className="inline-flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: overviewColors[index % overviewColors.length] }} />
@@ -889,13 +1040,13 @@ function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveD
         )}
         {!isOverview && (
           <div className="grid grid-cols-2 gap-2 sm:flex">
-            <div className="flex items-center gap-2 rounded-lg bg-paper-2 px-3 py-2 text-[12px] text-ink-muted">
+            <div className="flex items-center gap-2 rounded-lg bg-paper-2 px-3 py-2 text-xs text-ink-muted">
               <Path size={15} className="text-chili" />
-              <span><strong className="text-ink">{routeDistanceKm.toFixed(1)} km</strong> {lang === 'vi' ? 'ước tính' : 'estimated'}</span>
+              <span><strong className="text-ink">{displayedDistanceKm.toFixed(1)} km</strong> {hasRoadMetrics ? (lang === 'vi' ? 'theo đường' : 'by road') : (lang === 'vi' ? 'ước tính' : 'estimated')}</span>
             </div>
-            <div className="flex items-center gap-2 rounded-lg bg-paper-2 px-3 py-2 text-[12px] text-ink-muted">
+            <div className="flex items-center gap-2 rounded-lg bg-paper-2 px-3 py-2 text-xs text-ink-muted">
               <Clock size={15} className="text-herb" />
-              <span><strong className="text-ink">{estimatedMinutes} {lang === 'vi' ? 'phút' : 'min'}</strong> {lang === 'vi' ? 'di chuyển' : 'travel'}</span>
+              <span><strong className="text-ink">{displayedMinutes} {lang === 'vi' ? 'phút' : 'min'}</strong> {hasRoadMetrics ? (lang === 'vi' ? 'theo tuyến thực tế' : 'on the road route') : (lang === 'vi' ? 'di chuyển ước tính' : 'estimated travel')}</span>
             </div>
           </div>
         )}
@@ -907,6 +1058,7 @@ function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveD
         transport={transport}
         showRoute={!isOverview}
         overviewRoutes={overviewRoutes}
+        onRouteMetrics={setLiveRouteMetrics}
         className={`${expanded ? 'min-h-0 flex-1 [&>div:first-child]:h-full [&>div:first-child>div:first-child]:h-full' : ''} [&>div:first-child]:rounded-none [&>div:first-child]:border-0`}
       />
     </section>
@@ -920,7 +1072,7 @@ function MapDayTab({ active, onClick, label }) {
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={`shrink-0 rounded-full px-4 py-2 font-utility text-[12.5px] font-semibold transition-colors ${
+      className={`shrink-0 rounded-full px-4 py-2 font-utility text-sm font-semibold transition-colors ${
         active ? 'bg-chili text-chili-ink shadow-soft' : 'bg-paper-2 text-ink-muted hover:text-chili'
       }`}
     >
@@ -945,14 +1097,14 @@ function NavRow({ onBack, onNext, backLabel, nextLabel, nextLoading = false, nex
   return (
     <div className="flex items-center justify-between mt-8">
       {onBack ? (
-        <button onClick={onBack} className="inline-flex items-center gap-2 font-utility font-semibold text-[14px] text-ink-muted hover:text-chili transition-colors">
+        <button onClick={onBack} className="inline-flex items-center gap-2 font-utility font-semibold text-md text-ink-muted hover:text-chili transition-colors">
           <ArrowLeft size={16} /> {backLabel}
         </button>
       ) : <span />}
       <button
         onClick={onNext}
         disabled={nextLoading || nextDisabled}
-        className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[13px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted active:scale-[0.97] transition-all disabled:opacity-60"
+        className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[13px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted active:scale-[0.97] transition-all disabled:opacity-60"
       >
         {nextLabel} <ArrowRight size={16} />
       </button>
@@ -962,7 +1114,12 @@ function NavRow({ onBack, onNext, backLabel, nextLabel, nextLoading = false, nex
 
 function StepProgress({ steps, current }) {
   return (
-    <div className="flex items-center gap-2 mb-10" aria-label="Tiến trình">
+    <div className="mb-10" aria-label="Tiến trình">
+      <div className="mb-3 flex items-baseline justify-between gap-3 sm:hidden">
+        <span className="font-utility text-xs font-bold text-chili">{steps[current]}</span>
+        <span className="font-utility text-2xs font-semibold text-ink-faint tabular">{current + 1} / {steps.length}</span>
+      </div>
+      <div className="flex items-center gap-2">
       {steps.map((label, i) => (
         <div key={label} className="flex items-center gap-2 flex-1">
           <div className="flex flex-col gap-2 w-full">
@@ -974,12 +1131,13 @@ function StepProgress({ steps, current }) {
                 transition={{ duration: 0.4, ease: easeOut }}
               />
             </div>
-            <span className={`font-utility text-[11px] font-semibold hidden sm:block ${i <= current ? 'text-chili' : 'text-ink-faint'}`}>
+            <span className={`font-utility text-2xs font-semibold hidden sm:block ${i <= current ? 'text-chili' : 'text-ink-faint'}`}>
               {label}
             </span>
           </div>
         </div>
       ))}
+      </div>
     </div>
   )
 }

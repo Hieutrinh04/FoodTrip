@@ -19,6 +19,19 @@ export const hasMapsKey = Boolean(apiKey)
 const GEOCODE_URL = 'https://maps.track-asia.com/api/v2/geocode/json'
 const STYLE_URL = 'https://maps.track-asia.com/styles/v1/streets.json'
 const ROUTE_URL = 'https://maps.track-asia.com/route/v1'
+const ROUTE_TIMEOUT_MS = 6000
+const STYLE_TIMEOUT_MS = 8000
+const ROUTE_CACHE_TTL_MS = 1000 * 60 * 5
+
+async function fetchWithTimeout(url, timeoutMs, options = {}) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(url, { ...options, signal: controller.signal })
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
 /** MapLibre style URL — the style already embeds the key for its own glyph/sprite/tile sources. */
 export function mapStyleUrl() {
@@ -38,6 +51,7 @@ const TILE_TEMPLATE = 'https://tiles.track-asia.com/tiles/v1/{z}/{x}/{y}.pbf'
 const LABEL_ONLY_TILE_HOST = 'https://maps.track-asia.com/api/v2/tiles'
 
 let stylePromise = null
+const LITE_MAP_SOURCE_LAYERS = new Set(['admin', 'building', 'landcover', 'landuse', 'landuse_overlay', 'road', 'structure', 'water', 'waterway'])
 
 /**
  * Fetches the Track-Asia MapLibre style and repoints its vector tile source at
@@ -48,11 +62,11 @@ let stylePromise = null
  * The resolved style is shared between map instances, so each caller gets a
  * clone — MapLibre mutates the style object it is handed.
  */
-export async function loadMapStyle() {
+export async function loadMapStyle({ lightweight = false } = {}) {
   if (!hasMapsKey) return null
   if (!stylePromise) {
     stylePromise = (async () => {
-      const res = await fetch(mapStyleUrl())
+      const res = await fetchWithTimeout(mapStyleUrl(), STYLE_TIMEOUT_MS)
       if (!res.ok) throw new Error(`track-asia style ${res.status}`)
       const style = await res.json()
       for (const source of Object.values(style.sources ?? {})) {
@@ -69,7 +83,18 @@ export async function loadMapStyle() {
       throw err
     })
   }
-  return structuredClone(await stylePromise)
+  const style = structuredClone(await stylePromise)
+  if (lightweight) {
+    // The itinerary map already renders its own numbered markers. Dropping 50+
+    // symbol/POI layers avoids sprite, glyph and missing-icon requests while
+    // preserving the geographic context needed to understand the route.
+    style.layers = (style.layers ?? []).filter((layer) =>
+      layer.type === 'background' || (layer.type !== 'symbol' && LITE_MAP_SOURCE_LAYERS.has(layer['source-layer']))
+    )
+    delete style.sprite
+    delete style.glyphs
+  }
+  return style
 }
 
 /** Safety net: keep any stray label-only tile URL off the map. */
@@ -164,25 +189,85 @@ export async function searchNearbyByCoords(origin, { keyword = 'quán ăn', radi
 
 // Track-Asia's OSRM service only serves these three profiles (bike/foot 404).
 const ROUTE_PROFILE = { bike: 'motorcycle', car: 'car', walk: 'walking', taxi: 'car' }
+const routeDetailsCache = new Map()
 
-/** Route geometry between ordered points as GeoJSON. Null if the routing service can't answer. */
-export async function fetchRoute(points, transport = 'car') {
+/**
+ * Full road-route result for an already ordered list of points.
+ *
+ * Track-Asia exposes the OSRM route shape, total distance/time and one leg per
+ * pair of consecutive waypoints. Keeping all three matters: the map needs the
+ * geometry, while the planner must use the same road distance/time instead of
+ * showing a straight-line estimate beside a road-following line.
+ */
+export async function fetchRouteDetails(points, transport = 'car', { geometry = true } = {}) {
   if (!hasMapsKey || !points || points.length < 2) return null
   const profile = ROUTE_PROFILE[transport] ?? 'car'
   const coords = points.map((p) => `${p.lng},${p.lat}`).join(';')
-  try {
-    const res = await fetch(`${ROUTE_URL}/${profile}/${coords}?key=${apiKey}&overview=full&geometries=geojson`)
-    if (!res.ok) return null
-    const json = await res.json()
-    if (json.code !== 'Ok') return null
-    return json.routes?.[0]?.geometry ?? null
-  } catch {
-    return null
-  }
+  const cacheKey = `${profile}:${geometry ? 'geometry' : 'metrics'}:${coords}`
+  const cached = routeDetailsCache.get(cacheKey)
+  if (cached && Date.now() - cached.createdAt < ROUTE_CACHE_TTL_MS) return cached.promise
+
+  const promise = (async () => {
+    try {
+      const overview = geometry ? 'full' : 'false'
+      const res = await fetchWithTimeout(
+        `${ROUTE_URL}/${profile}/${coords}?key=${apiKey}&overview=${overview}&geometries=geojson&steps=false`,
+        ROUTE_TIMEOUT_MS
+      )
+      if (!res.ok) return null
+      const json = await res.json()
+      if (json.code !== 'Ok') return null
+      const route = json.routes?.[0]
+      if (!route) return null
+      return {
+        geometry: route.geometry ?? null,
+        distanceMeters: Number.isFinite(route.distance) ? route.distance : null,
+        durationSeconds: Number.isFinite(route.duration) ? route.duration : null,
+        legs: (route.legs ?? []).map((leg) => ({
+          distanceMeters: Number.isFinite(leg.distance) ? leg.distance : null,
+          durationSeconds: Number.isFinite(leg.duration) ? leg.duration : null,
+        })),
+      }
+    } catch {
+      return null
+    }
+  })()
+  routeDetailsCache.set(cacheKey, { createdAt: Date.now(), promise })
+  const result = await promise
+  if (!result) routeDetailsCache.delete(cacheKey)
+  return result
+}
+
+/** Route geometry between ordered points as GeoJSON. Null if routing fails. */
+export async function fetchRoute(points, transport = 'car') {
+  return (await fetchRouteDetails(points, transport))?.geometry ?? null
 }
 
 /** Opens the place on Track-Asia's own web map — the equivalent of the old "view on Google Maps" links. */
 export function placeMapUrl({ name, address, location }) {
   if (location) return `https://maps.track-asia.com/?lat=${location.lat}&lng=${location.lng}&zoom=17`
   return `https://maps.track-asia.com/?q=${encodeURIComponent([name, address].filter(Boolean).join(', '))}`
+}
+
+// The basemap draws its own POI icons — hotels, restaurants, pharmacies — from
+// this source layer. On a results map they compete with the app's own scored
+// markers and duplicate them: filtering for cafés still left the map covered in
+// hotel and restaurant pins the filter had nothing to do with.
+const BASEMAP_POI_SOURCE_LAYERS = new Set(['poi_label', 'poi'])
+
+/**
+ * Hides the basemap's built-in place icons, leaving roads, water and district
+ * names intact so the map still reads as a map.
+ *
+ * Matches on the source layer rather than the layer id: ids are the style
+ * author's naming choice and change without notice, whereas the source layer
+ * comes from the tile schema.
+ */
+export function hideBasemapPoiLayers(map) {
+  for (const layer of map.getStyle()?.layers ?? []) {
+    if (layer.type !== 'symbol' || !BASEMAP_POI_SOURCE_LAYERS.has(layer['source-layer'])) continue
+    // A style can be swapped underneath us mid-load, so a missing layer here is
+    // expected rather than exceptional.
+    if (map.getLayer(layer.id)) map.setLayoutProperty(layer.id, 'visibility', 'none')
+  }
 }

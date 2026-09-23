@@ -1,4 +1,5 @@
 import { searchPlaces, reverseGeocode, haversineKm } from './trackAsia.js'
+import { searchMapArea } from './mapAreaSearch.js'
 
 const KEYWORDS = {
   pho: 'quán phở', coffee: 'quán cà phê', seafood: 'quán hải sản',
@@ -50,7 +51,10 @@ function normalizePlace(result, { keyword, category, cityId, origin }) {
     location: result.location,
     distanceKm: result.distanceKm ?? (origin && result.location ? haversineKm(origin, result.location) : null),
     tags: [],
-    price: 1,
+    // The provider publishes no price level. A placeholder here would feed the
+    // suitability model a criterion that scores every place identically, which
+    // only compresses the range without telling the traveller anything.
+    price: null,
     // No rating: the provider publishes none, and the app must not invent one.
     // Unrated places simply show no score.
     rating: null,
@@ -69,6 +73,21 @@ function normalizePlace(result, { keyword, category, cityId, origin }) {
 export async function searchExplorePlaces({ foodType, category = 'all', query, city, origin, radiusKm = 5, limit = 80 }) {
   const keyword = query?.trim() || KEYWORDS[foodType] || CATEGORY_KEYWORDS[category]
   if (!keyword) return []
+
+  // Google first whenever a centre point is known. Its Vietnamese coverage is
+  // far denser than the basemap provider's — 25 cafés against 2 within 1.5km of
+  // one Gò Vấp street — and its results arrive with the ratings the suitability
+  // model needs. The provider search below stays as the fallback for when the
+  // backend has no Serper key, or Google knows nothing about the area.
+  const cityName = city?.name?.vi ?? ''
+  if (origin || cityName) {
+    try {
+      const found = await searchMapArea({
+        keyword, origin, area: cityName, category, cityId: city?.id, radiusKm,
+      })
+      if (found.places.length) return found.places.slice(0, limit)
+    } catch { /* fall through to the provider search */ }
+  }
 
   let area = city?.name?.vi ?? ''
   if (origin) area = (await reverseGeocode(origin))?.areaName ?? area

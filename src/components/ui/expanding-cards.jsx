@@ -59,7 +59,7 @@ export default function ExpandingCards({ items, defaultActiveIndex = 0 }) {
               <div className="absolute inset-0 flex flex-col justify-end gap-2 p-4 sm:p-5">
                 {/* Collapsed label: rotated on desktop, hidden on mobile */}
                 <h3
-                  className={`hidden md:block origin-left rotate-90 font-utility text-[13px] font-semibold uppercase tracking-wider text-white/80 transition-all duration-300 ease-out ${
+                  className={`hidden md:block origin-left rotate-90 font-utility text-sm font-semibold uppercase tracking-wider text-white/80 transition-all duration-300 ease-out ${
                     isActive ? 'opacity-0' : 'opacity-100'
                   }`}
                 >
@@ -82,14 +82,14 @@ export default function ExpandingCards({ items, defaultActiveIndex = 0 }) {
                   {item.title}
                 </h3>
                 <p
-                  className={`max-w-xs text-[14px] sm:text-[15px] text-white/80 transition-all duration-300 ease-out ${
+                  className={`max-w-xs text-md sm:text-md text-white/80 transition-all duration-300 ease-out ${
                     isActive ? 'opacity-100 delay-225' : 'opacity-0'
                   }`}
                 >
                   {item.tagline}
                 </p>
                 <span
-                  className={`inline-flex items-center gap-1.5 font-utility text-[12px] font-bold uppercase tracking-wide text-[#FF9E6D] transition-all duration-300 ease-out ${
+                  className={`inline-flex items-center gap-1.5 font-utility text-xs font-bold uppercase tracking-wide text-[#FF9E6D] transition-all duration-300 ease-out ${
                     isActive ? 'opacity-100 delay-300' : 'opacity-0'
                   }`}
                 >

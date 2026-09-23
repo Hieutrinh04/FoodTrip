@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  MapPin, Clock, Users, ForkKnife, Coffee, Binoculars, ArrowRight,
-  BookmarkSimple, Star, Buildings, Bridge, Waves, Storefront, Mountains, Boat,
+  ArrowRight, BookmarkSimple, Star, Buildings, Bridge, Waves, Storefront, Mountains, Boat,
 } from '@phosphor-icons/react'
 import HeroPlanner from '../components/landing/HeroPlanner.jsx'
 import SmoothScrollHero from '../components/ui/smooth-scroll-hero.jsx'
@@ -162,15 +161,15 @@ export default function Landing() {
           animate="show"
           className="mx-6 max-w-[640px] text-center"
         >
-          <motion.span variants={fadeUp} className="font-utility text-[12px] sm:text-[12.5px] font-bold uppercase tracking-[0.14em] text-[#FF9E6D] inline-flex items-center gap-2 before:content-[''] before:w-4 before:h-[1.5px] before:bg-[#FF9E6D]">
+          <motion.span variants={fadeUp} className="eyebrow eyebrow-tick text-[#FF9E6D]">
             {c.eyebrow}
           </motion.span>
-          <motion.h1 variants={fadeUp} className="mt-4 text-[30px] sm:text-[44px] md:text-[54px] leading-[1.08] tracking-tight font-bold text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.4)]">
+          <motion.h1 variants={fadeUp} className="mt-4 text-3xl sm:text-4xl md:text-5xl leading-[1.08] tracking-tight font-bold text-white [text-shadow:0_2px_20px_rgba(0,0,0,0.4)]">
             {c.h1a}<br />
             <span>{c.h1b} </span>
             <em className="not-italic text-[#FF9E6D] italic">{c.h1c}</em>
           </motion.h1>
-          <motion.p variants={fadeUp} className="mt-3 font-utility text-[13px] sm:text-[14px] font-semibold text-white/80">
+          <motion.p variants={fadeUp} className="mt-3 font-utility text-sm sm:text-md font-semibold text-white/80">
             {c.bridge}
           </motion.p>
         </motion.div>
@@ -183,7 +182,7 @@ export default function Landing() {
           whileInView="show"
           viewport={viewportOnce}
           variants={fadeUp}
-          className="text-[16px] sm:text-[18px] text-ink-muted max-w-[56ch] mx-auto text-center mb-8"
+          className="text-base sm:text-lg text-ink-muted max-w-[56ch] mx-auto text-center mb-8"
         >
           {c.sub}
         </motion.p>
@@ -192,11 +191,11 @@ export default function Landing() {
           initial="hidden"
           whileInView="show"
           viewport={viewportOnce}
-          className="flex items-center gap-3 font-utility text-[13px] text-ink-muted justify-center mb-8"
+          className="flex items-center gap-3 font-utility text-sm text-ink-muted justify-center mb-8"
         >
           <div className="flex">
             {['T', 'M', 'A'].map((letter, i) => (
-              <span key={letter} className={`w-[26px] h-[26px] rounded-full border-2 border-paper flex items-center justify-center text-[10px] font-bold ${AVATAR_COLORS[i]} ${i > 0 ? '-ml-2' : ''}`}>
+              <span key={letter} className={`w-[26px] h-[26px] rounded-full border-2 border-paper flex items-center justify-center text-micro font-bold ${AVATAR_COLORS[i]} ${i > 0 ? '-ml-2' : ''}`}>
                 {letter}
               </span>
             ))}
@@ -220,10 +219,10 @@ export default function Landing() {
               transition={{ delay: i * 0.08 }}
               className={`px-4 py-8 md:py-10 text-center border-line ${i < c.stats.length - 1 ? 'border-r border-dashed' : ''}`}
             >
-              <div className="font-display font-bold text-[26px] md:text-[36px] text-chili">
+              <div className="font-display font-bold text-2xl md:text-4xl text-chili">
                 {s.decimal ? s.to.toFixed(1) : <CountUp to={s.to} suffix={s.suffix} />}
               </div>
-              <span className="font-utility text-[12px] uppercase tracking-wide text-ink-muted">{s.label}</span>
+              <span className="font-utility text-xs uppercase tracking-wide text-ink-muted">{s.label}</span>
             </motion.div>
           ))}
         </div>
@@ -241,11 +240,11 @@ export default function Landing() {
         >
           {c.steps.map((step, i) => (
             <motion.div key={step.t} variants={fadeUp} className="pt-6 border-t-2 border-line-strong">
-              <div className="w-[52px] h-[52px] rounded-full border-2 border-dashed border-line-strong flex items-center justify-center mb-4 font-display font-bold text-[18px] text-chili">
+              <div className="w-[52px] h-[52px] rounded-full border-2 border-dashed border-line-strong flex items-center justify-center mb-4 font-display font-bold text-lg text-chili">
                 {String(i + 1).padStart(2, '0')}
               </div>
-              <h3 className="text-[18px] font-bold mb-2">{step.t}</h3>
-              <p className="text-[14.5px] text-ink-muted">{step.d}</p>
+              <h3 className="text-lg font-bold mb-2">{step.t}</h3>
+              <p className="text-md text-ink-muted">{step.d}</p>
             </motion.div>
           ))}
         </motion.div>
@@ -256,7 +255,7 @@ export default function Landing() {
         <SectionHead eyebrow={c.ticketEyebrow} title={c.ticketTitle} sub={c.ticketSub} />
         <ItineraryTicket city={hoianCity} days={hoianDays} people={2} budget={1500000} transport="bike" />
         <div className="flex justify-center mt-8">
-          <Link to="/plan" className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors">
+          <Link to="/plan" className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors">
             {c.ticketCta} <ArrowRight size={16} />
           </Link>
         </div>
@@ -283,28 +282,28 @@ export default function Landing() {
           className="grid gap-6 grid-cols-1 md:grid-cols-2"
         >
           <motion.div variants={fadeUp} className="bg-surface border border-line rounded-[14px] p-6 shadow-soft flex flex-col gap-5">
-            <h3 className="text-[21px] font-bold">{c.reviewCardTitle}</h3>
+            <h3 className="text-xl font-bold">{c.reviewCardTitle}</h3>
             <div className="bg-paper-2 rounded-[10px] p-5 flex flex-col gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-chili text-chili-ink flex items-center justify-center font-utility font-bold">TN</div>
                 <div>
-                  <div className="font-bold text-[14.5px]">Thảo Nguyên</div>
+                  <div className="font-bold text-md">Thảo Nguyên</div>
                   <div className="flex gap-0.5 text-lantern">
                     {Array.from({ length: 5 }).map((_, i) => <Star key={i} size={13} weight="fill" />)}
                   </div>
                 </div>
               </div>
-              <p className="text-[14.5px] text-ink-muted">{c.reviewQuote}</p>
+              <p className="text-md text-ink-muted">{c.reviewQuote}</p>
               <div className="flex flex-wrap gap-1.5">
                 {c.reviewTags.map((t) => (
-                  <span key={t} className="font-utility text-[11.5px] font-semibold px-2.5 py-1 rounded-full bg-paper text-ink-muted">{t}</span>
+                  <span key={t} className="font-utility text-xs font-semibold px-2.5 py-1 rounded-full bg-paper text-ink-muted">{t}</span>
                 ))}
               </div>
             </div>
           </motion.div>
 
           <motion.div variants={fadeUp} className="bg-surface border border-line rounded-[14px] p-6 shadow-soft flex flex-col gap-5">
-            <h3 className="text-[21px] font-bold">{c.saveCardTitle}</h3>
+            <h3 className="text-xl font-bold">{c.saveCardTitle}</h3>
             <div className="bg-paper-2 rounded-[10px] p-5 flex flex-col gap-1">
               {c.saveItems.map((item, i) => (
                 <div key={item.t} className={`flex items-center gap-3 py-2.5 ${i < c.saveItems.length - 1 ? 'border-b border-dashed border-line' : ''}`}>
@@ -312,12 +311,12 @@ export default function Landing() {
                     <BookmarkSimple size={17} weight="fill" />
                   </div>
                   <div>
-                    <div className="font-bold text-[14px]">{item.t}</div>
-                    <div className="text-[12.5px] text-ink-faint">{item.s}</div>
+                    <div className="font-bold text-md">{item.t}</div>
+                    <div className="text-sm text-ink-faint">{item.s}</div>
                   </div>
                 </div>
               ))}
-              <p className="text-[13px] text-ink-faint mt-2">{c.saveFooter}</p>
+              <p className="text-sm text-ink-faint mt-2">{c.saveFooter}</p>
             </div>
           </motion.div>
         </motion.div>
@@ -341,8 +340,8 @@ export default function Landing() {
               style={{ rotate: [-1.5, 1, -0.5][i % 3] }}
               className="bg-surface border border-line rounded p-6 shadow-soft relative before:content-[''] before:absolute before:top-3.5 before:right-3.5 before:w-[26px] before:h-[26px] before:border-2 before:border-line-strong before:rounded-[3px]"
             >
-              <p className="font-display text-[17.5px] leading-[1.5] mb-5">"{t.q}"</p>
-              <div className="font-utility text-[12.5px] text-ink-muted border-t border-dashed border-line pt-3">{t.who}</div>
+              <p className="font-display text-lg leading-[1.5] mb-5">"{t.q}"</p>
+              <div className="font-utility text-sm text-ink-muted border-t border-dashed border-line pt-3">{t.who}</div>
             </motion.div>
           ))}
         </motion.div>
@@ -357,16 +356,16 @@ export default function Landing() {
           variants={fadeUp}
           className="bg-herb text-herb-ink rounded-[18px] px-6 py-14 md:py-20 text-center flex flex-col items-center gap-5"
         >
-          <h2 className="text-[28px] md:text-[42px] max-w-[20ch] font-bold">{c.ctaTitle}</h2>
+          <h2 className="text-2xl md:text-4xl max-w-[20ch] font-bold">{c.ctaTitle}</h2>
           <div className="flex gap-3 flex-wrap justify-center">
-            <Link to="/plan" className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full bg-paper text-ink shadow-soft">
+            <Link to="/plan" className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-paper text-ink shadow-soft">
               {c.ctaPrimary}
             </Link>
-            <Link to="/explore" className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full border-[1.5px] border-white/50">
+            <Link to="/explore" className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full border-[1.5px] border-white/50">
               {c.ctaSecondary}
             </Link>
           </div>
-          <span className="font-utility text-[13px] opacity-80">{c.ctaNote}</span>
+          <span className="font-utility text-sm opacity-80">{c.ctaNote}</span>
         </motion.div>
       </section>
     </>
@@ -382,11 +381,11 @@ function SectionHead({ eyebrow, title, sub, noMargin = false }) {
       variants={staggerContainer(0.08)}
       className={`flex flex-col gap-3 max-w-[640px] ${noMargin ? '' : 'mb-10 md:mb-12'}`}
     >
-      <motion.span variants={fadeUp} className="font-utility text-[12.5px] font-bold uppercase tracking-[0.14em] text-chili inline-flex items-center gap-2 before:content-[''] before:w-4 before:h-[1.5px] before:bg-chili">
+      <motion.span variants={fadeUp} className="eyebrow eyebrow-tick">
         {eyebrow}
       </motion.span>
-      <motion.h2 variants={fadeUp} className="text-[28px] md:text-[40px] leading-[1.15] font-bold">{title}</motion.h2>
-      {sub && <motion.p variants={fadeUp} className="text-[16.5px] text-ink-muted">{sub}</motion.p>}
+      <motion.h2 variants={fadeUp} className="text-2xl md:text-4xl leading-[1.15] font-bold">{title}</motion.h2>
+      {sub && <motion.p variants={fadeUp} className="text-base text-ink-muted">{sub}</motion.p>}
     </motion.div>
   )
 }

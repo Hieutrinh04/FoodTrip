@@ -1,7 +1,9 @@
 import { getPlacesByCity, getCity, registerCustomPlaces } from '../data/destinations.js'
 import { fetchPlaceEnrichment } from './placesService.js'
 import { searchCityPlaces } from './citySearch.js'
-import { optimiseDayRoute } from './routeOptimizer.js'
+import { optimiseDayRouteByRoad } from './routeOptimizer.js'
+import { scorePlace as scoreByModel } from './placeScore.js'
+import { fetchRouteDetails } from './trackAsia.js'
 
 // Generic day structure — the engine fills each slot with the best-scoring
 // place of the right category for that city, rather than a fixed template.
@@ -57,12 +59,12 @@ function haversineKm(a, b) {
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }
 
-function formatDistance(km, transport) {
+function formatDistance(km, transport, durationSeconds = null) {
   if (km == null) {
     return { vi: 'Trong khu vực trung tâm', en: 'Within the city center' }
   }
   const speed = TRANSPORT_SPEED_KMH[transport] ?? 20
-  const minutes = Math.max(1, Math.round((km / speed) * 60))
+  const minutes = Math.max(1, Math.round(durationSeconds == null ? (km / speed) * 60 : durationSeconds / 60))
   const kmLabel = km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`
   return { vi: `${kmLabel} · ${minutes} phút`, en: `${kmLabel} · ${minutes} min` }
 }
@@ -108,52 +110,17 @@ async function expandCandidates(cityId, seedPlaces) {
   return [...seedPlaces, ...extras]
 }
 
-// Weighted Sum Model criteria. Preference matters most (it's the whole point
-// of a personalised itinerary); popularity is only a tiebreaker.
-const WEIGHTS = { preference: 0.3, rating: 0.25, distance: 0.2, budget: 0.15, popularity: 0.1 }
-
-// Distance score decays with travel from the previous stop: same spot scores 1,
-// 1.5km scores 0.5, 5km scores ~0.23. Keeps a day's stops clustered instead of
-// zig-zagging across town.
-const DISTANCE_HALF_LIFE_KM = 1.5
-
-/**
- * Scores a candidate place against the traveller's preferences, budget and how
- * far it is from the previous stop.
- *
- * Criteria with no data available are dropped and the remaining weights are
- * renormalised, so a missing signal never silently drags every candidate down
- * by a fixed amount. That matters because the map provider supplies no review
- * counts at all — scoring them as zero would waste the popularity weight on
- * every place equally, and there is no distance to measure for a day's first
- * stop either.
- */
+// Scoring lives in placeScore.js so the explore map ranks places by exactly
+// the same Weighted Sum Model this generator uses.
 function scorePlace(place, enrichment, prefs, budgetPerPersonPerDay, prevLocation) {
-  const parts = []
-
-  parts.push([WEIGHTS.preference, place.tags.some((t) => prefs.includes(t)) ? 1 : 0])
-
-  const rating = enrichment?.rating ?? place.rating
-  if (rating != null) parts.push([WEIGHTS.rating, Math.min(rating, 5) / 5])
-
-  const location = enrichment?.location ?? place.location ?? null
-  if (prevLocation && location) {
-    const km = haversineKm(prevLocation, location)
-    if (km != null) parts.push([WEIGHTS.distance, 1 / (1 + km / DISTANCE_HALF_LIFE_KM)])
-  }
-
-  const priceFit = place.price <= 1 || budgetPerPersonPerDay >= 600000
-    ? 1
-    : place.price === 2 && budgetPerPersonPerDay >= 300000
-      ? 0.7
-      : 0.4
-  parts.push([WEIGHTS.budget, priceFit])
-
-  const reviewCount = enrichment?.userRatingCount
-  if (reviewCount != null) parts.push([WEIGHTS.popularity, Math.min(Math.log10(reviewCount + 1) / 4, 1)])
-
-  const totalWeight = parts.reduce((sum, [w]) => sum + w, 0)
-  return parts.reduce((sum, [w, value]) => sum + w * value, 0) / totalWeight
+  return scoreByModel(place, {
+    prefs,
+    budgetPerPersonPerDay,
+    referenceLocation: prevLocation,
+    rating: enrichment?.rating ?? place.rating,
+    reviewCount: enrichment?.userRatingCount,
+    location: enrichment?.location ?? place.location,
+  }) ?? 0
 }
 
 /**
@@ -172,7 +139,10 @@ function scorePlace(place, enrichment, prefs, budgetPerPersonPerDay, prevLocatio
  * up front (right after budget is entered, via hotelSearch.js) since it
  * doesn't need to wait for this function's generated stop locations.
  */
-export async function generateItinerary({ cityId, places, duration, budget, people, prefs, transport }) {
+// `people` is deliberately not read: the budget is already per person, and the
+// scoring model compares it against per-person place prices, so party size does
+// not enter the calculation. Callers still pass it; it is ignored here.
+export async function generateItinerary({ cityId, places, duration, budget, prefs, transport, startLocation = null, endLocation = null }) {
   // A caller-supplied pool (custom destination) is already a full live search
   // result; only the curated per-city pools need topping up.
   const cityPlaces = places ?? (await expandCandidates(cityId, getPlacesByCity(cityId)))
@@ -194,7 +164,13 @@ export async function generateItinerary({ cityId, places, duration, budget, peop
   )
   const enrichmentById = Object.fromEntries(enrichmentPairs)
 
-  const budgetPerPersonPerDay = budget / Math.max(people, 1)
+  // The slider gives one traveller's budget for the whole trip, so a daily
+  // allowance is that spread across the days. It used to be divided by the
+  // party size instead, which scaled a 1.500.000đ budget down to 750.000đ for
+  // two people and made the model pick cheaper places the larger the group got
+  // — party size does not belong in this figure at all, since the budget is
+  // already per person and place prices are scored per person too.
+  const budgetPerPersonPerDay = budget / Math.max(duration, 1)
   // Tracks how many times each place has already been used rather than a
   // hard once-only Set — small cities/custom destinations often don't have
   // enough candidates to fill every slot of a long trip uniquely, so repeats
@@ -247,7 +223,10 @@ export async function generateItinerary({ cityId, places, duration, budget, peop
       if (!place) continue
       usedToday.add(place.id)
       const enrichment = enrichmentById[place.id]
-      const location = enrichment?.location ?? null
+      // Curated places already carry verified coordinates. Preserve those when
+      // live enrichment is unavailable so one missing provider lookup cannot
+      // disable road optimisation for the entire day.
+      const location = enrichment?.location ?? place.location ?? null
       entries.push({ slot, place, location, enrichment })
       if (location) prevLocation = location
     }
@@ -256,25 +235,57 @@ export async function generateItinerary({ cityId, places, duration, budget, peop
     // an early pick can strand a later stop across town. Reorder which place
     // sits in which slot to cut total travel, keeping every place in a slot it
     // is still valid for.
-    const optimised = optimiseDayRoute(entries, isOpenAt).entries
+    // Keep the routing budget bounded across long trips while still evaluating
+    // every common day against several schedule-valid alternatives.
+    const routeCandidateLimit = Math.max(6, Math.min(24, Math.floor(96 / Math.max(duration, 1))))
+    const routeResult = await optimiseDayRouteByRoad(entries, isOpenAt, {
+      startLocation,
+      endLocation,
+      candidateLimit: routeCandidateLimit,
+      fetchRouteDetails: (points) => fetchRouteDetails(points, transport, { geometry: false }),
+    })
+    const optimised = routeResult.entries
 
     // Distances are between consecutive stops, so they can only be computed
     // once the final order is settled.
     const stops = []
-    let previous = null
-    for (const { slot, place, location, enrichment } of optimised) {
-      const distanceKm = previous && location ? haversineKm(previous, location) : null
+    let previous = startLocation
+    for (let stopIndex = 0; stopIndex < optimised.length; stopIndex += 1) {
+      const { slot, place, location, enrichment } = optimised[stopIndex]
+      const roadLegIndex = startLocation ? stopIndex : stopIndex - 1
+      const roadLeg = roadLegIndex >= 0 ? routeResult.routeDetails?.legs?.[roadLegIndex] : null
+      const straightLineKm = previous && location ? haversineKm(previous, location) : null
+      const distanceKm = roadLeg?.distanceMeters != null ? roadLeg.distanceMeters / 1000 : straightLineKm
       stops.push({
         time: slot.time,
         placeId: place.id,
         note: NOTE_LABEL[slot.noteKey],
-        distance: formatDistance(distanceKm, transport),
+        distance: formatDistance(distanceKm, transport, roadLeg?.durationSeconds),
+        travel: distanceKm == null ? null : {
+          distanceMeters: Math.round(distanceKm * 1000),
+          durationSeconds: roadLeg?.durationSeconds ?? Math.round((distanceKm / (TRANSPORT_SPEED_KMH[transport] ?? 20)) * 3600),
+          source: roadLeg ? 'road' : 'estimate',
+        },
         liveRating: enrichment?.rating ?? null,
         liveReviewCount: enrichment?.userRatingCount ?? null,
         location,
         googlePlaceId: enrichment?.placeId ?? null,
       })
       if (location) previous = location
+    }
+    if (endLocation && stops.length) {
+      const returnLegIndex = startLocation ? optimised.length : optimised.length - 1
+      const returnLeg = routeResult.routeDetails?.legs?.[returnLegIndex]
+      const returnKm = returnLeg?.distanceMeters != null
+        ? returnLeg.distanceMeters / 1000
+        : haversineKm(previous, endLocation)
+      if (returnKm != null) {
+        stops[stops.length - 1].returnTravel = {
+          distanceMeters: Math.round(returnKm * 1000),
+          durationSeconds: returnLeg?.durationSeconds ?? Math.round((returnKm / (TRANSPORT_SPEED_KMH[transport] ?? 20)) * 3600),
+          source: returnLeg ? 'road' : 'estimate',
+        }
+      }
     }
     days.push(stops)
   }

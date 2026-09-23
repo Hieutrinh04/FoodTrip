@@ -53,10 +53,10 @@ export default function HeroPlanner() {
         ))}
       </div>
       <div className="flex items-center justify-between gap-4 mt-5 flex-wrap">
-        <span className="text-[12.5px] text-ink-faint max-w-[38ch]">{c.note}</span>
+        <span className="text-sm text-ink-faint max-w-[38ch]">{c.note}</span>
         <button
           onClick={() => navigate('/plan')}
-          className="inline-flex items-center gap-2 font-utility font-semibold text-[14.5px] px-6 py-[14px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted active:scale-[0.97] transition-all"
+          className="inline-flex items-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted active:scale-[0.97] transition-all"
         >
           {c.cta} <ArrowRight size={16} />
         </button>
@@ -68,8 +68,8 @@ export default function HeroPlanner() {
 function Field({ icon: Icon, label, value }) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="font-utility text-[11px] font-bold uppercase tracking-wider text-ink-faint">{label}</label>
-      <div className="font-semibold text-[14.5px] flex items-center gap-1.5 pb-2.5 border-b-[1.5px] border-line">
+      <label className="font-utility text-2xs font-bold uppercase tracking-wider text-ink-faint">{label}</label>
+      <div className="font-semibold text-md flex items-center gap-1.5 pb-2.5 border-b-[1.5px] border-line">
         <Icon size={16} className="text-chili" />
         {value}
       </div>

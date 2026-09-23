@@ -1,11 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
+import { wheelItemLabel } from '../../lib/foodWheelLabel.js'
 
 const COLORS = ['#E8532F', '#2F6F4F', '#E8A33D', '#3D6B8A', '#8A4FE8', '#C94F6F']
-
-export function wheelItemLabel(item, lang) {
-  return typeof item === 'string' ? item : item[lang]
-}
 
 function polarToCartesian(cx, cy, r, angleDeg) {
   const a = ((angleDeg - 90) * Math.PI) / 180
@@ -90,7 +87,7 @@ export default function FoodWheel({ items, onResult, spinLabel, spinningLabel, d
 
   return (
     <div className="flex flex-col items-center gap-6">
-      <div className="relative w-[300px] h-[300px] sm:w-[380px] sm:h-[380px] md:w-[460px] md:h-[460px]">
+      <div className="relative w-[300px] h-[300px] sm:w-[380px] sm:h-[380px] md:w-[460px] md:h-[460px] lg:w-[400px] lg:h-[400px]">
         <div className="absolute left-1/2 -translate-x-1/2 -top-1.5 z-10 w-0 h-0 border-l-[13px] border-r-[13px] border-t-[24px] border-l-transparent border-r-transparent border-t-chili" />
         <svg
           ref={svgRef}
@@ -129,7 +126,7 @@ export default function FoodWheel({ items, onResult, spinLabel, spinningLabel, d
         type="button"
         onClick={spin}
         disabled={spinning || disabled || n < 2}
-        className="inline-flex items-center gap-2.5 font-utility font-semibold text-[15px] px-7 py-4 rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow disabled:opacity-60"
+        className="inline-flex items-center gap-2.5 font-utility font-semibold text-md px-7 py-4 rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow disabled:opacity-60"
       >
         {spinning ? spinningLabel : spinLabel}
       </button>
