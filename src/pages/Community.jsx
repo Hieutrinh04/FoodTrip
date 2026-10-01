@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ChatCircle, Compass, MagnifyingGlass, Plus, ArrowClockwise } from '@phosphor-icons/react'
 import { useAuth } from '../auth/AuthContext.jsx'
 import AuthModal from '../components/auth/AuthModal.jsx'
@@ -16,6 +16,7 @@ export default function Community() {
   const { user } = useAuth()
   const { postId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [authOpen, setAuthOpen] = useState(false)
   const [composing, setComposing] = useState(false)
   const [rows, setRows] = useState([])
@@ -27,12 +28,16 @@ export default function Community() {
   const [search, setSearch] = useState('')
   const [input, setInput] = useState('')
   const [refresh, setRefresh] = useState(0)
-  const [notice, setNotice] = useState('')
+  const [notice, setNotice] = useState(location.state?.communityNotice || '')
   const request = useRef(0)
   const mineId = mine ? user?.id : null
 
   useEffect(() => { if (!user) setMine(false) }, [user])
   useEffect(() => {
+    if (!loading && postId && location.hash === '#discussion') document.getElementById('discussion')?.scrollIntoView()
+  }, [loading, postId, location.hash])
+  useEffect(() => {
+    const requests = request
     const controller = new AbortController()
     const token = ++request.current
     setRows([]); setLoading(true); setError(''); setMoreBusy(false)
@@ -44,7 +49,7 @@ export default function Community() {
       setRows(data); setHasMore(!postId && data.length === POST_PAGE_SIZE)
     }).catch(() => { if (!controller.signal.aborted) setError('load') })
       .finally(() => { if (token === request.current) setLoading(false) })
-    return () => { controller.abort(); request.current++ }
+    return () => { controller.abort(); requests.current++ }
   }, [postId, mineId, search, refresh])
 
   async function more() {
@@ -58,20 +63,21 @@ export default function Community() {
     } catch { if (token === request.current) setError('more') }
     finally { if (token === request.current) setMoreBusy(false) }
   }
-  function saved(row) { setComposing(false); setNotice(t('Đã đăng chia sẻ của bạn.', 'Your post is published.')); navigate(`/community/${row.id}`) }
+  function saved(row) { setComposing(false); navigate(`/community/${row.id}`, { state: { communityNotice: t('Đã đăng chia sẻ của bạn.', 'Your post is published.') } }) }
   function deleted(id, photosRemoved) {
     setRows((old) => old.filter((row) => row.id !== id))
-    setNotice(photosRemoved ? t('Đã xóa bài viết, ảnh và các bình luận. Không thể hoàn tác.', 'Post, photos and comments deleted. This cannot be undone.') : t('Đã xóa bài viết và bình luận; chưa xóa được tệp ảnh trên máy chủ. Cần liên hệ hỗ trợ để dọn ảnh.', 'Post and comments deleted; image files could not be removed. Contact support for cleanup.'))
-    if (postId) navigate('/community')
+    const message = photosRemoved ? t('Đã xóa bài viết, ảnh và các bình luận. Không thể hoàn tác.', 'Post, photos and comments deleted. This cannot be undone.') : t('Đã xóa bài viết và bình luận; chưa xóa được tệp ảnh trên máy chủ. Cần liên hệ hỗ trợ để dọn ảnh.', 'Post and comments deleted; image files could not be removed. Contact support for cleanup.')
+    setNotice(message)
+    if (postId) navigate('/community', { state: { communityNotice: message } })
   }
-  return <main className="community-page">
+  return <div className="community-page">
     <header className="community-hero"><span className="community-eyebrow">FOODTRIP COMMUNITY</span><h1>{t('Đi một nơi. Kể một chuyện.', 'Go somewhere. Share a story.')}</h1><p>{t('Những điểm đến đáng nhớ, qua lời kể của người đã đi.', 'Memorable places, told by the people who have been there.')}</p></header>
     <div className="community-layout"><aside className="community-sidebar"><div className="community-sidebar-intro"><span className="community-symbol"><Compass size={30} weight="duotone" /></span><h2>{t('Đi cùng cảm hứng.', 'Find your next adventure.')}</h2><p>{t('Một bức ảnh, một chiếc ghim, một trải nghiệm thật. Chuyến đi tiếp theo có thể bắt đầu từ đây.', 'A photo, a pin, a real experience. Your next trip could start here.')}</p></div><nav aria-label={t('Điều hướng cộng đồng', 'Community navigation')}><Link to="/community" className={!postId && !mine ? 'active' : ''} onClick={() => { setMine(false); setSearch(''); setInput('') }}><ChatCircle size={19} />{t('Bảng tin cộng đồng', 'Community feed')}</Link><Link to="/explore"><Compass size={19} />{t('Khám phá trên bản đồ', 'Explore the map')}</Link><Link to="/share">{t('Chia sẻ video quán ăn', 'Share a food video')}</Link></nav><div className="community-guidelines"><strong>{t('Một cộng đồng tử tế', 'A thoughtful community')}</strong><p>{t('Chia sẻ ảnh bạn có quyền sử dụng. Ghim đúng địa điểm, không công khai thông tin riêng tư. Tôn trọng những trải nghiệm khác nhau.', 'Only share photos you have permission to use. Pin the correct place, protect private information and respect different experiences.')}</p><Link to="/contact">{t('Liên hệ hỗ trợ / báo nội dung', 'Contact support / report content')} →</Link></div></aside>
       <div className="community-feed">
         {notice && <p className="community-notice" role="status">{notice}</p>}
         {postId ? <Link to="/community" className="community-text-button community-back"><ArrowLeft size={17} />{t('Về bảng tin', 'Back to feed')}</Link> : <>
           {!composing && <button type="button" className="community-start community-card" onClick={() => setComposing(true)}><span className="community-avatar"><Plus size={23} /></span><span><strong>{t('Bạn vừa khám phá nơi nào?', 'Where have you been lately?')}</strong><small>{t('Chia sẻ địa điểm, hình ảnh và câu chuyện của bạn', 'Share a place, photos and your story')}</small></span><Plus size={21} /></button>}
-          {composing && <PostComposer onSaved={saved} onCancel={() => { if (window.confirm(t('Đóng và bỏ bản nháp này?', 'Close and discard this draft?'))) setComposing(false) }} onLogin={() => setAuthOpen(true)} />}
+          {composing && <PostComposer onSaved={saved} onCancel={() => setComposing(false)} onLogin={() => setAuthOpen(true)} />}
           <div className="community-feed-tools"><div className="community-tabs"><button type="button" aria-pressed={!mine} className={!mine ? 'active' : ''} onClick={() => setMine(false)}>{t('Mới nhất', 'Latest')}</button><button type="button" aria-pressed={mine} className={mine ? 'active' : ''} onClick={() => user ? setMine(true) : setAuthOpen(true)}>{t('Bài của tôi', 'My posts')}</button></div><button className="community-icon" type="button" disabled={loading} aria-label={t('Làm mới bảng tin', 'Refresh feed')} onClick={() => setRefresh((value) => value + 1)}><ArrowClockwise size={20} /></button></div>
           <form className="community-feed-search" onSubmit={(event) => { event.preventDefault(); setSearch(input.trim()) }}><MagnifyingGlass size={19} /><input aria-label={t('Tìm bài theo tên địa điểm', 'Search posts by place name')} maxLength={200} value={input} onChange={(event) => setInput(event.target.value)} placeholder={t('Tìm một địa điểm trong cộng đồng…', 'Find a place in the community…')} /><button type="submit">{t('Tìm', 'Search')}</button></form>
           {search && <button className="community-text-button" type="button" onClick={() => { setInput(''); setSearch('') }}>{t('Bỏ bộ lọc:', 'Clear filter:')} {search} ×</button>}
@@ -85,5 +91,5 @@ export default function Community() {
       </div>
     </div>
     {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
-  </main>
+  </div>
 }

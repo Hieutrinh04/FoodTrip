@@ -124,3 +124,30 @@ export function photoMatchesHotel(text: string, hotelName: string, cityName: str
 }
 
 export { distinctiveTokens, nameScore, MAX_MATCH_KM, MIN_NAME_SCORE }
+
+// Words that say what kind of property it is rather than which one. Only these
+// are dropped when matching a listing URL — "grand" or "centre" stay, since
+// they are exactly what tells "Mường Thanh Grand" from "Mường Thanh Centre".
+const PROPERTY_TYPE_WORDS = new Set(['hotel', 'khach', 'san', 'resort', 'spa', 'homestay', 'and'])
+
+/**
+ * Whether a booking-site URL is the listing page of this hotel, judged from its
+ * path. A plain web search for one Mường Thanh returns the chain's other
+ * branches too, often first, so the first Agoda link is not good enough.
+ * Passes when the name, run together, appears in the run-together path (slugs
+ * write "Hà Nội" as "hanoi"), or when every word of the name is a path word
+ * (slugs may reorder them).
+ */
+export function listingMatchesHotel(url: string, hotelName: string) {
+  let path = ''
+  try {
+    path = normalizeSearchText(decodeURIComponent(new URL(url).pathname))
+  } catch {
+    return false
+  }
+  const tokens = normalizeSearchText(hotelName).split(' ').filter((t) => t && !PROPERTY_TYPE_WORDS.has(t))
+  if (!tokens.length) return false
+  if (path.replace(/ /g, '').includes(tokens.join(''))) return true
+  const pathWords = new Set(path.split(' '))
+  return tokens.every((t) => pathWords.has(t))
+}

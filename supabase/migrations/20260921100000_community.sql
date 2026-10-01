@@ -73,7 +73,7 @@ begin
     else
       select count(*) into recent_count from public.community_comments where user_id = new.user_id and created_at > now() - interval '1 minute';
     end if;
-    if recent_count >= case when tg_table_name = 'community_posts' then 5 else 20 end then
+    if recent_count >= (case when tg_table_name = 'community_posts' then 5 else 20 end) then
       raise exception 'community-rate-limit' using errcode = 'P0001';
     end if;
     new.created_at := now();

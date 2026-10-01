@@ -14,8 +14,8 @@ const CONTENT = {
     newsletterError: 'Có lỗi xảy ra, thử lại nhé.',
     newsletterDuplicate: 'Email này đã đăng ký rồi.',
     cols: [
-      { title: 'Sản phẩm', links: [{ to: '/explore', label: 'Khám phá' }, { to: '/plan', label: 'Lịch trình AI' }] },
-      { title: 'Công ty', links: [{ to: '/about', label: 'Về chúng tôi' }, { to: '/careers', label: 'Tuyển dụng' }, { to: '/blog', label: 'Blog ẩm thực' }] },
+      { title: 'Sản phẩm', links: [{ to: '/explore', label: 'Khám phá' }, { to: '/plan', label: 'Lịch trình AI' }, { to: '/community', label: 'Cộng đồng du lịch' }] },
+      { title: 'Công ty', links: [{ to: '/about', label: 'Về chúng tôi' }, { to: '/blog', label: 'Blog ẩm thực' }, { to: '/hop-tac', label: 'Hợp tác với FoodTrip' }] },
       { title: 'Hỗ trợ', links: [{ to: '/help', label: 'Trung tâm trợ giúp' }, { to: '/contact', label: 'Liên hệ' }, { to: '/terms', label: 'Điều khoản' }] },
     ],
     bottom: '© 2026 FoodTrip. Made with vị giác tại Việt Nam.',
@@ -27,8 +27,8 @@ const CONTENT = {
     newsletterError: 'Something went wrong — please try again.',
     newsletterDuplicate: 'That email is already subscribed.',
     cols: [
-      { title: 'Product', links: [{ to: '/explore', label: 'Explore' }, { to: '/plan', label: 'AI Itinerary' }] },
-      { title: 'Company', links: [{ to: '/about', label: 'About us' }, { to: '/careers', label: 'Careers' }, { to: '/blog', label: 'Food blog' }] },
+      { title: 'Product', links: [{ to: '/explore', label: 'Explore' }, { to: '/plan', label: 'AI Itinerary' }, { to: '/community', label: 'Travel community' }] },
+      { title: 'Company', links: [{ to: '/about', label: 'About us' }, { to: '/blog', label: 'Food blog' }, { to: '/hop-tac', label: 'Partner with FoodTrip' }] },
       { title: 'Support', links: [{ to: '/help', label: 'Help center' }, { to: '/contact', label: 'Contact' }, { to: '/terms', label: 'Terms' }] },
     ],
     bottom: '© 2026 FoodTrip. Made with vị giác in Vietnam.',
@@ -51,26 +51,26 @@ export default function Footer() {
 
   async function handleSubscribe(e) {
     e.preventDefault()
-    if (!email.trim()) return
+    if (!email.trim() || status === 'busy') return
     if (!hasSupabase) {
       setStatus('error')
       return
     }
     setStatus('busy')
-    const { error } = await supabase.from('newsletter_subscribers').insert({ email: email.trim() })
-    if (error) {
-      setStatus(error.code === '23505' ? 'duplicate' : 'error')
-      return
-    }
-    setStatus('success')
-    setEmail('')
+    try {
+      const { error } = await supabase.from('newsletter_subscribers').insert({ email: email.trim() })
+      if (error) { setStatus(error.code === '23505' ? 'duplicate' : 'error'); return }
+      setStatus('success'); setEmail('')
+    } catch { setStatus('error') }
   }
 
   return (
     <footer className="no-print border-t border-line pt-12 pb-8">
       <div className="max-w-[1180px] mx-auto px-5 md:px-8">
         <div className="grid gap-10 grid-cols-2 md:grid-cols-[1.3fr_1fr_1fr_1fr]">
-          <div>
+          {/* Full width on phones: in half a column the email box was too
+              narrow to show its own placeholder. */}
+          <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 font-display font-bold text-xl mb-3">
               <LogoMark size={26} />
               <Wordmark />

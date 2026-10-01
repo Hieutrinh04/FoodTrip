@@ -303,6 +303,7 @@ export default function LiveTrip() {
         <ItineraryTicket
           city={tripCity(trip)}
           days={trip.days}
+          tours={trip.tours ?? []}
           hotels={trip.hotels ?? []}
           selectedHotelId={(trip.hotels ?? []).find((hotel) => hotel.selected)?.id ?? null}
           startDate={trip.start_date}

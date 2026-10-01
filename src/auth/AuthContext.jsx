@@ -7,26 +7,38 @@ const AuthContext = createContext(null)
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(hasSupabase)
+  const [recovery, setRecovery] = useState(false)
+  const [authError, setAuthError] = useState(false)
 
   useEffect(() => {
     if (!hasSupabase) return
 
-    supabase.auth.getSession().then(({ data }) => {
-      setUser(data.session?.user ?? null)
-      setLoading(false)
-    })
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    let active = true
+    let eventReceived = false
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return
+      eventReceived = true
       setUser(session?.user ?? null)
+      setLoading(false)
+      setAuthError(false)
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
+      if (event === 'SIGNED_OUT') setRecovery(false)
     })
-
-    return () => listener.subscription.unsubscribe()
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active || eventReceived) return
+      setUser(data.session?.user ?? null)
+      setAuthError(Boolean(error))
+      setLoading(false)
+    }).catch(() => { if (active && !eventReceived) { setAuthError(true); setLoading(false) } })
+    return () => { active = false; listener.subscription.unsubscribe() }
   }, [])
 
   const value = useMemo(
     () => ({
       user,
       loading,
+      recovery,
+      authError,
       hasAuth: hasSupabase,
       async signUp(email, password) {
         if (!hasSupabase) return { error: 'no-supabase' }
@@ -42,8 +54,19 @@ export function AuthProvider({ children }) {
         if (!hasSupabase) return
         await supabase.auth.signOut()
       },
+      async requestPasswordReset(email) {
+        if (!hasSupabase) return { error: 'no-supabase' }
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/reset-password` })
+        return { error: error?.message ?? null }
+      },
+      async resetPassword(password) {
+        if (!hasSupabase || !recovery) return { error: 'recovery-required' }
+        const { error } = await supabase.auth.updateUser({ password })
+        if (!error) setRecovery(false)
+        return { error: error?.message ?? null }
+      },
     }),
-    [user, loading],
+    [user, loading, recovery, authError],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

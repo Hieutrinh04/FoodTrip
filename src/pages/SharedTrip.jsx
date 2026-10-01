@@ -98,6 +98,7 @@ export default function SharedTrip() {
           <ItineraryTicket
             city={tripCity(trip)}
             days={trip.days}
+            tours={trip.tours ?? []}
             hotels={trip.hotels ?? []}
             startDate={trip.start_date}
             people={trip.people}

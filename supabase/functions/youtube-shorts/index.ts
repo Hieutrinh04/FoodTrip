@@ -1,5 +1,6 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
-import { hasLocationEvidence, isRelevantToPlace, primaryName } from '../_shared/relevance.ts'
+import { searchName } from '../_shared/relevance.ts'
+import { isAboutVenue } from '../_shared/venueMatch.ts'
 
 const SEARCH_URL = 'https://www.googleapis.com/youtube/v3/search'
 const VIDEOS_URL = 'https://www.googleapis.com/youtube/v3/videos'
@@ -15,7 +16,7 @@ function parseIsoDuration(iso: string | undefined) {
 /**
  * Finds both regular YouTube reviews and Shorts about a place by name.
  */
-async function searchYoutubeShorts(query: string, placeName: string, location: string) {
+async function searchYoutubeShorts(query: string, placeName: string, location: string, address: string) {
   const apiKey = Deno.env.get('YOUTUBE_API_KEY')
   if (!apiKey) return { status: 'no-key', videos: [] }
 
@@ -23,7 +24,7 @@ async function searchYoutubeShorts(query: string, placeName: string, location: s
     part: 'snippet',
     type: 'video',
     maxResults: '15',
-    q: `${primaryName(placeName)} ${location} review`.replace(/\s+/g, ' ').trim(),
+    q: `${searchName(placeName)} ${location} review`.replace(/\s+/g, ' ').trim(),
     key: apiKey,
   })
   const searchRes = await fetch(`${SEARCH_URL}?${searchParams}`)
@@ -48,15 +49,12 @@ async function searchYoutubeShorts(query: string, placeName: string, location: s
       contentType: (parseIsoDuration(v.contentDetails?.duration) ?? Infinity) <= 60 ? 'short' : 'video',
     }))
     .filter((v: { durationSeconds: number | null }) => v.durationSeconds != null)
-    // Channel names are not evidence that a video is about the venue: a
-    // creator can coincidentally share the owner's name. Require the venue's
-    // distinctive words in the video title, plus the city in the title or
-    // description, so a same-named place in another province doesn't slip in.
-    .filter((v: { title?: string; description?: string }) => {
-      const title = v.title || ''
-      const all = `${title} ${v.description || ''}`
-      return isRelevantToPlace(title, placeName) && (!location.trim() || hasLocationEvidence(all, location))
-    })
+    // The name must be in the title — descriptions list many places — while
+    // the rest of the evidence may come from the description or channel.
+    .filter((v: { videoId: string; title?: string; description?: string; channelTitle?: string }) => isAboutVenue(
+      { title: v.title || '', body: v.description, author: v.channelTitle, url: `https://www.youtube.com/watch?v=${v.videoId}` },
+      { name: placeName, address, area: location },
+    ))
     .slice(0, 8)
 
   return { status: 'ok', videos: shorts }
@@ -71,7 +69,8 @@ Deno.serve(async (req) => {
   const placeName = new URL(req.url).searchParams.get('name')?.trim() || query
   const location = new URL(req.url).searchParams.get('location')?.trim() || ''
   try {
-    const result = await searchYoutubeShorts(query, placeName, location)
+    const address = new URL(req.url).searchParams.get('address')?.trim() || ''
+    const result = await searchYoutubeShorts(query, placeName, location, address)
     return jsonResponse(result)
   } catch (err) {
     console.error('youtube-shorts failed:', (err as Error).message)

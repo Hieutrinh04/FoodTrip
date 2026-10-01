@@ -20,5 +20,17 @@
   },
   "globals": {
     "Deno": "readonly"
-  }
+  },
+  "overrides": [
+    {
+      "files": [
+        "scripts/**",
+        "test/**",
+        "*.config.js"
+      ],
+      "env": {
+        "node": true
+      }
+    }
+  ]
 }

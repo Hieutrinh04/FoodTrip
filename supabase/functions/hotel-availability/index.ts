@@ -102,6 +102,11 @@ Deno.serve(async (request) => {
   const checkOut = isoDate(body.checkOut, 31)
   const adults = Math.min(Math.max(Number(body.adults) || 2, 1), 8)
   const roomCount = Math.min(Math.max(Number(body.rooms) || 1, 1), 4)
+  // What the traveller can spend on the room per night, in VND. Hotelbeds
+  // returns 50-odd properties for a city and only 24 are sent back, so without
+  // this the cut kept the best-photographed four- and five-star hotels and
+  // dropped every one a 1.5-million-a-head weekend could actually afford.
+  const maxPricePerNight = Number(body.maxPricePerNight) > 0 ? Number(body.maxPricePerNight) : null
 
   const wantsHotelbeds = hasHotelbedsKeys()
   if (!wantsHotelbeds && !Deno.env.get('SERPER_API_KEY')) {
@@ -175,9 +180,21 @@ Deno.serve(async (request) => {
     })
   }
 
-  // A real price outranks an estimate; within each, a photo and a rating make a
-  // card usable, and a better-reviewed hotel is the more useful suggestion.
+  // With a budget: real prices within it first (dearest first — the most hotel
+  // the money buys), then hotels with no quote yet, then the ones over it,
+  // cheapest first. Otherwise a real price outranks an estimate. Within each,
+  // a photo and a rating make a card usable, and a better-reviewed hotel is
+  // the more useful suggestion.
+  const budgetRank = (hotel: { priceSource: string; priceFrom: number | null }) =>
+    hotel.priceSource !== 'hotelbeds' || hotel.priceFrom == null ? 1
+      : maxPricePerNight == null || hotel.priceFrom <= maxPricePerNight ? 0 : 2
   merged.sort((a, b) => {
+    if (maxPricePerNight != null) {
+      const rank = budgetRank(a) - budgetRank(b)
+      if (rank) return rank
+      if (budgetRank(a) === 0) return (b.priceFrom ?? 0) - (a.priceFrom ?? 0)
+      if (budgetRank(a) === 2) return (a.priceFrom ?? 0) - (b.priceFrom ?? 0)
+    }
     const priceRank = Number(b.priceSource === 'hotelbeds') - Number(a.priceSource === 'hotelbeds')
     if (priceRank) return priceRank
     const photoRank = Number(Boolean(b.photoUrl)) - Number(Boolean(a.photoUrl))

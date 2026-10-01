@@ -1,6 +1,6 @@
 import { supabase, hasSupabase } from './supabaseClient.js'
 
-const CACHE_PREFIX = 'ft_yt_videos_v5:'
+const CACHE_PREFIX = 'ft_yt_videos_v8:'
 const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 7 // 7 days
 
 function readCache(query) {
@@ -24,13 +24,13 @@ function writeCache(query, data) {
 }
 
 /** Fetches (and caches) real YouTube Shorts about a place, auto-discovered — no user submission needed. */
-export async function fetchYoutubeShorts(query, placeName = query, location = '') {
-  const cacheKey = `${placeName}|${location}|${query}`
+export async function fetchYoutubeShorts(query, placeName = query, location = '', address = '') {
+  const cacheKey = `${placeName}|${location}|${address}|${query}`
   const cached = readCache(cacheKey)
   if (cached) return cached
   if (!hasSupabase) return { status: 'no-key', videos: [] }
 
-  const { data, error } = await supabase.functions.invoke(`youtube-shorts?query=${encodeURIComponent(query)}&name=${encodeURIComponent(placeName)}&location=${encodeURIComponent(location)}`, { method: 'GET' })
+  const { data, error } = await supabase.functions.invoke(`youtube-shorts?query=${encodeURIComponent(query)}&name=${encodeURIComponent(placeName)}&location=${encodeURIComponent(location)}&address=${encodeURIComponent(address)}`, { method: 'GET' })
   if (error) throw new Error('youtube-shorts-failed')
 
   if (data.status === 'ok') writeCache(cacheKey, data)

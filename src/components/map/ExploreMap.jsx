@@ -37,8 +37,25 @@ const LABEL_LAYER = 'explore-places-label'
 const ROUTE_SOURCE_ID = 'explore-route'
 const ROUTE_CASING_LAYER = 'explore-route-casing'
 const ROUTE_LAYER = 'explore-route-line'
+// While navigating, the part of the route already travelled is drawn grey
+// underneath, the way a maps app greys out the road behind you.
+const PASSED_SOURCE_ID = 'explore-route-passed'
+const PASSED_LAYER = 'explore-route-passed-line'
+const NAV_BLUE = '#2583d8'
 
 const EMPTY_COLLECTION = { type: 'FeatureCollection', features: [] }
+const lineOf = (coords) => (coords?.length >= 2 ? { type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} } : EMPTY_COLLECTION)
+
+/** The live position: a blue dot with a cone for the direction of travel. */
+function createNavMarkerElement(title) {
+  const element = document.createElement('div')
+  element.title = title
+  element.style.cssText = 'width:56px;height:56px;position:relative;pointer-events:none'
+  element.innerHTML = `
+    <div data-cone style="position:absolute;left:50%;top:2px;transform:translateX(-50%);width:0;height:0;border-left:13px solid transparent;border-right:13px solid transparent;border-bottom:24px solid ${NAV_BLUE};opacity:.35"></div>
+    <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;background:${NAV_BLUE};border:4px solid #fff;box-shadow:0 0 0 6px rgba(37,131,216,.22),0 3px 10px rgba(0,0,0,.3)"></div>`
+  return element
+}
 
 // Shared by the initial paint and the selection highlight so the two can never
 // drift apart — they did once, leaving selected markers the wrong size.
@@ -76,7 +93,14 @@ function toFeatureCollection(plotted, criterion, lang) {
   }
 }
 
-export default function ExploreMap({ places, criterion, selectedId, onSelect, onAreaSelect, userLocation, onLocationsResolved, routeGeometry = null, className = '' }) {
+/**
+ * `navigation`, when set, switches the route to live following: { position,
+ * heading, passed, remaining } — the latter two as coordinate lists. With
+ * `followPosition` the camera stays on the traveller, turned to their heading;
+ * `onUserMove` reports the traveller panning or zooming the map themselves,
+ * which is the cue to stop following.
+ */
+export default function ExploreMap({ places, criterion, selectedId, onSelect, onAreaSelect, userLocation, onLocationsResolved, routeGeometry = null, navigation = null, followPosition = false, onUserMove, className = '' }) {
   const { lang } = useLanguage()
   const copy = COPY[lang]
   const containerRef = useRef(null)
@@ -88,6 +112,12 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
   onSelectRef.current = onSelect
   onAreaSelectRef.current = onAreaSelect
   onLocationsResolvedRef.current = onLocationsResolved
+  const onUserMoveRef = useRef(onUserMove)
+  onUserMoveRef.current = onUserMove
+  const navMarkerRef = useRef(null)
+  const navActive = Boolean(navigation)
+  const navActiveRef = useRef(navActive)
+  navActiveRef.current = navActive
   const didFitRef = useRef(false)
   const [mapReady, setMapReady] = useState(false)
   const [plotted, setPlotted] = useState([])
@@ -109,6 +139,8 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
     if (!hasMapsKey || !containerRef.current) return undefined
     let cancelled = false
     let map = null
+    const resizeObserver = new ResizeObserver(() => map?.resize())
+    resizeObserver.observe(containerRef.current)
 
     loadMapStyle()
       .then((style) => {
@@ -137,6 +169,14 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
           // underneath them — a road drawn over a pin hides the score the pin
           // exists to show. Added empty: the geometry arrives later, when a
           // place is selected.
+          map.addSource(PASSED_SOURCE_ID, { type: 'geojson', data: EMPTY_COLLECTION })
+          map.addLayer({
+            id: PASSED_LAYER,
+            type: 'line',
+            source: PASSED_SOURCE_ID,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: { 'line-color': '#9aa1a9', 'line-width': 5, 'line-opacity': 0.8 },
+          })
           map.addSource(ROUTE_SOURCE_ID, { type: 'geojson', data: EMPTY_COLLECTION })
           map.addLayer({
             id: ROUTE_CASING_LAYER,
@@ -233,6 +273,9 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
           }
 
           map.on('click', (event) => {
+            // Mid-trip, a stray tap must not pick another place or search a new
+            // area — either would end the navigation under the traveller.
+            if (navActiveRef.current) return
             const feature = markerFeatureAt(event.point)
             if (feature) {
               const id = feature.properties?.id
@@ -248,6 +291,12 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
           map.on('mousemove', setPointerCursor)
           map.on('mouseout', () => { map.getCanvas().style.cursor = '' })
 
+          // A pan or zoom by the traveller — not by the follow camera, whose
+          // moves carry no originalEvent — means they want to look around, so
+          // following pauses until they recentre.
+          map.on('dragstart', () => onUserMoveRef.current?.())
+          map.on('zoomstart', (event) => { if (event.originalEvent) onUserMoveRef.current?.() })
+
           setMapReady(true)
         })
       })
@@ -255,6 +304,7 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
 
     return () => {
       cancelled = true
+      resizeObserver.disconnect()
       map?.remove()
       mapRef.current = null
       setMapReady(false)
@@ -304,7 +354,7 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
     const bounds = new LngLatBounds()
     plotted.forEach(({ location }) => bounds.extend([location.lng, location.lat]))
     if (userLocation) bounds.extend([userLocation.lng, userLocation.lat])
-    if (plotted.length > 1) {
+    if (plotted.length > 0 && !navActiveRef.current) {
       // The very first fit jumps rather than flies: animating away from the
       // placeholder view would be a long, pointless swoop across the country.
       map.fitBounds(bounds, { padding: 70, maxZoom: 15, duration: didFitRef.current ? 600 : 0 })
@@ -321,6 +371,8 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
   useEffect(() => {
     const map = mapRef.current
     if (!mapReady || !map?.getSource?.(ROUTE_SOURCE_ID)) return
+    if (navActive) return // the live-navigation effect draws the route then
+    map.getSource(PASSED_SOURCE_ID)?.setData(EMPTY_COLLECTION)
     if (!routeGeometry) {
       map.getSource(ROUTE_SOURCE_ID).setData(EMPTY_COLLECTION)
       return
@@ -332,13 +384,59 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
     const bounds = new LngLatBounds()
     for (const [lng, lat] of routeGeometry.coordinates ?? []) bounds.extend([lng, lat])
     if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 80, maxZoom: 16, duration: 600 })
-  }, [routeGeometry, mapReady])
+  }, [routeGeometry, mapReady, navActive])
+
+  // Live navigation: the road ahead in colour, the road behind in grey, the
+  // traveller's dot moved in place (not rebuilt) on every fix, and — while
+  // following — the camera kept on them, turned to where they are heading.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!mapReady || !map?.getSource?.(ROUTE_SOURCE_ID) || !navigation) return
+    const { position, heading, passed, remaining } = navigation
+    if (remaining?.length >= 2) map.getSource(ROUTE_SOURCE_ID).setData(lineOf(remaining))
+    else if (routeGeometry) map.getSource(ROUTE_SOURCE_ID).setData({ type: 'Feature', geometry: routeGeometry, properties: {} })
+    map.getSource(PASSED_SOURCE_ID)?.setData(lineOf(passed))
+    if (!position) return
+
+    if (!navMarkerRef.current) {
+      navMarkerRef.current = new Marker({ element: createNavMarkerElement(copy.you), anchor: 'center', rotationAlignment: 'map', pitchAlignment: 'map' })
+        .setLngLat([position.lng, position.lat])
+        .addTo(map)
+    }
+    const marker = navMarkerRef.current
+    marker.setLngLat([position.lng, position.lat])
+    const cone = marker.getElement().querySelector('[data-cone]')
+    if (cone) cone.style.display = heading == null ? 'none' : ''
+    if (heading != null) marker.setRotation(heading)
+
+    if (followPosition) {
+      map.easeTo({
+        center: [position.lng, position.lat],
+        zoom: Math.max(map.getZoom(), 16.5),
+        bearing: heading ?? map.getBearing(),
+        duration: 900,
+        essential: true,
+      })
+    }
+  }, [navigation, followPosition, mapReady, routeGeometry, copy.you])
+
+  // Leaving navigation: drop the live dot and turn the map north-up again.
+  useEffect(() => {
+    const map = mapRef.current
+    if (navActive || !map) return
+    if (navMarkerRef.current) {
+      navMarkerRef.current.remove()
+      navMarkerRef.current = null
+      if (map.getBearing() !== 0) map.easeTo({ bearing: 0, pitch: 0, duration: 500 })
+    }
+  }, [navActive])
 
   // The traveller's own position is a single DOM marker, kept in sync without
   // touching the results layers.
   useEffect(() => {
     const map = mapRef.current
-    if (!mapReady || !map || !userLocation) return undefined
+    // During navigation the live dot takes over; two dots would disagree.
+    if (!mapReady || !map || !userLocation || navActive) return undefined
 
     const element = document.createElement('div')
     element.title = copy.you
@@ -347,7 +445,7 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
     const marker = new Marker({ element, anchor: 'center' }).setLngLat([userLocation.lng, userLocation.lat]).addTo(map)
     return () => marker.remove()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, userLocation?.lat, userLocation?.lng, copy.you])
+  }, [mapReady, userLocation?.lat, userLocation?.lng, copy.you, navActive])
 
   // Highlight the selected place without rebuilding the map.
   useEffect(() => {
@@ -370,7 +468,10 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
           {copy.loading}
         </div>
       )}
-      {(status === 'no-key' || status === 'empty') && (
+      {status === 'empty' && !failed && (
+        <div role="status" className="pointer-events-none absolute bottom-8 left-4 right-4 z-10 rounded-xl bg-surface/95 p-3 text-center text-sm text-ink-muted shadow-soft">{copy.empty}</div>
+      )}
+      {(status === 'no-key' || failed) && (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-paper-2 p-8 text-center text-md text-ink-muted">
           <div className="flex max-w-[34ch] flex-col items-center gap-3">
             {status === 'no-key' ? <Warning size={24} className="text-lantern" /> : <MapPin size={24} className="text-ink-faint" />}

@@ -12,7 +12,7 @@ function normalizeItinerary(row) {
   return { ...row, start_date: row.start_date ?? row.days?.[0]?.[0]?._tripStartDate ?? null }
 }
 
-export async function saveItinerary({ userId, cityId, customCityName, duration, startDate, budget, people, transport, prefs, days, hotels, isPublic = false }) {
+export async function saveItinerary({ userId, cityId, customCityName, duration, startDate, budget, people, transport, prefs, days, hotels, tours = [], isPublic = false }) {
   if (!hasSupabase) throw new Error('no-supabase')
   const payload = {
     user_id: userId,
@@ -30,6 +30,9 @@ export async function saveItinerary({ userId, cityId, customCityName, duration, 
     hotels: hotels ?? [],
     is_public: isPublic,
   }
+  // Only sent when there are tours, so a plain trip still saves on a database
+  // without the tours column.
+  if (tours?.length) payload.tours = tours
   let { data, error } = await supabase.from('itineraries').insert(payload).select('id').single()
   // Keep saves working while an existing deployment is waiting for the new
   // start_date migration. Once migrated, every new trip retains its dates.
@@ -44,25 +47,26 @@ export async function saveItinerary({ userId, cityId, customCityName, duration, 
 }
 
 export async function getMyItineraries(userId) {
-  if (!hasSupabase) return []
+  if (!hasSupabase) throw new Error('no-supabase')
   const { data, error } = await supabase
     .from('itineraries')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-  if (error) return []
+  if (error) throw error
   return (data ?? []).map(normalizeItinerary)
 }
 
 export async function deleteItinerary(id) {
-  if (!hasSupabase) return
-  await supabase.from('itineraries').delete().eq('id', id)
+  if (!hasSupabase) throw new Error('no-supabase')
+  const { error } = await supabase.from('itineraries').delete().eq('id', id).select('id').single()
+  if (error) throw error
 }
 
 /** Marks a saved itinerary public/private — sharing needs an explicit opt-in. */
 export async function setItineraryPublic(id, isPublic) {
-  if (!hasSupabase) return
-  const { error } = await supabase.from('itineraries').update({ is_public: isPublic }).eq('id', id)
+  if (!hasSupabase) throw new Error('no-supabase')
+  const { error } = await supabase.from('itineraries').update({ is_public: isPublic }).eq('id', id).select('id').single()
   if (error) throw error
 }
 

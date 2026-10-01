@@ -1,9 +1,10 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import { LanguageProvider } from './i18n/LanguageContext.jsx'
 import { AuthProvider } from './auth/AuthContext.jsx'
 import Layout from './components/layout/Layout.jsx'
+import RecoveryRedirect from './auth/RecoveryRedirect.jsx'
 
 const Landing = lazy(() => import('./pages/Landing.jsx'))
 const Explore = lazy(() => import('./pages/Explore.jsx'))
@@ -20,7 +21,13 @@ const BookingRoom = lazy(() => import('./pages/BookingRoom.jsx'))
 const BookingReturn = lazy(() => import('./pages/BookingReturn.jsx'))
 const MyBookings = lazy(() => import('./pages/MyBookings.jsx'))
 const InfoPage = lazy(() => import('./pages/InfoPage.jsx'))
+const Admin = lazy(() => import('./pages/Admin.jsx'))
+const BookingPayment = lazy(() => import('./pages/BookingPayment.jsx'))
+const Partner = lazy(() => import('./pages/Partner.jsx'))
+const TourPartner = lazy(() => import('./pages/TourPartner.jsx'))
+const PartnerLanding = lazy(() => import('./pages/PartnerLanding.jsx'))
 const NotFound = lazy(() => import('./pages/NotFound.jsx'))
+const PasswordRecovery = lazy(() => import('./pages/PasswordRecovery.jsx'))
 
 function PageFallback() {
   return <div role="status" className="mx-auto max-w-[1180px] px-5 py-16 text-center font-utility text-sm text-ink-muted">Đang tải… / Loading…</div>
@@ -31,9 +38,12 @@ function App() {
     <MotionConfig reducedMotion="user">
       <LanguageProvider>
         <AuthProvider>
+          <RecoveryRedirect />
           <Suspense fallback={<PageFallback />}>
             <Routes>
               <Route element={<Layout />}>
+                <Route path="/forgot-password" element={<PasswordRecovery key="forgot" />} />
+                <Route path="/reset-password" element={<PasswordRecovery key="reset" reset />} />
                 <Route path="/" element={<Landing />} />
                 <Route path="/explore" element={<Explore />} />
                 <Route path="/place/:id" element={<PlaceDetail />} />
@@ -46,6 +56,7 @@ function App() {
                 <Route path="/bookings" element={<MyBookings />} />
                 <Route path="/booking/return" element={<BookingReturn />} />
                 <Route path="/booking/:placeId" element={<BookingRoom />} />
+                <Route path="/pay/:bookingId" element={<BookingPayment />} />
                 <Route path="/share" element={<ShareVideo />} />
                 <Route path="/community" element={<Community />} />
                 <Route path="/community/:postId" element={<Community />} />
@@ -55,6 +66,14 @@ function App() {
                 <Route path="/help" element={<InfoPage page="help" />} />
                 <Route path="/contact" element={<InfoPage page="contact" />} />
                 <Route path="/terms" element={<InfoPage page="terms" />} />
+                <Route path="/admin" element={<Admin />} />
+                <Route path="/partner" element={<Partner />} />
+                {/* Tours are chosen inside the planner and listed with the
+                    other bookings; the old addresses still lead there. */}
+                <Route path="/tours" element={<Navigate to="/plan" replace />} />
+                <Route path="/my-tours" element={<Navigate to="/bookings#tours" replace />} />
+                <Route path="/partner/tours" element={<TourPartner />} />
+                <Route path="/hop-tac" element={<PartnerLanding />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>

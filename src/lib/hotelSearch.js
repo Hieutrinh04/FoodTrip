@@ -1,13 +1,9 @@
 import { hasMapsKey, searchPlaces, lookupPlace, placeMapUrl } from './trackAsia.js'
 import { supabase, hasSupabase } from './supabaseClient.js'
+import { nightlyPriceOf } from './roomTypes.js'
+import { budgetTier, TIER_ORDER } from './hotelBudget.js'
 
-const PRICE_LEVEL_ORDER = [
-  'PRICE_LEVEL_FREE',
-  'PRICE_LEVEL_INEXPENSIVE',
-  'PRICE_LEVEL_MODERATE',
-  'PRICE_LEVEL_EXPENSIVE',
-  'PRICE_LEVEL_VERY_EXPENSIVE',
-]
+export { LODGING_SHARE, nightlyRoomBudget, groupHotelsByBudgetTier } from './hotelBudget.js'
 
 // Track-Asia exposes no price level for a venue (Google Places did). Room
 // rates were already simulated deterministically from the hotel id in
@@ -115,13 +111,15 @@ const LIVE_CACHE_TTL_MS = 1000 * 60 * 60 * 6
 // rates were available again.
 const ESTIMATED_CACHE_TTL_MS = 1000 * 60 * 30
 
-function liveCacheKey(cityName, adults) {
-  return `${LIVE_CACHE_PREFIX}${cityName.toLowerCase()}|${adults}`
+// The budget changes which hotels the server sends back, so it is part of the
+// key — rounded to 100k so dragging the slider does not miss the cache.
+function liveCacheKey(cityName, adults, maxPricePerNight) {
+  return `${LIVE_CACHE_PREFIX}${cityName.toLowerCase()}|${adults}|${Math.round((maxPricePerNight ?? 0) / 100000)}`
 }
 
-function readLiveCache(cityName, adults) {
+function readLiveCache(cityName, adults, maxPricePerNight) {
   try {
-    const cached = JSON.parse(localStorage.getItem(liveCacheKey(cityName, adults)) || 'null')
+    const cached = JSON.parse(localStorage.getItem(liveCacheKey(cityName, adults, maxPricePerNight)) || 'null')
     if (!cached) return null
     const ttl = cached.priced ? LIVE_CACHE_TTL_MS : ESTIMATED_CACHE_TTL_MS
     return Date.now() - cached.ts < ttl ? cached.hotels : null
@@ -130,10 +128,10 @@ function readLiveCache(cityName, adults) {
   }
 }
 
-function writeLiveCache(cityName, adults, hotels) {
+function writeLiveCache(cityName, adults, maxPricePerNight, hotels) {
   try {
     const priced = hotels.some((hotel) => hotel.priceSource === 'hotelbeds')
-    localStorage.setItem(liveCacheKey(cityName, adults), JSON.stringify({ hotels, priced, ts: Date.now() }))
+    localStorage.setItem(liveCacheKey(cityName, adults, maxPricePerNight), JSON.stringify({ hotels, priced, ts: Date.now() }))
   } catch { /* storage full or unavailable — the next visit just re-fetches */ }
 }
 
@@ -142,32 +140,23 @@ function writeLiveCache(cityName, adults, hotels) {
  * list — whenever the live path can't answer, so the caller falls through to
  * the Track-Asia search rather than showing "no hotels here".
  */
-async function fetchLiveHotels({ cityName, adults }) {
+async function fetchLiveHotels({ cityName, adults, maxPricePerNight }) {
   if (!hasSupabase) return null
 
-  const cached = readLiveCache(cityName, adults)
+  const cached = readLiveCache(cityName, adults, maxPricePerNight)
   if (cached) return cached.map(mapLiveHotel)
 
   try {
     const { data, error } = await supabase.functions.invoke('hotel-availability', {
-      body: { cityName, adults },
+      body: { cityName, adults, maxPricePerNight },
       signal: AbortSignal.timeout(25000),
     })
     if (error || data?.status !== 'ok' || !data.hotels?.length) return null
-    writeLiveCache(cityName, adults, data.hotels)
+    writeLiveCache(cityName, adults, maxPricePerNight, data.hotels)
     return data.hotels.map(mapLiveHotel)
   } catch {
     return null
   }
-}
-
-// Rough mapping from the trip's per-person daily budget to a price band, used
-// to rank/group results — not to filter them out, since a sparse area may
-// only have one or two lodging options at all.
-function preferredPriceLevels(budgetPerPersonPerDay) {
-  if (budgetPerPersonPerDay >= 1200000) return ['PRICE_LEVEL_MODERATE', 'PRICE_LEVEL_EXPENSIVE', 'PRICE_LEVEL_VERY_EXPENSIVE']
-  if (budgetPerPersonPerDay >= 600000) return ['PRICE_LEVEL_INEXPENSIVE', 'PRICE_LEVEL_MODERATE']
-  return ['PRICE_LEVEL_FREE', 'PRICE_LEVEL_INEXPENSIVE']
 }
 
 /**
@@ -182,23 +171,23 @@ function preferredPriceLevels(budgetPerPersonPerDay) {
  *   2. Track-Asia text search — name and coordinates only, with the price band
  *      derived from the hotel id.
  *
- * Returns null when neither path is configured, so the caller can show its
- * no-key state instead of an empty list.
+ * Ordered by fit to `nightlyBudget`: within it, then cheaper, then unpriced,
+ * then over it (cheapest first). Returns null when neither path is
+ * configured, so the caller can show its no-key state instead of an empty list.
  */
-export async function searchHotelsForCity({ cityName, budgetPerPersonPerDay = 0, maxResultCount = 9, adults = 2 }) {
+export async function searchHotelsForCity({ cityName, nightlyBudget = 0, maxResultCount = 12, adults = 2 }) {
   const city = cityName?.trim()
   if (!city) return null
 
-  const preferred = preferredPriceLevels(budgetPerPersonPerDay)
-  // A stable sort, so the server's own ordering (real prices first, then hotels
-  // with a photo) survives inside each budget-fit group.
+  // A stable sort, so the server's own ordering survives inside each group.
   const byBudgetFit = (a, b) => {
-    const aFit = a.priceLevel && preferred.includes(a.priceLevel) ? 1 : 0
-    const bFit = b.priceLevel && preferred.includes(b.priceLevel) ? 1 : 0
-    return bFit - aFit
+    const ta = budgetTier(nightlyPriceOf(a), nightlyBudget)
+    const tb = budgetTier(nightlyPriceOf(b), nightlyBudget)
+    if (ta !== tb) return TIER_ORDER[ta] - TIER_ORDER[tb]
+    return ta === 'premium' ? nightlyPriceOf(a) - nightlyPriceOf(b) : 0
   }
 
-  const live = await fetchLiveHotels({ cityName: city, adults })
+  const live = await fetchLiveHotels({ cityName: city, adults, maxPricePerNight: nightlyBudget || undefined })
   if (live) {
     const hotels = live.sort(byBudgetFit).slice(0, maxResultCount)
     cacheHotels(hotels)
@@ -214,27 +203,6 @@ export async function searchHotelsForCity({ cityName, budgetPerPersonPerDay = 0,
   return hotels
 }
 
-/**
- * Buckets hotel results into 3 groups relative to the trip's budget, so the
- * planner can show "trong tầm giá / tiết kiệm hơn / cao cấp hơn" instead of one
- * flat list. Hotels with no price band are grouped as "match" (unknown price
- * shouldn't read as "too expensive").
- */
-export function groupHotelsByBudgetTier(hotels, budgetPerPersonPerDay) {
-  const preferred = preferredPriceLevels(budgetPerPersonPerDay).map((l) => PRICE_LEVEL_ORDER.indexOf(l))
-  const minIdx = Math.min(...preferred)
-  const maxIdx = Math.max(...preferred)
-
-  const groups = { value: [], match: [], premium: [] }
-  for (const hotel of hotels) {
-    const idx = hotel.priceLevel ? PRICE_LEVEL_ORDER.indexOf(hotel.priceLevel) : -1
-    if (idx === -1) groups.match.push(hotel)
-    else if (idx < minIdx) groups.value.push(hotel)
-    else if (idx > maxIdx) groups.premium.push(hotel)
-    else groups.match.push(hotel)
-  }
-  return groups
-}
 
 /**
  * Re-fetches a single hotel by id — used to land directly on a booking page
@@ -251,7 +219,8 @@ export async function fetchHotelById(placeId) {
   if (!placeId) return null
   const cached = readCachedHotel(placeId)
   if (cached) return cached
-  if (/^(hb|g)-/.test(placeId)) return null
+  // Hotelbeds, Google and FoodTrip's own (partner) ids are not map places.
+  if (/^(hb|g|ft)-/.test(placeId)) return null
   if (!hasMapsKey) return null
   try {
     const place = await lookupPlace(placeId)
@@ -276,7 +245,8 @@ export const PRICE_LEVEL_LABEL = {
 
 /** True when the hotel's price came from a real quoted tariff, not the id hash. */
 export function hasRealPrice(hotel) {
-  return hotel?.priceSource === 'hotelbeds' && hotel.priceFrom != null
+  // Hotelbeds' quoted tariff, or a partner's own cheapest room.
+  return ['hotelbeds', 'partner'].includes(hotel?.priceSource) && hotel.priceFrom != null
 }
 
 export function hotelMapsUrl(hotel) {

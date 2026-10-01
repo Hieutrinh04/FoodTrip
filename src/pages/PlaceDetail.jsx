@@ -25,7 +25,9 @@ const C = {
     openNow: 'Đang mở cửa', closedNow: 'Đã đóng cửa',
     hours: (o, cl) => `${o} – ${cl}`,
     save: 'Lưu địa điểm', saved: 'Đã lưu',
-    reviewsTitle: 'Đánh giá từ cộng đồng',
+    reviewsTitle: 'Nhận xét minh hoạ',
+    sampleRating: 'điểm mẫu',
+    sampleNote: 'Địa điểm này thuộc bộ dữ liệu mẫu dùng để trình diễn. Điểm, mô tả và các nhận xét bên dưới được viết minh hoạ, không phải đánh giá của khách thật — hãy xem điểm và đánh giá Google (nếu có) để có thông tin thật.',
     relatedTitle: (city) => `Địa điểm khác tại ${city}`,
     priceLabel: 'Mức giá',
     googleReviewsTitle: 'Đánh giá thật từ Google',
@@ -39,7 +41,9 @@ const C = {
     openNow: 'Open now', closedNow: 'Closed now',
     hours: (o, cl) => `${o} – ${cl}`,
     save: 'Save place', saved: 'Saved',
-    reviewsTitle: 'Reviews from the community',
+    reviewsTitle: 'Illustrative reviews',
+    sampleRating: 'sample score',
+    sampleNote: 'This place is part of the sample dataset used for demonstration. Its score, description and the reviews below are illustrative, not written by real visitors — see the Google rating and reviews (where available) for real information.',
     relatedTitle: (city) => `More in ${city}`,
     priceLabel: 'Price level',
     googleReviewsTitle: 'Real reviews from Google',
@@ -123,24 +127,29 @@ export default function PlaceDetail() {
         </motion.div>
 
         <motion.div initial="hidden" animate="show" variants={staggerContainer(0.08)} className="flex flex-col gap-4">
-          <motion.div variants={fadeUp} className="flex items-start justify-between gap-3">
-            <div>
+          {/* The save button shares the eyebrow's row, not the title's: beside
+              the title it squeezed a three-word name to one word per line. */}
+          <motion.div variants={fadeUp}>
+            <div className="flex items-center justify-between gap-3">
               <span className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint">{city.name[lang]} · {CATEGORY_LABEL[place.category][lang]}</span>
-              <h1 className="text-3xl md:text-4xl font-bold leading-tight mt-1">{place.name[lang]}</h1>
+              <button
+                onClick={toggleSave}
+                aria-pressed={saved}
+                className={`shrink-0 flex items-center gap-2 font-utility text-sm font-semibold px-4 py-2.5 rounded-full border-[1.5px] transition-colors ${saved ? 'bg-herb border-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}
+              >
+                <BookmarkSimple size={16} weight={saved ? 'fill' : 'regular'} />
+                {saved ? c.saved : c.save}
+              </button>
             </div>
-            <button
-              onClick={toggleSave}
-              aria-pressed={saved}
-              className={`shrink-0 flex items-center gap-2 font-utility text-sm font-semibold px-4 py-2.5 rounded-full border-[1.5px] transition-colors ${saved ? 'bg-herb border-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}
-            >
-              <BookmarkSimple size={16} weight={saved ? 'fill' : 'regular'} />
-              {saved ? c.saved : c.save}
-            </button>
+            <h1 className="text-3xl md:text-4xl font-bold leading-tight mt-2">{place.name[lang]}</h1>
           </motion.div>
 
           <motion.div variants={fadeUp} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 font-utility font-bold text-md text-lantern">
+            {/* The curated rating is invented for the demo dataset; it says so
+                next to the number rather than passing for a real score. */}
             <span className="flex items-center gap-2">
               <Star size={16} weight="fill" /> {place.rating.toFixed(1)}
+              <span className="font-normal text-xs text-ink-faint">({c.sampleRating})</span>
             </span>
             {enrichment.status === 'ready' && enrichment.data?.rating != null && (
               <span className="flex items-center gap-1.5 text-sm font-semibold text-ink-muted">
@@ -180,6 +189,7 @@ export default function PlaceDetail() {
         <motion.h2 initial="hidden" whileInView="show" viewport={viewportOnce} variants={fadeUp} className="text-xl font-bold mb-5">
           {c.reviewsTitle}
         </motion.h2>
+        <p className="-mt-2 mb-5 max-w-[70ch] rounded-lg border border-lantern/30 bg-lantern/10 px-4 py-3 text-sm text-ink-muted">{c.sampleNote}</p>
         <motion.div
           initial="hidden"
           whileInView="show"
