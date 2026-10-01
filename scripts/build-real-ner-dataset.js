@@ -93,6 +93,8 @@ const youtubeCaptions = loadJson('youtube-captions.json')
 
 if (!realPlaces && !youtubeCaptions) {
   console.error('\nNeither ml/real-places.json nor ml/youtube-captions.json exists. Run the crawl scripts first:')
+  console.error('  node scripts/crawl-via-supabase.js   (no keys needed on this machine)')
+  console.error('or, with your own Google Places / YouTube keys:')
   console.error('  GOOGLE_PLACES_SERVER_KEY=... node scripts/crawl-real-places.js')
   console.error('  YOUTUBE_API_KEY=... node scripts/crawl-youtube-captions.js')
   process.exit(1)
@@ -116,7 +118,7 @@ if (realPlaces) {
         { text: place.name, label: 'BUSINESS' },
         { text: place.cityName, label: 'LOC' },
       ])
-      examples.push({ tokens, ner_tags: tags, source: 'real-place-template' })
+      examples.push({ tokens, ner_tags: tags, source: 'real-place-template', places: [place.name] })
     }
   }
 
@@ -132,7 +134,7 @@ if (realPlaces) {
       { text: cityName, label: 'LOC' },
       ...names.map((n) => ({ text: n, label: 'BUSINESS' })),
     ])
-    examples.push({ tokens, ner_tags: tags, source: 'real-place-listicle' })
+    examples.push({ tokens, ner_tags: tags, source: 'real-place-listicle', places: names })
   }
   console.log(`Real-place templates: ${examples.length} examples from ${realPlaces.length} real places`)
 }
@@ -146,13 +148,14 @@ if (realPlaces && youtubeCaptions) {
   for (const cap of youtubeCaptions) {
     const text = cap.title || cap.description
     if (!text) continue
-    const candidates = placesByCity[cap.cityName] ?? []
+    const candidates = [...(placesByCity[cap.cityName] ?? [])]
+    if (cap.placeName && !candidates.some((p) => p.name === cap.placeName)) candidates.push({ name: cap.placeName })
     const matched = candidates.filter((p) => p.name && text.toLowerCase().includes(p.name.toLowerCase()))
     const entities = matched.map((p) => ({ text: p.name, label: 'BUSINESS' }))
     if (text.toLowerCase().includes(cap.cityName.toLowerCase())) entities.push({ text: cap.cityName, label: 'LOC' })
     if (!entities.length) continue // no real entity found in this caption — no training signal, skip
     const { tokens, tags } = tagCaption(text, entities)
-    examples.push({ tokens, ner_tags: tags, source: 'youtube-real' })
+    examples.push({ tokens, ner_tags: tags, source: 'youtube-real', places: matched.map((p) => p.name), venue: cap.placeName ?? matched[0]?.name })
   }
   console.log(`Real YouTube captions matched & labeled: ${examples.length - startCount} of ${youtubeCaptions.length} crawled`)
 } else if (youtubeCaptions) {
@@ -164,19 +167,91 @@ if (!examples.length) {
   process.exit(1)
 }
 
+// ---------- Split by venue, test on real captions only ----------
+//
+// A random split scored the model on names it had already memorised: every
+// place yields five template sentences, so the same business sat in train and
+// in test, and most of test was template text far easier than a real caption.
+// The F1 that produced said nothing about recognising a place it has not seen.
+//
+// Instead:
+// - Venues are assigned to one side by a stable hash of the name.
+// - test.jsonl holds only REAL YouTube captions, about venues whose name never
+//   appears anywhere in train or val. This is the number to report.
+// - Template sentences about those held-out venues are dropped rather than
+//   trained on, which is what would leak the names.
+// - test_template.jsonl keeps a template-only test (unseen venues too), for
+//   comparing performance on clean vs. real text.
+
+function bucket(name) {
+  let h = 2166136261
+  for (const ch of name.toLowerCase()) h = Math.imul(h ^ ch.codePointAt(0), 16777619) >>> 0
+  return (h % 1000) / 1000
+}
+
+const captionExamples = examples.filter((e) => e.source === 'youtube-real')
+const templateExamples = examples.filter((e) => e.source !== 'youtube-real')
+
+// Venues whose real videos form the test set.
+const captionVenues = [...new Set(captionExamples.map((e) => e.venue).filter(Boolean))]
+const heldOut = new Set(captionVenues.filter((venue) => bucket(venue) < 0.4))
+const touchesHeldOut = (e) => (e.places ?? []).some((name) => heldOut.has(name))
+
+// A test caption can name a second venue besides the one it is about. That
+// venue must be held out too, or its template sentences train the model on a
+// name the test then asks about — which in turn can pull more captions into
+// test. Grow the set until nothing changes.
+for (let changed = true; changed;) {
+  changed = false
+  for (const e of captionExamples) {
+    if (!touchesHeldOut(e) && !heldOut.has(e.venue)) continue
+    for (const name of [e.venue, ...(e.places ?? [])]) {
+      if (name && !heldOut.has(name)) {
+        heldOut.add(name)
+        changed = true
+      }
+    }
+  }
+}
+
+const train = []
+const val = []
+const test = []
+const testTemplate = []
+
+for (const e of captionExamples) {
+  if (heldOut.has(e.venue) || touchesHeldOut(e)) test.push(e)
+  else if (bucket(e.venue ?? '') < 0.55) val.push(e)
+  else train.push(e)
+}
+for (const e of templateExamples) {
+  if (touchesHeldOut(e)) continue // would teach the held-out names
+  const b = bucket((e.places ?? []).join('|'))
+  if (b < 0.8) train.push(e)
+  else if (b < 0.9) val.push(e)
+  else testTemplate.push(e)
+}
+
+// Guard against the one thing this split exists to prevent.
+const trainNames = new Set(train.flatMap((e) => e.places ?? []))
+const leaked = test.filter((e) => (e.places ?? []).some((name) => trainNames.has(name)))
+if (leaked.length) {
+  console.error(`Leak: ${leaked.length} test captions name a venue seen in training.`)
+  process.exit(1)
+}
+
 const shuffled = shuffle(examples)
-const nTrain = Math.floor(shuffled.length * 0.8)
-const nVal = Math.floor(shuffled.length * 0.1)
 const splits = {
-  'train.jsonl': shuffled.slice(0, nTrain),
-  'val.jsonl': shuffled.slice(nTrain, nTrain + nVal),
-  'test.jsonl': shuffled.slice(nTrain + nVal),
+  'train.jsonl': shuffle(train),
+  'val.jsonl': shuffle(val),
+  'test.jsonl': shuffle(test),
+  'test_template.jsonl': shuffle(testTemplate),
 }
 for (const [file, rows] of Object.entries(splits)) {
-  const body = rows.map((r) => JSON.stringify({ tokens: r.tokens, ner_tags: r.ner_tags })).join('\n') + '\n'
+  const body = rows.map((r) => JSON.stringify({ tokens: r.tokens, ner_tags: r.ner_tags, source: r.source })).join('\n') + '\n'
   writeFileSync(new URL(file, OUT_DIR), body, 'utf8')
 }
 writeFileSync(new URL('labels.json', OUT_DIR), JSON.stringify(LABELS, null, 2) + '\n', 'utf8')
-
-console.log(`\nTotal: ${shuffled.length} examples (this overwrites ml/ner-dataset/ from generate-ner-dataset.js)`)
+console.log(`\nVenues held out for testing: ${heldOut.size} (their templates dropped: none of their names reach training)`)
+console.log(`Total written: ${Object.values(splits).reduce((n, rows) => n + rows.length, 0)} of ${shuffled.length} examples (this overwrites ml/ner-dataset/)`)
 for (const [file, rows] of Object.entries(splits)) console.log(`  ${file}: ${rows.length} examples`)
