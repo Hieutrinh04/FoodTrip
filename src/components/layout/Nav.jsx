@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  List, X, SunDim, MoonStars, Translate, UserCircle, SignOut, CaretDown, MapTrifold, Bed, Sparkle,
+  List, X, SunDim, MoonStars, Translate, UserCircle, SignOut, CaretDown, MapTrifold, Bed, Sparkle, ShieldCheck, Buildings, Handshake,
 } from '@phosphor-icons/react'
+import { getAdminStatus } from '../../lib/admin.js'
+import { isPartner as checkPartner } from '../../lib/partner.js'
+import { isTourMember } from '../../lib/tours.js'
 import LogoMark from '../ui/LogoMark.jsx'
 import Wordmark from '../ui/Wordmark.jsx'
 import AuthModal from '../auth/AuthModal.jsx'
@@ -41,8 +44,18 @@ const NAV_LINKS = [
 // rather than the main bar.
 const ACCOUNT_LINKS = [
   { to: '/trips', icon: MapTrifold, label: { vi: 'Lịch trình của tôi', en: 'My trips' } },
-  { to: '/bookings', icon: Bed, label: { vi: 'Đặt phòng của tôi', en: 'My bookings' } },
+  { to: '/bookings', icon: Bed, label: { vi: 'Đặt chỗ của tôi', en: 'My bookings' } },
 ]
+
+// Shown only to admins. Hiding it is a courtesy, not the protection: the
+// database refuses every admin read and write to anyone else.
+const ADMIN_LINK = { to: '/admin', icon: ShieldCheck, label: { vi: 'Quản trị', en: 'Admin' } }
+// Shown to people who run a hotel on FoodTrip.
+const PARTNER_LINK = { to: '/partner', icon: Buildings, label: { vi: 'Quản lý khách sạn', en: 'My hotel' } }
+// For everyone not yet a partner: the way in, as Agoda's "List your property".
+const JOIN_LINK = { to: '/hop-tac', icon: Handshake, label: { vi: 'Hợp tác với FoodTrip', en: 'Partner with FoodTrip' } }
+// Shown to members of a tour operator (owner, manager or guide).
+const TOUR_PARTNER_LINK = { to: '/partner/tours', icon: Buildings, label: { vi: 'Quản lý tour', en: 'My tours (operator)' } }
 
 const CTA = { vi: 'Tạo lịch trình', en: 'Plan a trip' }
 
@@ -57,6 +70,9 @@ const ICON_BUTTON = 'flex h-10 items-center justify-center gap-1.5 rounded-full 
 function AccountMenu({ user, onSignOut, lang }) {
   const l = LABELS[lang]
   const [open, setOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isPartner, setIsPartner] = useState(false)
+  const [isTourPartner, setIsTourPartner] = useState(false)
   const ref = useRef(null)
   const location = useLocation()
 
@@ -73,6 +89,14 @@ function AccountMenu({ user, onSignOut, lang }) {
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
+
+  useEffect(() => {
+    let cancelled = false
+    getAdminStatus().then((status) => { if (!cancelled) setIsAdmin(status === 'admin') })
+    checkPartner(user.id).then((yes) => { if (!cancelled) setIsPartner(yes) })
+    isTourMember(user.id).then((yes) => { if (!cancelled) setIsTourPartner(yes) })
+    return () => { cancelled = true }
+  }, [user.id])
 
   const initial = (user.email?.[0] ?? '?').toUpperCase()
 
@@ -104,7 +128,7 @@ function AccountMenu({ user, onSignOut, lang }) {
             <div className="mt-0.5 truncate text-sm font-semibold">{user.email}</div>
           </div>
           <div className="py-1.5">
-            {ACCOUNT_LINKS.map(({ to, icon: Icon, label }) => (
+            {[...ACCOUNT_LINKS, ...(isPartner ? [PARTNER_LINK] : []), ...(isTourPartner ? [TOUR_PARTNER_LINK] : []), ...(isPartner || isTourPartner ? [] : [JOIN_LINK]), ...(isAdmin ? [ADMIN_LINK] : [])].map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -187,6 +211,13 @@ export default function Nav() {
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-2 xl:ml-0">
+          {/* The partner sign-up, where Agoda and Traveloka put theirs: an icon
+              on narrower desktops, the words where there is room. */}
+          <NavLink to="/hop-tac" title={JOIN_LINK.label[lang]} aria-label={JOIN_LINK.label[lang]}
+            className={({ isActive }) => `${ICON_BUTTON} hidden w-10 xl:flex 2xl:w-auto 2xl:px-3.5 ${isActive ? 'border-chili text-chili' : ''}`}>
+            <Handshake size={16} />
+            <span className="hidden 2xl:inline">{JOIN_LINK.label[lang]}</span>
+          </NavLink>
           <button onClick={toggleLang} aria-label={l.lang} className={`${ICON_BUTTON} hidden px-3 sm:flex`}>
             <Translate size={15} />
             {lang.toUpperCase()}
@@ -232,7 +263,7 @@ export default function Nav() {
           aria-label={l.mobileNav}
         >
           <div className="mx-auto flex max-w-[1400px] flex-col px-5 py-3 font-utility font-semibold md:px-8">
-            {[...NAV_LINKS, ...(user ? ACCOUNT_LINKS : [])].map((link) => (
+            {[...NAV_LINKS, ...(user ? ACCOUNT_LINKS : []), JOIN_LINK].map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}

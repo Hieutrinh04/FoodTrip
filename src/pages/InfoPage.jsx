@@ -16,8 +16,8 @@ const PAGES = {
     en: { eyebrow: 'Careers', title: 'Help build a better way to explore Vietnam.', intro: 'FoodTrip values thoughtful product work, transparent data, and genuine local experiences.', sections: [['Open roles', 'There are no formal openings right now. New roles, responsibilities, and application steps will be published on this page when available.'], ['What we value', 'Ownership, clear communication, respect for user data, and curiosity about Vietnamese food, maps, and travel.']] },
   },
   blog: {
-    vi: { eyebrow: 'Blog ẩm thực', title: 'Gợi ý cho chuyến đi ngon hơn.', intro: 'Bắt đầu từ những địa điểm được cộng đồng FoodTrip quan tâm.', sections: [['Phở Hà Nội: chọn quán theo khẩu vị', 'Phở tái lăn, nước dùng trong hay vị đậm? So sánh mô tả và đánh giá trước khi chọn quán phù hợp.'], ['Một ngày ăn quanh Hội An', 'Kết hợp món địa phương, cà phê và phố cổ thành lịch trình vừa đủ, không chạy điểm.'], ['Ăn ngon ở Đà Nẵng', 'Từ mì Quảng đến hải sản, hãy chọn theo khu vực và thời gian di chuyển thay vì chỉ nhìn điểm sao.']] },
-    en: { eyebrow: 'Food blog', title: 'Ideas for a better-tasting trip.', intro: 'Start with destinations the FoodTrip community cares about.', sections: [['Choosing Hanoi pho for your taste', 'Stir-fried beef, clear broth, or a richer bowl? Compare descriptions and review signals before choosing.'], ['A day of eating around Hoi An', 'Combine local dishes, coffee, and the old town into a relaxed itinerary without rushing checkpoints.'], ['Eating well in Da Nang', 'From mi Quang to seafood, choose by area and travel time—not only by star rating.']] },
+    vi: { eyebrow: 'Blog ẩm thực', title: 'Gợi ý cho chuyến đi ngon hơn.', intro: 'Bắt đầu từ những địa điểm được cộng đồng FoodTrip quan tâm.', sections: [['Phở Hà Nội: chọn quán theo khẩu vị', 'Phở tái lăn, nước dùng trong hay vị đậm? So sánh mô tả và đánh giá trước khi chọn quán phù hợp.', '/explore?city=hanoi', 'Xem quán ở Hà Nội'], ['Một ngày ăn quanh Hội An', 'Kết hợp món địa phương, cà phê và phố cổ thành lịch trình vừa đủ, không chạy điểm.', '/explore?city=hoian', 'Xem quán ở Hội An'], ['Ăn ngon ở Đà Nẵng', 'Từ mì Quảng đến hải sản, hãy chọn theo khu vực và thời gian di chuyển thay vì chỉ nhìn điểm sao.', '/explore?city=danang', 'Xem quán ở Đà Nẵng'], ['Chuyện thật từ người đi trước', 'Những chuyến đi, quán ăn và lưu ý do chính người dùng FoodTrip kể lại — kèm vị trí trên bản đồ.', '/community', 'Đọc trong Cộng đồng']] },
+    en: { eyebrow: 'Food blog', title: 'Ideas for a better-tasting trip.', intro: 'Start with destinations the FoodTrip community cares about.', sections: [['Choosing Hanoi pho for your taste', 'Stir-fried beef, clear broth, or a richer bowl? Compare descriptions and review signals before choosing.', '/explore?city=hanoi', 'See places in Hanoi'], ['A day of eating around Hoi An', 'Combine local dishes, coffee, and the old town into a relaxed itinerary without rushing checkpoints.', '/explore?city=hoian', 'See places in Hoi An'], ['Eating well in Da Nang', 'From mi Quang to seafood, choose by area and travel time—not only by star rating.', '/explore?city=danang', 'See places in Da Nang'], ['Real stories from travellers', 'Trips, places and tips told by FoodTrip users themselves — pinned on the map.', '/community', 'Read in Community']] },
   },
   help: {
     vi: { eyebrow: 'Trung tâm trợ giúp', title: 'Dùng FoodTrip dễ hơn.', intro: 'Câu trả lời nhanh cho những thao tác thường gặp.', sections: [['Điểm FoodTrip khác đánh giá Google thế nào?', 'Đánh giá Google là dữ liệu từ người dùng Google. Điểm phù hợp FoodTrip là gợi ý tổng hợp từ những tiêu chí đang có dữ liệu như đánh giá, khoảng cách, ngân sách và độ phổ biến.'], ['Vì sao bản đồ hoặc tìm kiếm không hiện?', 'Hãy kiểm tra kết nối mạng, quyền vị trí của trình duyệt và khóa dịch vụ bản đồ trong cấu hình dự án. Trang sẽ hiển thị thông báo thay thế khi dịch vụ chưa sẵn sàng.'], ['Làm sao lưu dữ liệu?', 'Địa điểm có thể lưu ngay trên thiết bị. Đăng nhập để đồng bộ địa điểm, lịch trình và đặt phòng với tài khoản.'], ['Có thể sửa lịch trình AI không?', 'Có. Bạn có thể đổi thứ tự điểm dừng, thay địa điểm, chọn khách sạn và điều chỉnh phương tiện trước khi lưu hoặc chia sẻ.']] },
@@ -48,10 +48,15 @@ export default function InfoPage({ page }) {
         <motion.p variants={fadeUp} className="mt-3 max-w-[65ch] text-base text-ink-muted">{content.intro}</motion.p>
       </motion.header>
       <div className="grid gap-4">
-        {content.sections.map(([title, body], index) => (
+        {content.sections.map(([title, body, to, cta], index) => (
           <motion.section key={title} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.05 }} className="rounded-xl border border-line bg-surface p-5">
             <h2 className="text-lg font-bold">{title}</h2>
             <p className="mt-2 leading-relaxed text-ink-muted">{body}</p>
+            {to && (
+              <Link to={to} className="mt-3 inline-flex items-center gap-1.5 font-utility text-sm font-semibold text-chili hover:underline">
+                {cta} <ArrowRight size={13} />
+              </Link>
+            )}
           </motion.section>
         ))}
       </div>

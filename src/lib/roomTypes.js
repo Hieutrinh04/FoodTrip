@@ -112,6 +112,16 @@ export function getRoomType(hotel, roomKey) {
  * traveller nothing to compare against their budget, so every hotel gets a
  * number; whether it is a quoted tariff is said separately.
  */
+/**
+ * The nightly price a hotel card shows: the real quoted rate when there is
+ * one, otherwise the estimate. Budget grouping uses the same figure, so a
+ * card never says one price while sitting in another price group.
+ */
+export function nightlyPriceOf(hotel) {
+  if (['hotelbeds', 'partner'].includes(hotel?.priceSource) && hotel.priceFrom != null) return hotel.priceFrom
+  return cheapestPricePerNight(hotel)
+}
+
 export function cheapestPricePerNight(hotel) {
   const rooms = getRoomTypesForHotel(hotel)
   return rooms.length ? Math.min(...rooms.map((room) => room.pricePerNight)) : null

@@ -6,6 +6,17 @@ export const COMMENT_PAGE_SIZE = 20
 const BUCKET = 'community-photos'
 const POST_FIELDS = 'id,user_id,author_name,body,place_name,address,lat,lng,photo_paths,created_at,updated_at,community_comments(count)'
 
+function requestSignal(signal) {
+  const timeout = AbortSignal.timeout(20000)
+  return signal ? AbortSignal.any([signal, timeout]) : timeout
+}
+async function bounded(promise) {
+  let timer
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('request-failed')), 30000) })])
+  } finally { clearTimeout(timer) }
+}
+
 function client() {
   if (!hasSupabase) throw new Error('unavailable')
   return supabase
@@ -16,7 +27,7 @@ function fail(error) {
   if (error) throw new Error('request-failed')
 }
 async function userId() {
-  const { data, error } = await client().auth.getUser()
+  const { data, error } = await bounded(client().auth.getUser())
   if (error || !data.user) throw new Error('auth-required')
   return data.user.id
 }
@@ -28,14 +39,14 @@ export async function listCommunityPosts({ cursor, mine, search = '', signal } =
   if (search.trim()) query = query.ilike('place_name', `%${search.trim().replace(/[\\%_]/g, '\\$&')}%`)
   const filter = olderThan(cursor)
   if (filter) query = query.or(filter)
-  if (signal) query = query.abortSignal(signal)
+  query = query.abortSignal(requestSignal(signal))
   const { data, error } = await query
   fail(error)
   return data
 }
 export async function getCommunityPost(id, signal) {
   let query = client().from('community_posts').select(POST_FIELDS).eq('id', checkedId(id)).maybeSingle()
-  if (signal) query = query.abortSignal(signal)
+  query = query.abortSignal(requestSignal(signal))
   const { data, error } = await query
   fail(error)
   return data
@@ -80,12 +91,12 @@ export async function createCommunityPost({ id, draft, photos, onProgress }) {
     checkedId(photo.id)
     const path = `${owner}/${id}/${photo.id}.jpg`
     onProgress?.(index + 1, photos.length)
-    const { error } = await client().storage.from(BUCKET).upload(path, photo.blob, { contentType: 'image/jpeg', upsert: false })
+    const { error } = await bounded(client().storage.from(BUCKET).upload(path, photo.blob, { contentType: 'image/jpeg', upsert: false }))
     // The same immutable path may already exist after a retry.
     if (error && String(error.statusCode) !== '409' && error.message !== 'The resource already exists') fail(error)
     paths.push(path)
   }
-  const { data, error } = await client().from('community_posts').insert({ id, user_id: owner, ...payload, photo_paths: paths }).select(POST_FIELDS).single()
+  const { data, error } = await client().from('community_posts').insert({ id, user_id: owner, ...payload, photo_paths: paths }).select(POST_FIELDS).single().abortSignal(requestSignal())
   if (error) {
     // Do not remove uploads here: the server may have committed despite a network failure.
     const committed = await getCommunityPost(id).catch(() => null)
@@ -96,23 +107,42 @@ export async function createCommunityPost({ id, draft, photos, onProgress }) {
 }
 export async function updateCommunityPost(id, draft) {
   const owner = await userId()
-  const { data, error } = await client().from('community_posts').update(postPayload(draft)).eq('id', checkedId(id)).eq('user_id', owner).select(POST_FIELDS).single()
+  const { data, error } = await client().from('community_posts').update(postPayload(draft)).eq('id', checkedId(id)).eq('user_id', owner).select(POST_FIELDS).single().abortSignal(requestSignal())
   fail(error)
   return data
 }
 export async function deleteCommunityPost(post) {
   const owner = await userId()
-  const { data, error } = await client().from('community_posts').delete().eq('id', checkedId(post.id)).eq('user_id', owner).select('id,photo_paths').single()
+  const { data, error } = await client().from('community_posts').delete().eq('id', checkedId(post.id)).eq('user_id', owner).select('id,photo_paths').single().abortSignal(requestSignal())
   fail(error)
   if (!data.photo_paths.length) return { photosRemoved: true }
-  const { error: storageError } = await client().storage.from(BUCKET).remove(data.photo_paths)
+  const { error: storageError } = await bounded(client().storage.from(BUCKET).remove(data.photo_paths)).catch(() => ({ error: true }))
   return { photosRemoved: !storageError }
+}
+export async function discardCommunityDraft(id) {
+  const owner = await userId()
+  checkedId(id)
+  const committed = await getCommunityPost(id)
+  if (committed) {
+    if (committed.user_id !== owner) throw new Error('permission-denied')
+    return committed
+  }
+  const prefix = `${owner}/${id}`
+  const { data, error } = await bounded(client().storage.from(BUCKET).list(prefix, { limit: 100 }))
+  fail(error)
+  const paths = data.filter((file) => file.id).map((file) => `${prefix}/${file.name}`)
+  if (paths.length) {
+    const removal = await bounded(client().storage.from(BUCKET).remove(paths))
+    fail(removal.error)
+  }
+  // If a timed-out insert committed while cleanup ran, retain its public post.
+  return getCommunityPost(id)
 }
 export async function listCommunityComments(postId, cursor, signal) {
   let query = client().from('community_comments').select('*').eq('post_id', checkedId(postId)).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(COMMENT_PAGE_SIZE)
   const filter = olderThan(cursor)
   if (filter) query = query.or(filter)
-  if (signal) query = query.abortSignal(signal)
+  query = query.abortSignal(requestSignal(signal))
   const { data, error } = await query
   fail(error)
   return data
@@ -123,9 +153,9 @@ export async function saveCommunityComment({ id, postId, draft, editing }) {
   let query = client().from('community_comments')
   query = editing ? query.update(payload).eq('id', checkedId(id)).eq('user_id', owner)
     : query.insert({ id: checkedId(id), post_id: checkedId(postId), user_id: owner, ...payload })
-  const { data, error } = await query.select('*').single()
+  const { data, error } = await query.select('*').single().abortSignal(requestSignal())
   if (!editing && error?.code === '23505') {
-    const retry = await client().from('community_comments').select('*').eq('id', id).eq('user_id', owner).single()
+    const retry = await client().from('community_comments').select('*').eq('id', id).eq('user_id', owner).single().abortSignal(requestSignal())
     fail(retry.error)
     return retry.data
   }
@@ -134,7 +164,7 @@ export async function saveCommunityComment({ id, postId, draft, editing }) {
 }
 export async function deleteCommunityComment(id) {
   const owner = await userId()
-  const { error } = await client().from('community_comments').delete().eq('id', checkedId(id)).eq('user_id', owner).select('id').single()
+  const { error } = await client().from('community_comments').delete().eq('id', checkedId(id)).eq('user_id', owner).select('id').single().abortSignal(requestSignal())
   fail(error)
 }
 export function watchCommunityComments(postId, onChange) {

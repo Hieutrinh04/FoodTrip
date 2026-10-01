@@ -6,6 +6,9 @@ import { fetchPlaceReviews } from '../lib/placeReviews.js'
 import RemoteImage from '../components/ui/RemoteImage.jsx'
 import ExploreMap from '../components/map/ExploreMap.jsx'
 import MapPlacePreview from '../components/map/MapPlacePreview.jsx'
+import NavigationBanner from '../components/map/NavigationBanner.jsx'
+import { useLiveNavigation } from '../hooks/useLiveNavigation.js'
+import { splitRoute } from '../lib/routeProgress.js'
 import { scorePlaceDetailed, toTenPointScale } from '../lib/placeScore.js'
 import { fetchRouteDetails } from '../lib/trackAsia.js'
 import FoodWheel from '../components/wheel/FoodWheel.jsx'
@@ -77,7 +80,7 @@ const C = {
     viewOnMaps: 'Xem trên Google Maps',
     ratingsCount: (n) => `${n.toLocaleString('vi-VN')} đánh giá`,
     reviewsTitle: 'Khách nói gì trên Google Maps', reviewsAll: 'Xem tất cả đánh giá', reviewsLoading: 'Đang tải đánh giá…',
-    distance: (km) => (km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`),
+    distance: (km) => `${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`} đường chim bay`,
   },
   en: {
     eyebrow: 'What to eat now?',
@@ -125,7 +128,7 @@ const C = {
     viewOnMaps: 'View on Google Maps',
     ratingsCount: (n) => `${n.toLocaleString('en-US')} ratings`,
     reviewsTitle: 'What people say on Google Maps', reviewsAll: 'See all reviews', reviewsLoading: 'Loading reviews…',
-    distance: (km) => (km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`),
+    distance: (km) => `${km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`} straight line`,
   },
 }
 
@@ -366,6 +369,26 @@ export default function NearbyEats() {
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPlace?.id, origin?.lat, origin?.lng, transport])
+
+  // Live tracking of that route, as on the Explore map: automatic once the
+  // search was made from the traveller's own location, with the camera
+  // following them after "Bắt đầu dẫn đường".
+  const navigation = useLiveNavigation({ destination: selectedPlace?.location ?? null, transport, initialRoute: route, autoStart: Boolean(origin) })
+  const [following, setFollowing] = useState(false)
+  useEffect(() => { setFollowing(false) }, [selectedPlace?.id])
+  const navigating = navigation.status !== 'idle'
+  const mapNavigation = useMemo(() => {
+    if (!navigation.active) return null
+    const coords = navigation.route?.geometry?.coordinates
+    const { passed, remaining } = coords ? splitRoute(coords, navigation.located) : { passed: [], remaining: [] }
+    return { position: navigation.position, heading: navigation.heading, passed, remaining }
+  }, [navigation.active, navigation.route, navigation.located, navigation.position, navigation.heading])
+
+  function startNavigation() {
+    setFollowing(true)
+    mapSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (!navigation.active) navigation.start()
+  }
 
   /** Repeats whatever the traveller last tried, exactly as they tried it. */
   function retry() {
@@ -715,17 +738,25 @@ export default function NearbyEats() {
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 userLocation={origin}
-                routeGeometry={route?.geometry ?? null}
+                routeGeometry={(navigation.active && navigation.route?.geometry) || route?.geometry || null}
+                navigation={mapNavigation}
+                followPosition={following}
+                onUserMove={() => setFollowing(false)}
                 className="h-full"
               />
-              <button
+              {/* The place panel covers the top of the map, so the live banner
+                  takes over only once the camera follows the traveller. */}
+              {navigating && following && selectedPlace && (
+                <NavigationBanner navigation={navigation} destinationName={selectedPlace.name[lang]} following={following} onRecenter={() => setFollowing(true)} onEnd={navigation.end} />
+              )}
+              {!following && <button
                 type="button"
                 onClick={() => { setMapOpen(false); setSelectedId(null) }}
                 className="absolute right-14 top-3 z-20 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/95 px-3 py-2 font-utility text-xs font-semibold shadow-soft transition-colors hover:border-chili hover:text-chili"
               >
                 <X size={13} /> {c.closeMap}
-              </button>
-              {selectedPlace && (
+              </button>}
+              {selectedPlace && !following && (
                 <MapPlacePreview
                   place={selectedPlace}
                   criterion="overall"
@@ -735,6 +766,7 @@ export default function NearbyEats() {
                   hasRouteOrigin={Boolean(origin)}
                   transport={transport}
                   onTransportChange={setTransport}
+                  onStartNavigation={selectedPlace.location ? startNavigation : undefined}
                 />
               )}
             </section>

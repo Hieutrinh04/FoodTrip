@@ -8,9 +8,12 @@ import { supabase, hasSupabase } from './supabaseClient.js'
  */
 export async function cacheCustomPlaces(places) {
   if (!hasSupabase || !places?.length) return
+  // Insert-only: a place already cached is kept as it is. The database no
+  // longer lets a browser rewrite one, since every itinerary using it would
+  // show whatever was written.
   await supabase
     .from('custom_places')
-    .upsert(places.map((p) => ({ id: p.id, data: p })))
+    .upsert(places.map((p) => ({ id: p.id, data: p })), { onConflict: 'id', ignoreDuplicates: true })
 }
 
 /** Re-hydrates custom places by id, e.g. before rendering a saved itinerary. */

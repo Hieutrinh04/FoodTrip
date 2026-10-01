@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Camera, MapPin, MagnifyingGlass, X } from '@phosphor-icons/react'
 import { useAuth } from '../../auth/AuthContext.jsx'
-import { createCommunityPost, updateCommunityPost, prepareCommunityPhoto } from '../../lib/community.js'
+import { createCommunityPost, updateCommunityPost, prepareCommunityPhoto, discardCommunityDraft } from '../../lib/community.js'
 import { coordinates, postPayload, MAX_PHOTOS } from '../../lib/communityValidation.js'
 import { verifyPlaceQuery } from '../../lib/videoShare.js'
 import { communityError, readCommunityName, rememberCommunityName, useCommunityText } from './communityUi.js'
@@ -33,8 +33,10 @@ export default function PostComposer({ post, onSaved, onCancel, onLogin }) {
   const [attempted, setAttempted] = useState(false)
 
   useEffect(() => {
+    const searches = searchToken
+    const previews = photosRef
     alive.current = true
-    return () => { alive.current = false; searchToken.current++; photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.url)) }
+    return () => { alive.current = false; searches.current++; previews.current.forEach((photo) => URL.revokeObjectURL(photo.url)) }
   }, [])
   useEffect(() => {
     if (user && !ownerAtStart.current) ownerAtStart.current = user.id
@@ -57,7 +59,7 @@ export default function PostComposer({ post, onSaved, onCancel, onLogin }) {
     try {
       for (const file of files) {
         const blob = await prepareCommunityPhoto(file)
-        if (!alive.current) return
+        if (!alive.current) { next.forEach((photo) => URL.revokeObjectURL(photo.url)); return }
         next.push({ id: crypto.randomUUID(), blob, url: URL.createObjectURL(blob) })
       }
       photosRef.current = [...photosRef.current, ...next]
@@ -107,9 +109,21 @@ export default function PostComposer({ post, onSaved, onCancel, onLogin }) {
     } catch (err) { if (alive.current) setError(communityError(err, t)) }
     finally { lock.current = false; if (alive.current) { setBusy(false); setProgress('') } }
   }
+  async function cancel() {
+    if (lock.current) return
+    if (!window.confirm(t('Đóng và bỏ các thay đổi chưa lưu?', 'Close and discard unsaved changes?'))) return
+    if (!attempted) { onCancel(); return }
+    lock.current = true; setBusy(true); setError('')
+    try {
+      const committed = await discardCommunityDraft(postId.current)
+      if (committed) onSaved(committed)
+      else onCancel()
+    } catch (err) { setError(communityError(err, t)) }
+    finally { lock.current = false; if (alive.current) setBusy(false) }
+  }
 
   return <section className="community-composer community-card" aria-label={t('Soạn bài chia sẻ', 'Write a post')}>
-    <div className="community-row"><h2>{post ? t('Chỉnh sửa bài viết', 'Edit post') : t('Một nơi đáng để đi.', 'Somewhere worth going.')}</h2><button type="button" className="community-icon" disabled={busy || preparing} onClick={onCancel} aria-label={t('Đóng bản nháp', 'Close draft')}><X size={20} /></button></div>
+    <div className="community-row"><h2>{post ? t('Chỉnh sửa bài viết', 'Edit post') : t('Một nơi đáng để đi.', 'Somewhere worth going.')}</h2><button type="button" className="community-icon" disabled={busy || preparing} onClick={cancel} aria-label={t('Đóng bản nháp', 'Close draft')}><X size={20} /></button></div>
     <p className="community-help">{t('Chia sẻ trải nghiệm thật, những góc đẹp và điều bạn ước mình biết trước chuyến đi.', 'Share real experiences, lovely corners and things you wish you knew before visiting.')}</p>
     <form onSubmit={submit}>
       <fieldset disabled={frozen || preparing}>
@@ -137,7 +151,7 @@ export default function PostComposer({ post, onSaved, onCancel, onLogin }) {
       {preparing && <p role="status">{t('Đang xử lý ảnh…', 'Preparing photos…')}</p>}
       {error && <p className="community-error" role="alert">{error}</p>}
       {attempted && !busy && <p className="community-help">{t('Nhấn “Thử đăng lại” để kiểm tra và hoàn tất đúng bài này, tránh đăng trùng. Nội dung tạm khóa trong lúc xác minh.', 'Choose “Retry publishing” to verify and finish this same post without duplicates. The draft is temporarily locked.')}</p>}
-      <div className="community-actions"><button type="submit" className="community-button community-primary" disabled={busy || preparing}>{busy ? progress || t('Đang lưu…', 'Saving…') : post ? t('Lưu thay đổi', 'Save changes') : attempted ? t('Thử đăng lại', 'Retry publishing') : t('Đăng chia sẻ', 'Publish post')}</button><button type="button" className="community-button" disabled={busy || preparing} onClick={onCancel}>{t('Hủy', 'Cancel')}</button></div>
+      <div className="community-actions"><button type="submit" className="community-button community-primary" disabled={busy || preparing}>{busy ? progress || t('Đang lưu…', 'Saving…') : post ? t('Lưu thay đổi', 'Save changes') : attempted ? t('Thử đăng lại', 'Retry publishing') : t('Đăng chia sẻ', 'Publish post')}</button><button type="button" className="community-button" disabled={busy || preparing} onClick={cancel}>{t('Hủy', 'Cancel')}</button></div>
     </form>
   </section>
 }

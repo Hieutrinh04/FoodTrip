@@ -1,15 +1,16 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
-import { contentHostAllowed, isRelevantToPlace, primaryName } from '../_shared/relevance.ts'
-
-const SEARCH_URL = 'https://google.serper.dev/search'
-const SOURCE_FILTER = '(site:foody.vn OR site:vnexpress.net OR site:thanhnien.vn OR site:tuoitre.vn OR site:kenh14.vn OR site:dantri.com.vn OR site:vietnamnet.vn OR site:afamily.vn OR site:facebook.com OR site:instagram.com)'
-const INSTAGRAM_POST_FILTER = '(site:instagram.com/reel OR site:instagram.com/p)'
+import { contentHostAllowed, primaryName, searchName } from '../_shared/relevance.ts'
+import { isAboutVenue } from '../_shared/venueMatch.ts'
+import { hasSerperKey, serper, type SerperItem } from '../_shared/serper.ts'
 
 // A URL that points at a single playable post rather than a profile or a
 // written article — the client can embed these inline.
 const PLAYABLE_PATH = /\/(reel|reels|tv|videos|watch)\//
-
-type Organic = Record<string, unknown>
+// Instagram profile pages have nothing to embed; only single posts count.
+const INSTAGRAM_POST_RE = /^https:\/\/(www\.)?instagram\.com\/(reel|reels|p|tv)\/[\w-]+/
+// TikTok and YouTube have their own functions, with oEmbed checks.
+const OWN_FUNCTION_HOSTS = /(^|\.)(tiktok\.com|youtube\.com|youtu\.be)$/
+const MAX_PER_PLATFORM = 8
 
 function platformFromUrl(url: string) {
   if (url.includes('instagram.com')) return 'instagram'
@@ -17,45 +18,48 @@ function platformFromUrl(url: string) {
   return 'article'
 }
 
-async function serperSearch(apiKey: string, q: string) {
-  const response = await fetch(SEARCH_URL, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify({ q: q.replace(/\s+/g, ' ').trim(), num: 12, gl: 'vn', hl: 'vi' }),
-  })
-  if (!response.ok) throw new Error(`Serper ${response.status}: ${(await response.text()).slice(0, 180)}`)
-  const json = await response.json()
-  return (json.organic || []) as Organic[]
-}
+/**
+ * Instagram, Facebook and article coverage of a place.
+ *
+ * Three plain searches run together (Serper's free plan refuses `site:`, see
+ * _shared/serper.ts): Google's Videos tab with "instagram" and with "facebook"
+ * added, which is where Reels and Facebook videos are indexed, and the web tab
+ * for articles.
+ */
+async function searchPlaceContent(query: string, placeName: string, address: string) {
+  if (!hasSerperKey()) return { status: 'no-key', items: [] }
 
-async function searchPlaceContent(query: string, placeName: string) {
-  const apiKey = Deno.env.get('SERPER_API_KEY')
-  if (!apiKey) return { status: 'no-key', items: [] }
-
-  // The name goes in quotes so the provider anchors on it; the area stays loose.
-  // No giant quoted blob — an SEO-stuffed name quoted whole matches nothing and
-  // makes Google silently drop the site filter and the quotes both.
   const name = primaryName(placeName)
   const area = query.replace(placeName, '').replace(name, '').trim()
+  const base = `${searchName(placeName)} ${area}`
 
-  // Two searches, run together. The general one covers articles and Facebook;
-  // the second targets Instagram *posts* specifically, because a plain
-  // site:instagram.com search returns profile pages, which have no video to
-  // embed. Path-scoped site: filters are what surface reels instead.
-  const [general, instagram] = await Promise.all([
-    serperSearch(apiKey, `"${name}" ${area} review ${SOURCE_FILTER}`),
-    serperSearch(apiKey, `"${name}" ${area} ${INSTAGRAM_POST_FILTER}`).catch(() => [] as Organic[]),
+  const results = await Promise.allSettled([
+    serper('videos', `${base} instagram`),
+    serper('videos', `${base} facebook`),
+    serper('search', `${base} review`),
   ])
+  if (results.every((r) => r.status === 'rejected')) throw (results[0] as PromiseRejectedResult).reason
+  const found = results.flatMap((r) => (r.status === 'fulfilled' ? r.value : [])) as SerperItem[]
 
   const seen = new Set<string>()
-  const items = [...general, ...instagram].flatMap((item: Organic) => {
-    const url = String(item.link || '')
-    const text = `${String(item.title || '')} ${String(item.snippet || '')}`
-    // Three gates: a known source, no duplicate, and the result actually names
-    // the place. Any one failing drops it — a wrong result is worse than none.
-    if (!url || seen.has(url) || !contentHostAllowed(url) || !isRelevantToPlace(text, name)) return []
-    seen.add(url)
+  const perPlatform: Record<string, number> = {}
+  const items = found.flatMap((item) => {
+    // One Instagram post comes back under several URLs (?img_index=6, ?__d=1).
+    const url = String(item.link || '').replace(/^(https:\/\/(www\.)?instagram\.com\/[^?#]+)[?#].*$/, '$1')
+    let host = ''
+    try { host = new URL(url).hostname.replace(/^www\./, '') } catch { return [] }
+    const text = `${item.title || ''} ${item.snippet || ''}`
     const platform = platformFromUrl(url)
+    // Gates, any one failing drops the result — a wrong result is worse than
+    // none: a known source, a single post rather than a profile, not a
+    // duplicate, and enough evidence that it is about this venue.
+    if (seen.has(url) || OWN_FUNCTION_HOSTS.test(host) || !contentHostAllowed(url)) return []
+    if (platform === 'instagram' && !INSTAGRAM_POST_RE.test(url)) return []
+    if (!isAboutVenue({ title: text, url, author: item.channel }, { name: placeName, address, area })) return []
+    seen.add(url)
+    // A famous venue returns dozens; the panel stays readable with the top few.
+    perPlatform[platform] = (perPlatform[platform] ?? 0) + 1
+    if (perPlatform[platform] > MAX_PER_PLATFORM) return []
     return [{
       id: url,
       platform,
@@ -65,7 +69,7 @@ async function searchPlaceContent(query: string, placeName: string) {
       title: String(item.title || ''),
       url,
       snippet: String(item.snippet || ''),
-      source: String(item.source || new URL(url).hostname.replace(/^www\./, '')),
+      source: String(item.channel || item.source || host),
       thumbnailUrl: item.imageUrl ? String(item.imageUrl) : null,
     }]
   })
@@ -79,7 +83,8 @@ Deno.serve(async (request) => {
   if (!query) return jsonResponse({ error: 'missing-query' }, { status: 400 })
   const placeName = new URL(request.url).searchParams.get('name')?.trim() || query
   try {
-    return jsonResponse(await searchPlaceContent(query, placeName))
+    const address = new URL(request.url).searchParams.get('address')?.trim() || ''
+    return jsonResponse(await searchPlaceContent(query, placeName, address))
   } catch (error) {
     console.error('place-web-content failed:', (error as Error).message)
     return jsonResponse({ status: 'error', items: [] }, { status: 502 })

@@ -10,6 +10,7 @@ function text(value, min, max) {
 }
 
 export function coordinates(lat, lng) {
+  if (![lat, lng].every((value) => typeof value === 'number' || typeof value === 'string')) throw new Error('invalid-location')
   if (lat == null || lng == null || String(lat).trim() === '' || String(lng).trim() === '') throw new Error('invalid-location')
   const point = { lat: Number(lat), lng: Number(lng) }
   if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng) || Math.abs(point.lat) > 90 || Math.abs(point.lng) > 180) throw new Error('invalid-location')

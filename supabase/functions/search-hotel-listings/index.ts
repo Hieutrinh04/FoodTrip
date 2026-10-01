@@ -1,35 +1,35 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
-
-const SEARCH_URL = 'https://www.googleapis.com/customsearch/v1'
+import { listingMatchesHotel } from '../_shared/hotelMatch.ts'
+import { hasSerperKey, serper } from '../_shared/serper.ts'
 
 // Matches an actual hotel/property page, not a search/listing/homepage on
 // either site — those wouldn't take the user anywhere useful.
-const AGODA_HOTEL_RE = /^https:\/\/(www\.)?agoda\.com\/[^/]+\/hotel\//
+const AGODA_HOTEL_RE = /^https:\/\/(www\.)?agoda\.com\/([a-z-]+\/)?[^/]+\/hotel\//
 const TRAVELOKA_HOTEL_RE = /^https:\/\/(www\.)?traveloka\.com\/[a-z-]+\/hotel\//
 
 /**
- * Finds the real Agoda/Traveloka listing page for a hotel via Google's
- * official Custom Search JSON API (not scraping — Agoda/Traveloka have no
- * public booking API to integrate against, and scraping their pages would
- * violate their ToS and break constantly against bot detection). One query
- * covers both sites; results are classified by domain afterward.
+ * Finds the real Agoda/Traveloka listing page for a hotel with a web search
+ * (not scraping — neither site has a public booking API, and scraping their
+ * pages would violate their terms and break against bot detection). Results
+ * are classified by domain afterward.
+ *
+ * Runs on Serper. It used Google's Custom Search JSON API, which now answers
+ * 403 for this project, so every "So sánh giá" link had silently gone dead.
  */
 async function searchHotelListings(hotelName: string, cityName: string) {
-  const apiKey = Deno.env.get('GOOGLE_CUSTOM_SEARCH_KEY')
-  const cx = Deno.env.get('GOOGLE_CUSTOM_SEARCH_CX')
-  if (!apiKey || !cx) return { status: 'no-key', agodaUrl: null, travelokaUrl: null }
+  if (!hasSerperKey()) return { status: 'no-key', agodaUrl: null, travelokaUrl: null }
 
-  const query = `${hotelName} ${cityName} (site:agoda.com OR site:traveloka.com)`
-  const params = new URLSearchParams({ key: apiKey, cx, q: query, num: '10' })
-  const res = await fetch(`${SEARCH_URL}?${params}`)
-  if (!res.ok) throw new Error(`Custom Search ${res.status}: ${(await res.text()).slice(0, 200)}`)
-  const json = await res.json()
+  // One plain search per site: Serper's free plan refuses `site:`. Without it
+  // the results include the chain's other branches, so each link must also
+  // name this hotel in its path, not merely be the first Agoda page.
+  const [agoda, traveloka] = await Promise.all([
+    serper('search', `${hotelName} ${cityName} agoda`, 10),
+    serper('search', `${hotelName} ${cityName} traveloka`, 10),
+  ])
+  const pick = (items: { link?: string }[], pattern: RegExp) =>
+    items.map((item) => item.link ?? '').find((link) => pattern.test(link) && listingMatchesHotel(link, hotelName)) ?? null
 
-  const links: string[] = (json.items || []).map((it: { link?: string }) => it.link).filter(Boolean)
-  const agodaUrl = links.find((l) => AGODA_HOTEL_RE.test(l)) ?? null
-  const travelokaUrl = links.find((l) => TRAVELOKA_HOTEL_RE.test(l)) ?? null
-
-  return { status: 'ok', agodaUrl, travelokaUrl }
+  return { status: 'ok', agodaUrl: pick(agoda, AGODA_HOTEL_RE), travelokaUrl: pick(traveloka, TRAVELOKA_HOTEL_RE) }
 }
 
 Deno.serve(async (req) => {

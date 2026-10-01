@@ -1,6 +1,7 @@
 import { supabase, hasSupabase } from './supabaseClient.js'
 import { normalizeVi } from './text.js'
 import { resolveDestination, tripRequestCandidates } from './knowledgeBase.js'
+import { parseTripRequestLocally } from './tripRequestLocal.js'
 
 // Re-exported for the callers that imported it from here before text.js existed.
 export { normalizeVi }
@@ -48,26 +49,34 @@ function writeCache(key, data) {
  * Identical requests are served from a short-lived cache.
  */
 export async function parseTripRequestText(text) {
-  if (!hasSupabase) return { error: 'missing-api-key' }
+  // Without the model — no backend, no Anthropic key, or the call failing —
+  // the request is read with patterns instead, so the button still fills the
+  // form rather than only reporting that AI is not configured.
+  if (!hasSupabase) return parseTripRequestLocally(text)
 
   const cacheKey = normalizeVi(text)
   const cached = readCache(cacheKey)
   if (cached) return cached
 
   const { cityCandidates, placeCandidates } = tripRequestCandidates(text)
-  const { data, error } = await supabase.functions.invoke('parse-trip-request', {
-    body: { text, cityCandidates, placeCandidates },
-  })
-  if (error) throw new Error('parse-failed')
+  let data
+  try {
+    const response = await supabase.functions.invoke('parse-trip-request', {
+      body: { text, cityCandidates, placeCandidates },
+    })
+    if (response.error) return parseTripRequestLocally(text)
+    data = response.data
+  } catch {
+    return parseTripRequestLocally(text)
+  }
+  if (data?.error) return parseTripRequestLocally(text)
 
   // A grounded cityId is authoritative; otherwise fall back to resolving the
   // model's free-text destinationQuery through the same retrieval layer.
-  if (!data.error) {
-    if (!data.cityId && data.destinationQuery) {
-      const resolved = resolveDestination(data.destinationQuery)
-      if (resolved?.type === 'curated') data.cityId = resolved.cityId
-    }
-    writeCache(cacheKey, data)
+  if (!data.cityId && data.destinationQuery) {
+    const resolved = resolveDestination(data.destinationQuery)
+    if (resolved?.type === 'curated') data.cityId = resolved.cityId
   }
+  writeCache(cacheKey, data)
   return data
 }

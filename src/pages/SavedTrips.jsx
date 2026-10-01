@@ -27,6 +27,8 @@ const C = {
     empty: 'Tạo một lịch trình ở trang "Lịch trình AI" rồi bấm Lưu lịch trình — nó sẽ xuất hiện ở đây.',
     emptyCta: 'Tạo lịch trình',
     loading: 'Đang tải lịch trình…',
+    loadError: 'Chưa tải được lịch trình. Hãy kiểm tra kết nối và thử lại.', actionError: 'Chưa thực hiện được thao tác. Dữ liệu chưa được xác nhận thay đổi; vui lòng thử lại.', retry: 'Thử lại', stopShare: 'Ngừng chia sẻ', public: 'Đang chia sẻ qua liên kết', private: 'Chỉ mình tôi',
+    confirmStopShare: 'Ngừng chia sẻ lịch trình? Người khác sẽ không tải lại được bằng liên kết cũ. Nội dung họ đã xem hoặc tải xuống không thể thu hồi.',
     confirmDelete: 'Xoá lịch trình này? Không thể hoàn tác.',
     view: 'Xem', delete: 'Xoá', back: 'Quay lại danh sách',
     share: 'Chia sẻ', shareCopied: 'Đã sao chép!', shareShared: 'Đã chia sẻ!', shareError: 'Chia sẻ thất bại.',
@@ -49,6 +51,8 @@ const C = {
     empty: 'Build one on the "AI Itinerary" page and hit Save itinerary — it will appear here.',
     emptyCta: 'Plan a trip',
     loading: 'Loading your trips…',
+    loadError: 'Could not load trips. Check your connection and retry.', actionError: 'Could not confirm this change. Please try again.', retry: 'Retry', stopShare: 'Stop sharing', public: 'Shared by link', private: 'Only me',
+    confirmStopShare: 'Stop sharing this trip? Others cannot reload the old link. Content they already viewed or downloaded cannot be recalled.',
     confirmDelete: 'Delete this itinerary? This cannot be undone.',
     view: 'View', delete: 'Delete', back: 'Back to list',
     share: 'Share', shareCopied: 'Copied!', shareShared: 'Shared!', shareError: 'Share failed.',
@@ -88,6 +92,11 @@ async function hydrateCustomPlaces(days) {
 }
 
 export default function SavedTrips() {
+  const { user } = useAuth()
+  return <SavedTripsForAccount key={user?.id ?? 'guest'} />
+}
+
+function SavedTripsForAccount() {
   const navigate = useNavigate()
   const { lang } = useLanguage()
   const c = C[lang]
@@ -100,6 +109,9 @@ export default function SavedTrips() {
   const [showMap, setShowMap] = useState(false)
   const [liveStatus, setLiveStatus] = useState('idle')
   const [excelStatus, setExcelStatus] = useState('idle')
+  const [revision, setRevision] = useState(0)
+  const [actionError, setActionError] = useState(false)
+  const [busyId, setBusyId] = useState(null)
   const openTripWeatherLocation = useMemo(
     () => openTrip ? destinationWeatherLocation(openTrip.city_id, openTrip.days?.flat() ?? []) : null,
     [openTrip],
@@ -112,14 +124,18 @@ export default function SavedTrips() {
       return
     }
     setStatus('loading')
+    let active = true
     getMyItineraries(user.id).then((data) => {
+      if (!active) return
       setTrips(data)
       setStatus('ready')
-    })
-  }, [user])
+    }).catch(() => { if (active) setStatus('error') })
+    return () => { active = false }
+  }, [user, revision])
 
   async function openTripView(trip) {
-    await hydrateCustomPlaces(trip.days)
+    setActionError(false)
+    try { await hydrateCustomPlaces(trip.days) } catch { setActionError(true); return }
     setShowMap(false)
     setLiveStatus('idle')
     setExcelStatus('idle')
@@ -128,14 +144,29 @@ export default function SavedTrips() {
 
   async function handleDelete(id) {
     if (!window.confirm(c.confirmDelete)) return
-    await deleteItinerary(id)
-    setTrips((prev) => prev.filter((t) => t.id !== id))
+    if (busyId) return
+    setBusyId(id); setActionError(false)
+    try { await deleteItinerary(id); setTrips((prev) => prev.filter((t) => t.id !== id)) }
+    catch { setActionError(true) } finally { setBusyId(null) }
+  }
+
+  function updatePublic(id, isPublic) {
+    setTrips((prev) => prev.map((t) => t.id===id ? { ...t, is_public:isPublic } : t))
+    setOpenTrip((prev) => prev?.id===id ? { ...prev, is_public:isPublic } : prev)
+  }
+
+  async function stopSharing(trip) {
+    if (!window.confirm(c.confirmStopShare) || busyId) return
+    setBusyId(trip.id); setActionError(false)
+    try { await setItineraryPublic(trip.id,false); updatePublic(trip.id,false); setShareStatusById((s) => ({ ...s,[trip.id]:'idle' })) }
+    catch { setActionError(true) } finally { setBusyId(null) }
   }
 
   async function handleShare(trip) {
     setShareStatusById((prev) => ({ ...prev, [trip.id]: 'sharing' }))
     try {
       if (!trip.is_public) await setItineraryPublic(trip.id, true)
+      updatePublic(trip.id,true)
       const url = `${window.location.origin}/trip/${trip.id}`
       const result = await shareOrCopyLink(url, { title: c.shareTitle(tripCity(trip).name[lang]), text: c.shareText })
       const nextStatus = result === 'shared' ? 'shared' : result === 'copied' ? 'copied' : result === 'cancelled' ? 'idle' : 'error'
@@ -153,6 +184,7 @@ export default function SavedTrips() {
         city: tripCity(trip),
         days: trip.days,
         hotels: trip.hotels ?? [],
+        tours: trip.tours ?? [],
         startDate: trip.start_date,
         people: trip.people,
         budget: trip.budget,
@@ -173,6 +205,7 @@ export default function SavedTrips() {
     setLiveStatus('starting')
     try {
       if (!trip.is_public) await setItineraryPublic(trip.id, true)
+      updatePublic(trip.id,true)
       navigate(`/live/${trip.id}?room=${encodeURIComponent(createLiveRoomToken())}`)
     } catch {
       setLiveStatus('error')
@@ -205,6 +238,8 @@ export default function SavedTrips() {
       )}
 
       {user && status === 'loading' && <Spinner label={c.loading} />}
+      {user && status === 'error' && <div role="alert" className="rounded-xl border border-line p-5"><p>{c.loadError}</p><button className="mt-3 text-chili underline" onClick={() => setRevision((n) => n + 1)}>{c.retry}</button></div>}
+      {actionError && <p role="alert" className="mb-4 text-chili">{c.actionError}</p>}
 
       {user && status === 'ready' && !openTrip && (
         <>
@@ -240,6 +275,7 @@ export default function SavedTrips() {
                       </div>
                     </div>
                     <div className="flex gap-2 mt-auto flex-wrap">
+                      <p className="w-full text-xs text-ink-muted">{trip.is_public ? c.public : c.private}</p>
                       <button
                         onClick={() => openTripView(trip)}
                         className="inline-flex items-center gap-1.5 font-utility font-semibold text-sm px-4 py-2 rounded-full bg-chili text-chili-ink"
@@ -248,7 +284,7 @@ export default function SavedTrips() {
                       </button>
                       <button
                         onClick={() => handleShare(trip)}
-                        disabled={shareStatusById[trip.id] === 'sharing'}
+                        disabled={shareStatusById[trip.id] === 'sharing' || Boolean(busyId)}
                         className="inline-flex items-center gap-1.5 font-utility font-semibold text-sm px-4 py-2 rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors disabled:opacity-70"
                       >
                         {shareStatusById[trip.id] === 'copied' || shareStatusById[trip.id] === 'shared' ? <Check size={14} /> : <ShareNetwork size={14} />}
@@ -256,11 +292,14 @@ export default function SavedTrips() {
                       </button>
                       <button
                         onClick={() => handleDelete(trip.id)}
+                        disabled={Boolean(busyId)}
                         aria-label={c.delete}
                         className="inline-flex items-center justify-center w-9 h-9 rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors"
                       >
                         <Trash size={14} />
                       </button>
+                      {trip.is_public && <button className="text-xs underline disabled:opacity-50" disabled={Boolean(busyId) || shareStatusById[trip.id] === 'sharing'} onClick={() => stopSharing(trip)}>{c.stopShare}</button>}
+                      {shareStatusById[trip.id] === 'error' && <p role="alert" className="w-full text-sm text-chili">{c.shareError}</p>}
                     </div>
                   </motion.div>
                 )
@@ -281,6 +320,7 @@ export default function SavedTrips() {
           <ItineraryTicket
             city={tripCity(openTrip)}
             days={openTrip.days}
+            tours={openTrip.tours ?? []}
             hotels={openTrip.hotels ?? []}
             people={openTrip.people}
             budget={openTrip.budget}
@@ -332,12 +372,13 @@ export default function SavedTrips() {
             </button>
             <button
               onClick={() => handleShare(openTrip)}
-              disabled={shareStatusById[openTrip.id] === 'sharing'}
+              disabled={shareStatusById[openTrip.id] === 'sharing' || Boolean(busyId)}
               className="inline-flex items-center gap-2 rounded-full border-[1.5px] border-line-strong px-6 py-[14px] font-utility text-md font-semibold hover:border-chili hover:text-chili disabled:opacity-70"
             >
               {shareStatusById[openTrip.id] === 'copied' || shareStatusById[openTrip.id] === 'shared' ? <Check size={17} /> : <ShareNetwork size={17} />}
               {shareStatusById[openTrip.id] === 'copied' ? c.shareCopied : shareStatusById[openTrip.id] === 'shared' ? c.shareShared : c.share}
             </button>
+            {openTrip.is_public && <button className="rounded-full border border-line-strong px-6 py-3 text-sm disabled:opacity-50" disabled={Boolean(busyId) || shareStatusById[openTrip.id] === 'sharing'} onClick={() => stopSharing(openTrip)}>{c.stopShare}</button>}
           </div>
           {liveStatus === 'error' && <p className="no-print mt-3 text-center text-sm text-chili">{c.startLiveError}</p>}
           {excelStatus === 'error' && <p className="no-print mt-3 text-center text-sm text-chili">{c.exportExcelError}</p>}

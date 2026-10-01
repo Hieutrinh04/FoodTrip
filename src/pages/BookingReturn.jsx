@@ -1,44 +1,78 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { CheckCircle, XCircle, Clock, Warning } from '@phosphor-icons/react'
+import { CheckCircle, XCircle, Clock, Warning, Receipt } from '@phosphor-icons/react'
 import { getBooking } from '../lib/bookings.js'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
+import { useAuth } from '../auth/AuthContext.jsx'
 
 const C = {
   vi: {
-    paid: 'Đặt phòng thành công!', failed: 'Thanh toán thất bại.', pending: 'Đang chờ xác nhận thanh toán…',
+    paid: 'Đã ghi nhận thanh toán!', refunded: 'Đã hoàn tiền.', failed: 'Thanh toán thất bại.', pending: 'Đang chờ xác nhận thanh toán…',
     error: 'Có lỗi xảy ra khi xử lý thanh toán.', invalidSignature: 'Không xác thực được kết quả thanh toán.',
     demoNote: 'Đây là xác nhận demo (không qua cổng thanh toán thật).',
+    cancelled: 'Đơn đặt phòng đã được huỷ.', none: 'Không có giao dịch nào để hiển thị.',
+    noneHint: 'Trang này hiện kết quả sau khi bạn thanh toán một đơn đặt phòng.',
     loading: 'Đang tải…', viewBookings: 'Xem lịch sử đặt phòng', backHome: 'Về trang chủ',
   },
   en: {
-    paid: 'Booking confirmed!', failed: 'Payment failed.', pending: 'Waiting for payment confirmation…',
+    paid: 'Payment recorded!', refunded: 'Payment refunded.', failed: 'Payment failed.', pending: 'Waiting for payment confirmation…',
     error: 'Something went wrong processing the payment.', invalidSignature: "Couldn't verify the payment result.",
     demoNote: 'This is a demo confirmation (no real payment gateway involved).',
+    cancelled: 'This booking was cancelled.', none: 'There is no payment to show.',
+    noneHint: 'This page shows the result after you pay for a booking.',
     loading: 'Loading…', viewBookings: 'View my bookings', backHome: 'Back home',
   },
 }
 
-const STATUS_ICON = { paid: CheckCircle, failed: XCircle, pending: Clock, error: Warning, 'invalid-signature': Warning }
-const STATUS_MESSAGE_KEY = { paid: 'paid', failed: 'failed', pending: 'pending', error: 'error', 'invalid-signature': 'invalidSignature' }
+const STATUS_ICON = { paid: CheckCircle, failed: XCircle, cancelled: XCircle, pending: Clock, error: Warning, 'invalid-signature': Warning, none: Receipt }
+const STATUS_MESSAGE_KEY = { paid: 'paid', refunded: 'refunded', failed: 'failed', cancelled: 'cancelled', pending: 'pending', error: 'error', 'invalid-signature': 'invalidSignature', none: 'none' }
+
+/**
+ * What to show for a payment result.
+ *
+ * The booking row is the only authority. The status in the URL is just what
+ * the redirect said, and anyone can type "?status=paid" — the page used to
+ * believe it and announce a successful booking for an unpaid one. The URL is
+ * used only while the booking loads, and for the two outcomes that never reach
+ * the row: a callback whose signature failed, and an error before lookup.
+ */
+function resolveStatus({ bookingId, urlStatus, booking, loading }) {
+  if (!bookingId) return 'none'
+  if (booking) {
+    if (booking.payment_status === 'pending' && (urlStatus === 'invalid-signature' || urlStatus === 'error')) return urlStatus
+    return booking.payment_status
+  }
+  if (loading) return 'pending'
+  // Could not read the booking (not signed in, or not theirs): claim nothing.
+  return urlStatus === 'invalid-signature' ? 'invalid-signature' : 'error'
+}
 
 export default function BookingReturn() {
+  const [params] = useSearchParams()
+  const { user, loading } = useAuth()
+  if (loading) return <p role="status" className="p-10 text-center">Đang tải… / Loading…</p>
+  return <BookingReturnForAccount key={`${user?.id ?? 'guest'}-${params.get('bookingId')}`} />
+}
+
+function BookingReturnForAccount() {
   const [params] = useSearchParams()
   const { lang } = useLanguage()
   const c = C[lang]
   const bookingId = params.get('bookingId')
-  const requestedStatus = params.get('status')
-  const validStatuses = new Set(['paid', 'failed', 'pending', 'error', 'invalid-signature'])
-  const status = bookingId && validStatuses.has(requestedStatus) ? requestedStatus : 'error'
-  const isDemo = params.get('demo') === '1'
+  const urlStatus = params.get('status')
   const [booking, setBooking] = useState(null)
   const [loadingBooking, setLoadingBooking] = useState(Boolean(bookingId))
+  const status = resolveStatus({ bookingId, urlStatus, booking, loading: loadingBooking })
+  // A demo confirmation is recorded on the booking itself by the server.
+  const isDemo = booking?.payment_txn_ref === 'DEMO'
 
   useEffect(() => {
     if (!bookingId) return
     // A failed lookup must not leave an unhandled rejection: the payment
     // result above is the important part and stands on its own.
-    getBooking(bookingId).then(setBooking).catch(() => setBooking(null)).finally(() => setLoadingBooking(false))
+    let active = true
+    getBooking(bookingId).then((row) => { if (active) setBooking(row) }).catch(() => { if (active) setBooking(null) }).finally(() => { if (active) setLoadingBooking(false) })
+    return () => { active = false }
   }, [bookingId])
 
   const Icon = STATUS_ICON[status] ?? Clock
@@ -46,8 +80,9 @@ export default function BookingReturn() {
 
   return (
     <div className="max-w-[560px] mx-auto px-5 md:px-8 py-16 md:py-24 text-center">
-      <Icon size={48} weight="fill" className={status === 'paid' ? 'text-herb mx-auto' : status === 'failed' || status === 'error' || status === 'invalid-signature' ? 'text-chili mx-auto' : 'text-lantern mx-auto'} />
+      <Icon size={48} weight="fill" className={status === 'paid' ? 'text-herb mx-auto' : status === 'failed' || status === 'error' || status === 'invalid-signature' ? 'text-chili mx-auto' : status === 'none' ? 'text-ink-faint mx-auto' : 'text-lantern mx-auto'} />
       <h1 className="text-2xl font-bold mt-4">{message}</h1>
+      {status === 'none' && <p className="text-md text-ink-faint mt-2">{c.noneHint}</p>}
       {isDemo && <p className="text-md text-ink-faint mt-2">{c.demoNote}</p>}
 
       {loadingBooking && <p className="mt-6 font-utility text-sm text-ink-faint">{c.loading}</p>}

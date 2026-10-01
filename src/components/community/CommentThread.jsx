@@ -32,6 +32,7 @@ export default function CommentThread({ postId, onLogin }) {
   }, [user, draft.author_name])
   useEffect(() => {
     const controller = new AbortController()
+    const requests = request
     const token = ++request.current
     setLoading(true); setListError(''); setMoreBusy(false)
     listCommunityComments(postId, null, controller.signal).then((data) => {
@@ -39,7 +40,7 @@ export default function CommentThread({ postId, onLogin }) {
       setRows(data); setHasMore(data.length === COMMENT_PAGE_SIZE); setUpdated(false)
     }).catch(() => { if (!controller.signal.aborted) setListError('load') })
       .finally(() => { if (token === request.current) setLoading(false) })
-    return () => { controller.abort(); request.current++ }
+    return () => { controller.abort(); requests.current++ }
   }, [postId, refresh])
   useEffect(() => watchCommunityComments(postId, (event) => {
     if (event.eventType !== 'DELETE' || rowsRef.current.some((row) => row.id === event.old.id)) setUpdated(true)

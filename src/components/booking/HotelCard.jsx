@@ -1,4 +1,4 @@
-import { Bed, Star, CheckCircle, CaretRight } from '@phosphor-icons/react'
+import { Bed, Star, CheckCircle, CaretRight, Lightning } from '@phosphor-icons/react'
 import { Link } from 'react-router-dom'
 import { ACCENT_GRADIENT } from '../../lib/visualTokens.js'
 import { hotelScoreBadge, hotelCardAccent, hasRealPrice, rememberHotel } from '../../lib/hotelSearch.js'
@@ -6,19 +6,22 @@ import { cheapestPricePerNight } from '../../lib/roomTypes.js'
 import RemoteImage from '../ui/RemoteImage.jsx'
 import HotelExternalLinks from './HotelExternalLinks.jsx'
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
+import { PROPERTY_TYPES } from '../../lib/partner.js'
 
 const C = {
   vi: {
     reviews: (n) => `${n} đánh giá`, selectHotel: 'Chọn khách sạn này', selected: 'Đã chọn',
     from: 'Từ', perNight: '/đêm', stars: (n) => `${n} sao`,
     estimated: 'giá ước tính', liveRate: 'giá thật',
-    viewRooms: 'Xem phòng & đặt', roomCount: (n) => `${n} loại phòng`,
+    viewRooms: 'Xem phòng & đặt', viewInfo: 'Xem thông tin', roomCount: (n) => `${n} loại phòng`,
+    bookable: 'Đặt ngay trên FoodTrip', reference: 'Tham khảo — đặt ở nơi khác',
   },
   en: {
     reviews: (n) => `${n} reviews`, selectHotel: 'Select this hotel', selected: 'Selected',
     from: 'From', perNight: '/night', stars: (n) => `${n}-star`,
     estimated: 'estimated', liveRate: 'live rate',
-    viewRooms: 'View rooms & book', roomCount: (n) => `${n} room types`,
+    viewRooms: 'View rooms & book', viewInfo: 'View details', roomCount: (n) => `${n} room types`,
+    bookable: 'Book on FoodTrip', reference: 'For reference — book elsewhere',
   },
 }
 
@@ -81,6 +84,14 @@ export default function HotelCard({ hotel, cityName, selected = false, onSelect,
       </div>
 
       <div className="p-3.5 bg-surface">
+        {hotel.bookable != null && (
+          <div className={`mb-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-utility text-micro font-bold ${hotel.bookable ? 'bg-herb text-herb-ink' : 'bg-paper-2 text-ink-muted'}`}>
+            {hotel.bookable && <Lightning size={11} weight="fill" />}{hotel.bookable ? c.bookable : c.reference}
+          </div>
+        )}
+        {PROPERTY_TYPES[hotel.propertyType] && (
+          <span className="mb-1.5 ml-1.5 inline-flex rounded-full bg-paper-2 px-2 py-0.5 font-utility text-micro font-bold text-ink-muted">{PROPERTY_TYPES[hotel.propertyType][lang]}</span>
+        )}
         <div className="font-semibold text-md truncate">{hotel.name}</div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 font-utility text-xs text-ink-faint">
           {hotel.rating != null && (
@@ -120,9 +131,9 @@ export default function HotelCard({ hotel, cityName, selected = false, onSelect,
               e.stopPropagation()
               rememberHotel(hotel)
             }}
-            className="inline-flex items-center gap-1 font-utility text-2xs font-semibold px-2.5 py-1 rounded-full bg-chili text-chili-ink hover:shadow-soft transition-shadow"
+            className={`inline-flex items-center gap-1 font-utility text-2xs font-semibold px-2.5 py-1 rounded-full transition-shadow hover:shadow-soft ${hotel.bookable === false ? 'border border-line-strong text-ink-muted' : 'bg-chili text-chili-ink'}`}
           >
-            {c.viewRooms} <CaretRight size={11} weight="bold" />
+            {hotel.bookable === false ? c.viewInfo : c.viewRooms} <CaretRight size={11} weight="bold" />
           </Link>
         </div>
         {showCompareLinks && (

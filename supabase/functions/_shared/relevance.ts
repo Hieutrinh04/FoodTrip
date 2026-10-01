@@ -5,13 +5,13 @@ export const GENERIC_WORDS = new Set([
 ])
 
 export function normalizeSearchText(value: string) {
-  return value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
+  return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/đ/g, 'd').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim()
 }
 
 // Live Google/Serper results carry SEO-stuffed names ("Yên study càfe | Quán cà
 // phê học bài Bình Dương | …"). The real name is the first segment; a search for
 // the whole blob matches nothing and makes the provider relax the query.
-const NAME_SEPARATORS = /\s*[|·•–—]\s*|\s+-\s+|\s*\/\s*/
+export const NAME_SEPARATORS = /\s*[|·•–—]\s*|\s+-\s+|\s*\/\s*/
 
 export function primaryName(name: string) {
   const first = (name || '').split(NAME_SEPARATORS)[0]?.trim()
@@ -39,13 +39,49 @@ export function isRelevantToPlace(text: string, placeName: string) {
   return tokens.every((token) => haystack.includes(` ${token} `))
 }
 
+/** The name segments after the first — "Tiệm Ăn Hàn Quốc", "Thủ Dầu Một" — as token lists. */
+export function secondarySegments(placeName: string) {
+  return (placeName || '').split(NAME_SEPARATORS).slice(1)
+    .map((segment) => normalizeSearchText(segment).split(' ').filter((t) => t.length >= 2 && !/^\d+$/.test(t) && !GENERIC_WORDS.has(t)))
+    .filter((tokens) => tokens.length)
+}
+
+/** A name with a single identifying word ("Helios", "Cà phê Với") is shared with laptops, flats and everyday words. */
+export function hasWeakName(placeName: string) {
+  return placeNameTokens(placeName).length < 2
+}
+
+/**
+ * The name to search for. A weak name alone brings back everything else called
+ * that, so the first descriptive segment goes with it: "Helios Tiệm Ăn Hàn Quốc".
+ */
+export function searchName(placeName: string) {
+  const primary = primaryName(placeName)
+  if (!hasWeakName(placeName)) return primary
+  const second = (placeName || '').split(NAME_SEPARATORS)[1]?.trim()
+  return second ? `${primary} ${second}` : primary
+}
+
 /** @deprecated kept for callers not yet migrated — same as isRelevantToPlace now. */
 export function hasExactPlaceMention(text: string, placeName: string) {
   return isRelevantToPlace(text, placeName)
 }
 
-const CITY_ALIASES: Record<string, string[]> = {
-  'ho chi minh': ['ho chi minh', 'hcm', 'tphcm', 'tp hcm', 'sai gon', 'saigon'],
+// Captions — Instagram's especially — are often in English and run the city
+// together ("Hanoi food guide"), so the joined spelling counts as evidence too.
+export const CITY_ALIASES: Record<string, string[]> = {
+  'ho chi minh': ['ho chi minh', 'hcm', 'hcmc', 'tphcm', 'tp hcm', 'sai gon', 'saigon', 'hochiminh'],
+  'ha noi': ['ha noi', 'hanoi'],
+  'da nang': ['da nang', 'danang'],
+  'hoi an': ['hoi an', 'hoian'],
+  'da lat': ['da lat', 'dalat'],
+  'nha trang': ['nha trang', 'nhatrang'],
+  'sa pa': ['sa pa', 'sapa'],
+  'sapa': ['sa pa', 'sapa'],
+  'phu quoc': ['phu quoc', 'phuquoc'],
+  'ha long': ['ha long', 'halong'],
+  'quy nhon': ['quy nhon', 'quynhon'],
+  'can tho': ['can tho', 'cantho'],
   'ba ria vung tau': ['ba ria', 'vung tau'],
   'thua thien hue': ['hue'],
 }

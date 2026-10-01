@@ -2,6 +2,7 @@ import { searchPlaces, reverseGeocode, haversineKm } from './trackAsia.js'
 import { searchMapArea } from './mapAreaSearch.js'
 
 const KEYWORDS = {
+  buffet: 'nhà hàng buffet',
   pho: 'quán phở', coffee: 'quán cà phê', seafood: 'quán hải sản',
   noodles: 'quán bún mì', rice: 'quán cơm', hotpot: 'quán lẩu nướng',
   snacks: 'quán ăn vặt', vegetarian: 'quán chay',

@@ -12,11 +12,16 @@ import ItineraryTicket from '../components/ticket/ItineraryTicket.jsx'
 import LiveTripMap from '../components/map/LiveTripMap.jsx'
 import HotelCard from '../components/booking/HotelCard.jsx'
 import TripWeatherAdvice from '../components/planner/TripWeatherAdvice.jsx'
+import TourPicker from '../components/planner/TourPicker.jsx'
+import TourReservePanel from '../components/planner/TourReservePanel.jsx'
+import AuthModal from '../components/auth/AuthModal.jsx'
 import { CITIES, TAGS, TRANSPORT, CATEGORY_LABEL, getCity, getPlacesByCity, registerCustomPlaces } from '../data/destinations.js'
 import { generateItinerary } from '../lib/itineraryEngine.js'
 import { searchCityPlaces } from '../lib/citySearch.js'
-import { searchHotelsForCity, groupHotelsByBudgetTier } from '../lib/hotelSearch.js'
+import { searchHotelsForCity, groupHotelsByBudgetTier, nightlyRoomBudget, LODGING_SHARE } from '../lib/hotelSearch.js'
 import { withStopIds } from '../lib/itineraryEdit.js'
+import { budgetAfterTours, clearTourHours, destinationNames, toursForTrip } from '../lib/tours.js'
+import { partnerHotelsNear, withBookable } from '../lib/partnerHotels.js'
 import { exportItineraryToExcel } from '../lib/exportItinerary.js'
 import { parseTripRequestText, resolveDestinationQuery } from '../lib/tripRequest.js'
 import { cacheCustomPlaces } from '../lib/customPlacesCache.js'
@@ -36,7 +41,7 @@ const C = {
   vi: {
     eyebrow: 'Lịch trình AI',
     title: 'Cùng dựng lịch trình vừa ý bạn.',
-    steps: ['Điểm đến', 'Thời gian & ngân sách', 'Chọn khách sạn', 'Sở thích & di chuyển', 'Lịch trình của bạn'],
+    steps: ['Điểm đến', 'Thời gian & ngân sách', 'Tự túc hay đi tour', 'Chọn khách sạn', 'Sở thích & di chuyển', 'Lịch trình của bạn'],
     stepCity: 'Bạn muốn đi đâu?',
     stepTime: 'Khi nào, đi bao lâu và với ngân sách nào?',
     startDate: 'Ngày khởi hành',
@@ -50,10 +55,15 @@ const C = {
     hotelNoKey: 'Cần cấu hình Google Maps API key để tìm khách sạn thật — bạn có thể bỏ qua bước này, không ảnh hưởng đến lịch trình.',
     hotelEmpty: 'Không tìm thấy khách sạn nào ở điểm đến này — bỏ qua bước này cũng được.',
     hotelError: 'Có lỗi khi tìm khách sạn, thử lại sau hoặc bỏ qua bước này.',
-    tierMatch: 'Đúng tầm giá của bạn', tierValue: 'Tiết kiệm hơn', tierPremium: 'Cao cấp hơn',
+    tierMatch: 'Đúng tầm giá của bạn', tierValue: 'Tiết kiệm hơn', tierPremium: 'Vượt tầm giá — cao cấp hơn', tierUnknown: 'Chưa có giá',
+    roomBudget: (amount, share, people, nights) => `Tiền phòng hợp lý: tối đa ${amount}/đêm — khoảng ${share}% ngân sách của ${people} người cho ${nights} đêm, phần còn lại dành cho ăn uống và đi lại.`,
     hotelReviews: (n) => `${n} đánh giá`,
     selectHotel: 'Chọn khách sạn này', hotelSelectedChip: 'Đã chọn',
     skipHotel: 'Bỏ qua, chọn sau', nextWithHotel: 'Tiếp tục',
+    stepTour: 'Bạn muốn đi tự túc hay có tour dẫn đường?',
+    tourHint: 'Tour của các đơn vị đối tác trong đúng những ngày bạn ở đây. Tour bạn chọn được xếp vào ngày đó, lịch trình chừa trống giờ tour, và tiền tour được trừ khỏi ngân sách trước khi gợi ý khách sạn.',
+    roomBudgetAfterTour: (amount) => `Đã trừ tiền tour ${amount}/người khỏi ngân sách.`,
+    bookableCount: (n, total) => (n ? `${n}/${total} khách sạn đặt được ngay trên FoodTrip (đối tác, phòng và giá do khách sạn quản lý). Các khách sạn còn lại để tham khảo — vẫn chọn làm nơi ở để xếp lịch trình, nhưng đặt phòng ở Agoda/Traveloka hoặc liên hệ trực tiếp.` : 'Chưa có khách sạn đối tác nào ở đây — các khách sạn dưới đây để tham khảo: vẫn chọn làm nơi ở để xếp lịch trình, nhưng đặt phòng ở Agoda/Traveloka hoặc liên hệ trực tiếp.'),
     stepPref: 'Bạn thích điều gì?',
     prefHint: 'Chọn sở thích để FoodTrip đánh dấu những điểm dừng hợp gu bạn nhất.',
     transport: 'Phương tiện di chuyển',
@@ -87,11 +97,12 @@ const C = {
     quickNoKey: 'Chưa cấu hình API AI (ANTHROPIC_API_KEY) — bạn tự chọn bên dưới nhé.',
     quickErrorText: 'Không đọc được yêu cầu, thử diễn đạt khác xem sao.',
     quickApplied: 'Đã điền tự động theo mô tả của bạn — kiểm tra lại bên dưới nhé!',
+    quickAppliedLocal: 'Đã điền theo mô tả của bạn (đọc theo mẫu câu, chưa dùng AI) — kiểm tra lại bên dưới nhé!',
   },
   en: {
     eyebrow: 'AI Itinerary',
     title: 'Let’s build a plan you’ll love.',
-    steps: ['Destination', 'Time & budget', 'Choose a hotel', 'Preferences & transport', 'Your itinerary'],
+    steps: ['Destination', 'Time & budget', 'Own way or tour', 'Choose a hotel', 'Preferences & transport', 'Your itinerary'],
     stepCity: 'Where do you want to go?',
     stepTime: 'When, for how long, and what budget?',
     startDate: 'Departure date',
@@ -105,10 +116,15 @@ const C = {
     hotelNoKey: "A Google Maps API key is needed to find real hotels — you can skip this step, it won't affect your itinerary.",
     hotelEmpty: 'No hotels found for this destination — feel free to skip this step.',
     hotelError: 'Something went wrong searching for hotels — try again or skip this step.',
-    tierMatch: 'Right in your budget', tierValue: 'Better value', tierPremium: 'More upscale',
+    tierMatch: 'Right in your budget', tierValue: 'Better value', tierPremium: 'Over budget — more upscale', tierUnknown: 'No price yet',
+    roomBudget: (amount, share, people, nights) => `A sensible room price: up to ${amount} a night — about ${share}% of the budget for ${people} people over ${nights} night(s), leaving the rest for food and getting around.`,
     hotelReviews: (n) => `${n} reviews`,
     selectHotel: 'Select this hotel', hotelSelectedChip: 'Selected',
     skipHotel: 'Skip, choose later', nextWithHotel: 'Continue',
+    stepTour: 'On your own, or with a guided tour?',
+    tourHint: 'Tours from partner operators on exactly the days you are here. A tour you choose goes on its day, the itinerary keeps those hours free, and its price comes out of the budget before hotels are suggested.',
+    roomBudgetAfterTour: (amount) => `Tour cost of ${amount}/person already taken out of the budget.`,
+    bookableCount: (n, total) => (n ? `${n} of ${total} hotels can be booked on FoodTrip (partners who manage their own rooms and prices). The rest are for reference — you can still stay there for planning, but book on Agoda/Traveloka or with the hotel.` : 'No partner hotels here yet — the hotels below are for reference: you can still stay there for planning, but book on Agoda/Traveloka or with the hotel.'),
     stepPref: 'What do you enjoy?',
     prefHint: 'Pick preferences and FoodTrip will flag the stops that match your taste best.',
     transport: 'Transport',
@@ -142,6 +158,7 @@ const C = {
     quickNoKey: 'AI API not configured (ANTHROPIC_API_KEY) — please choose manually below.',
     quickErrorText: "Couldn't parse that request — try rephrasing it.",
     quickApplied: 'Auto-filled from your description — double-check below!',
+    quickAppliedLocal: 'Filled in from your description (pattern-based, no AI) — double-check below!',
   },
 }
 
@@ -174,16 +191,19 @@ export default function Planner() {
   const [duration, setDuration] = useState(2)
   const [startDate, setStartDate] = useState(() => dateInputValue(1))
   const [budget, setBudget] = useState(1500000)
-  // The slider is one traveller's budget for the whole trip; hotel price bands
-  // and the itinerary's place scoring both work per night / per day.
-  const budgetPerDay = budget / Math.max(duration, 1)
   const [people, setPeople] = useState(2)
+  // What the party can spend on one night's room; hotels are searched and
+  // grouped against this, not against the daily budget of one person.
   const [prefs, setPrefs] = useState(['seafood', 'coffee'])
   const [transport, setTransport] = useState('bike')
   const [days, setDays] = useState(null)
   const [hotels, setHotels] = useState([])
   const [hotelStatus, setHotelStatus] = useState('idle') // idle | searching | ready | no-key | empty | error
   const [selectedHotelId, setSelectedHotelId] = useState(null)
+  const [tripStyle, setTripStyle] = useState('self') // 'self' | 'tour'
+  const [selectedTours, setSelectedTours] = useState([])
+  const [itineraryTours, setItineraryTours] = useState([])
+  const [authOpen, setAuthOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [showMap, setShowMap] = useState(false)
   const [activeMapDay, setActiveMapDay] = useState(0)
@@ -217,6 +237,9 @@ export default function Planner() {
     setHotels([])
     setHotelStatus('idle')
     setSelectedHotelId(null)
+    setTripStyle('self')
+    setSelectedTours([])
+    setItineraryTours([])
     setShowMap(false)
     setActiveMapDay(0)
     setSaveTripStatus('idle')
@@ -238,6 +261,11 @@ export default function Planner() {
   }, [startOverToken])
 
   const city = destMode === 'custom' ? customCity : getCity(cityId)
+  const tripTours = city && tripStyle === 'tour'
+    ? toursForTrip(selectedTours, { names: destinationNames(city, destMode === 'curated' ? cityId : null), startDate, duration }).onTrip
+    : []
+  const tourCostPerPerson = budget - budgetAfterTours(budget, tripTours)
+  const nightlyBudget = nightlyRoomBudget({ budgetPerPerson: budgetAfterTours(budget, tripTours), people, duration })
   const weatherLocation = useMemo(() => destinationWeatherLocation(
     destMode === 'curated' ? cityId : null,
     destMode === 'custom' ? (confirmedCustomPlaces ?? cityCandidates) : [],
@@ -292,7 +320,7 @@ export default function Planner() {
         setQuickStatus('no-key')
         return
       }
-      if (parsed.error) {
+      if (parsed.error || parsed.empty) {
         setQuickStatus('error')
         return
       }
@@ -304,7 +332,7 @@ export default function Planner() {
       if (parsed.prefs?.length) setPrefs(parsed.prefs.filter((t) => PREFERENCE_TAGS.includes(t)))
 
       setQuickStatus('idle')
-      setQuickNotice(c.quickApplied)
+      setQuickNotice(parsed.source === 'local' ? c.quickAppliedLocal : c.quickApplied)
 
       // A grounded cityId from retrieval is authoritative — no re-resolve, and
       // no live city search needed. Only an unrecognised destination falls
@@ -360,7 +388,7 @@ export default function Planner() {
   }
 
   function goNext() {
-    setStep((s) => Math.min(s + 1, 4))
+    setStep((s) => Math.min(s + 1, 5))
   }
   function goBack() {
     setStep((s) => Math.max(s - 1, 0))
@@ -374,33 +402,41 @@ export default function Planner() {
       // come back at all — a room for four is not the same tariff as for two.
       // The budget is one traveller's for the whole trip, so what a night can
       // cost is that spread across the days; the party size never divides it.
-      const results = await searchHotelsForCity({
-        cityName: city.name.vi,
-        budgetPerPersonPerDay: budgetPerDay,
-        adults: people,
-      })
-      if (results === null) {
+      // Partner properties near the destination come too: a homestay no
+      // search finds still reaches travellers planning a trip nearby.
+      let searchFailed = false
+      const [results, partners] = await Promise.all([
+        searchHotelsForCity({ cityName: city.name.vi, nightlyBudget, adults: people }).catch(() => { searchFailed = true; return [] }),
+        partnerHotelsNear(weatherLocation),
+      ])
+      const found = results ?? []
+      const extra = partners.filter((p) => !found.some((hotel) => hotel.id === p.id))
+      if (searchFailed && !extra.length) {
+        setHotelStatus('error')
+        return
+      }
+      if (results === null && !extra.length) {
         setHotelStatus('no-key')
         return
       }
-      if (!results.length) {
+      if (!found.length && !extra.length) {
         setHotelStatus('empty')
         return
       }
-      setHotels(results)
+      setHotels(await withBookable([...extra, ...found]))
       setHotelStatus('ready')
     } catch {
       setHotelStatus('error')
     }
   }
 
-  function confirmBudgetAndAdvance() {
+  function confirmTripStyleAndAdvance() {
     runHotelSearch()
     goNext()
   }
 
   async function handleGenerate() {
-    setStep(4)
+    setStep(5)
     setGenerating(true)
     setShowMap(false)
     setActiveMapDay(0)
@@ -423,7 +459,8 @@ export default function Planner() {
       startLocation: selectedHotel?.location ?? null,
       endLocation: selectedHotel?.location ?? null,
     })
-    setDays(withStopIds(generatedDays))
+    setItineraryTours(tripTours)
+    setDays(withStopIds(clearTourHours(generatedDays, tripTours, startDate)))
     const firstDayRoutePoints = [
       ...(selectedHotel?.location ? [selectedHotel.location] : []),
       ...(generatedDays[0] ?? []).map((stop) => stop.location).filter(Boolean),
@@ -438,7 +475,7 @@ export default function Planner() {
   }
 
   function handleExportExcel() {
-    exportItineraryToExcel({ city, days, hotels, startDate, people, budget, transport, lang })
+    exportItineraryToExcel({ city, days, hotels, tours: itineraryTours, startDate, people, budget, transport, lang })
   }
 
   function handleExportPdf() {
@@ -458,6 +495,7 @@ export default function Planner() {
       prefs,
       days,
       hotels: hotels.map((hotel) => ({ ...hotel, selected: hotel.id === selectedHotelId })),
+      tours: itineraryTours,
       isPublic,
     })
     setSavedTripId(id)
@@ -710,15 +748,43 @@ export default function Planner() {
                 lang={lang}
               />
             </div>
-            <NavRow onBack={goBack} onNext={confirmBudgetAndAdvance} backLabel={c.back} nextLabel={c.next} />
+            <NavRow onBack={goBack} onNext={goNext} backLabel={c.back} nextLabel={c.next} />
           </>
         )}
 
         {step === 2 && (
           <>
-            <h2 className="text-xl font-bold mb-2">{c.stepHotel}</h2>
-            <p className="text-md text-ink-muted mb-5 max-w-[52ch]">{c.hotelHint}</p>
+            <h2 className="text-xl font-bold mb-2">{c.stepTour}</h2>
+            <p className="text-md text-ink-muted mb-5 max-w-[60ch]">{c.tourHint}</p>
+            <TourPicker
+              city={city}
+              cityId={destMode === 'curated' ? cityId : null}
+              startDate={startDate}
+              duration={duration}
+              people={people}
+              budget={budget}
+              mode={tripStyle}
+              onModeChange={setTripStyle}
+              selected={selectedTours}
+              onChange={setSelectedTours}
+              lang={lang}
+            />
+            <NavRow onBack={goBack} onNext={confirmTripStyleAndAdvance} backLabel={c.back} nextLabel={c.next} />
+          </>
+        )}
 
+        {step === 3 && (
+          <>
+            <h2 className="text-xl font-bold mb-2">{c.stepHotel}</h2>
+            <p className="text-md text-ink-muted mb-3 max-w-[52ch]">{c.hotelHint}</p>
+            <p className="mb-5 max-w-[60ch] rounded-xl bg-paper-2 px-4 py-3 text-sm text-ink-muted">
+              {c.roomBudget(`${nightlyBudget.toLocaleString('vi-VN')}đ`, Math.round(LODGING_SHARE * 100), people, Math.max(1, duration - 1))}
+              {tourCostPerPerson > 0 && ` ${c.roomBudgetAfterTour(`${tourCostPerPerson.toLocaleString('vi-VN')}đ`)}`}
+            </p>
+
+            {hotelStatus === 'ready' && (
+              <p className="mb-5 max-w-[70ch] text-sm text-ink-muted">{c.bookableCount(hotels.filter((hotel) => hotel.bookable).length, hotels.length)}</p>
+            )}
             {hotelStatus === 'searching' && <p className="text-ink-muted text-md">{c.hotelSearching}</p>}
             {(hotelStatus === 'no-key' || hotelStatus === 'empty' || hotelStatus === 'error') && (
               <p className="flex items-start gap-2 text-md text-lantern">
@@ -732,9 +798,11 @@ export default function Planner() {
                 {[
                   { key: 'match', label: c.tierMatch },
                   { key: 'value', label: c.tierValue },
+                  { key: 'unknown', label: c.tierUnknown },
                   { key: 'premium', label: c.tierPremium },
                 ].map(({ key, label }) => {
-                  const group = groupHotelsByBudgetTier(hotels, budgetPerDay)[key]
+                  // Within a price group, hotels bookable on FoodTrip come first.
+                  const group = [...groupHotelsByBudgetTier(hotels, nightlyBudget)[key]].sort((a, b) => Number(Boolean(b.bookable)) - Number(Boolean(a.bookable)))
                   if (!group.length) return null
                   return (
                     <div key={key}>
@@ -760,7 +828,7 @@ export default function Planner() {
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
             <h2 className="text-xl font-bold mb-2">{c.stepPref}</h2>
             <p className="text-md text-ink-muted mb-5 max-w-[52ch]">{c.prefHint}</p>
@@ -791,7 +859,7 @@ export default function Planner() {
           </>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <>
             {generating || !days ? (
               <div className="flex flex-col items-center gap-4 py-20 text-center">
@@ -813,6 +881,7 @@ export default function Planner() {
                   days={days}
                   hotels={hotels}
                   selectedHotelId={selectedHotelId}
+                  tours={itineraryTours}
                   startDate={startDate}
                   people={people}
                   budget={budget}
@@ -881,6 +950,16 @@ export default function Planner() {
                   </button>
                 </div>
                 {!user && <p className="no-print text-center text-sm text-ink-faint mt-3">{c.saveTripLoginHint}</p>}
+                {itineraryTours.length > 0 && (
+                  <TourReservePanel
+                    key={itineraryTours.map((tour) => tour.id).join()}
+                    tours={itineraryTours}
+                    people={people}
+                    user={user}
+                    onLogin={() => setAuthOpen(true)}
+                    lang={lang}
+                  />
+                )}
                 {saveTripStatus === 'error' && <p className="no-print text-center text-sm text-chili mt-3">{c.saveTripError}</p>}
                 {shareStatus === 'error' && <p className="no-print text-center text-sm text-chili mt-3">{c.shareTripError}</p>}
                 {liveTripStatus === 'error' && <p className="no-print text-center text-sm text-chili mt-3">{c.startLiveTripError}</p>}
@@ -902,6 +981,7 @@ export default function Planner() {
           </>
         )}
       </StepWrap>
+      {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </div>
   )
 }

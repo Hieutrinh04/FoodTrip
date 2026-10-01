@@ -1,22 +1,25 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { handleOptions } from '../_shared/cors.ts'
+import { signParams } from '../_shared/vnpay.ts'
 
-async function hmacSha512Hex(secret: string, data: string) {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-512' }, false, ['sign'])
-  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(data))
-  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-// VNPay redirects the customer's browser here after the sandbox payment
-// page. This request carries no Supabase auth (it comes straight from
-// VNPay's servers/browser redirect), so the booking's status is updated
-// using the service-role key — trust comes from verifying VNPay's own
-// HMAC-SHA512 signature on the callback params, not from RLS.
-//
-// Note: a return-URL-only flow is not fully reliable in production (the
-// browser might never come back if the user closes the tab) — a real
-// deployment should also register an IPN (server-to-server) webhook with
-// VNPay. Out of scope here; documented as a known limitation.
+/**
+ * VNPay redirects the customer's browser here after the sandbox payment page.
+ * The request carries no Supabase auth — it comes straight from VNPay's
+ * redirect — so trust comes from VNPay's HMAC-SHA512 signature on the callback,
+ * and the booking is updated with the service role.
+ *
+ * Two checks before a booking is marked paid:
+ * - the signature, computed the same way the payment URL was signed (shared
+ *   canonicalQuery — the old copy here encoded spaces as %20 and would have
+ *   rejected every genuine callback whose fields contained a space);
+ * - the amount VNPay actually charged, against the booking's own total. A
+ *   valid signature only proves VNPay sent this; it does not prove the right
+ *   sum was paid for this booking.
+ *
+ * Known limitation: a return-URL-only flow is not fully reliable (the browser
+ * may never come back if the tab is closed). A production deployment should
+ * also register VNPay's IPN server-to-server webhook.
+ */
 Deno.serve(async (req) => {
   const preflight = handleOptions(req)
   if (preflight) return preflight
@@ -33,28 +36,34 @@ Deno.serve(async (req) => {
 
   if (!hashSecret || !bookingId || !receivedHash) return redirectTo('error')
 
-  const signParams = new URLSearchParams(params)
-  signParams.delete('vnp_SecureHash')
-  signParams.delete('vnp_SecureHashType')
-  const sortedKeys = [...signParams.keys()].sort()
-  const signData = sortedKeys.map((k) => `${k}=${encodeURIComponent(signParams.get(k) ?? '')}`).join('&')
-  const expectedHash = await hmacSha512Hex(hashSecret, signData)
-
-  if (expectedHash.toLowerCase() !== receivedHash.toLowerCase()) return redirectTo('invalid-signature')
-
-  const responseCode = params.get('vnp_ResponseCode')
-  const paymentStatus = responseCode === '00' ? 'paid' : 'failed'
+  const signed: Record<string, string> = {}
+  for (const [key, value] of params) {
+    if (key !== 'vnp_SecureHash' && key !== 'vnp_SecureHashType' && key.startsWith('vnp_')) signed[key] = value
+  }
+  const { hash } = await signParams(signed, hashSecret)
+  if (hash.toLowerCase() !== receivedHash.toLowerCase()) return redirectTo('invalid-signature')
 
   try {
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('id, total_price, payment_status')
+      .eq('id', bookingId)
+      .maybeSingle()
+    if (!booking) return redirectTo('error')
+
+    const charged = Number(params.get('vnp_Amount'))
+    const expected = Math.round(Number(booking.total_price)) * 100
+    const paymentStatus = params.get('vnp_ResponseCode') === '00' && charged === expected ? 'paid' : 'failed'
+    if (charged !== expected) console.error(`vnpay-return: amount mismatch for ${bookingId}: ${charged} vs ${expected}`)
+
     await supabase
       .from('bookings')
       .update({ payment_status: paymentStatus, payment_txn_ref: params.get('vnp_TransactionNo') })
       .eq('id', bookingId)
+    return redirectTo(paymentStatus)
   } catch (err) {
     console.error('vnpay-return: failed to update booking:', (err as Error).message)
     return redirectTo('error')
   }
-
-  return redirectTo(paymentStatus)
 })

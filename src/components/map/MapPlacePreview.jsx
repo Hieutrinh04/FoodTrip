@@ -34,8 +34,8 @@ function hostAllowed(url) {
 }
 
 const COPY = {
-  vi: { reviewsOnGoogle: (n) => `${n.toLocaleString('vi-VN')} bài đánh giá trên Google`, openNow: 'Đang mở cửa', closedNow: 'Đã đóng cửa', closesAt: (t) => `Đóng cửa vào ${t}`, hours: 'Giờ hoạt động', phone: 'Số điện thoại', website: 'Trang web', directions: 'Đường đi', routeTitle: 'Đường đi từ chỗ bạn', routeLoading: 'Đang tính đường…', routeError: 'Không tính được đường đi.', routeNeedsOrigin: 'Bấm “Gần tôi” hoặc chạm vào bản đồ để FoodTrip tính đường đi tới đây.', routeMinutes: (m) => `${m} phút`, routeHours: (h, m) => (m ? `${h} giờ ${m} phút` : `${h} giờ`), transportMode: { bike: 'Xe máy', car: 'Ô tô', walk: 'Đi bộ' }, onGoogleMaps: 'Xem trên Google Maps', noListing: 'Chưa có thông tin niêm yết cho quán này.', score: 'Điểm FoodTrip', assessment: 'Tổng quan về quán', howScored: 'Cách FoodTrip chấm điểm', suitability: 'Điểm phù hợp', strongPoint: 'Điểm nổi bật', consider: 'Nên cân nhắc', allPositive: (n) => `Các tiêu chí hiện có đều đạt từ ${n}/10.`, assessmentNote: 'FoodTrip tổng hợp các tiêu chí có dữ liệu và tự cân bằng lại trọng số khi thiếu thông tin. Đây là điểm gợi ý phù hợp, không phải đánh giá từ trải nghiệm trực tiếp.', googleReviews: 'Đánh giá trên Google Maps', seeAllOnGoogle: 'Xem tất cả', reviewSort: { mostRelevant: 'Liên quan nhất', newest: 'Mới nhất', highestRating: 'Cao nhất', lowestRating: 'Thấp nhất' }, reviewsLoading: 'Đang tải đánh giá…', reviewsEmpty: 'Quán chưa có đánh giá bằng chữ trên Google.', reviewsError: 'Chưa tải được đánh giá từ Google, thử lại sau nhé.', reviewsNoListing: 'Chưa tìm thấy quán này trên Google Maps.', readMore: 'Xem thêm', showLess: 'Thu gọn', ownerReply: 'Phản hồi của chủ quán', anonymous: 'Người dùng Google', authorReviews: (n) => `${n.toLocaleString('vi-VN')} bài đánh giá`, showMoreReviews: (n) => `Xem thêm ${n} đánh giá`, showFewerReviews: 'Thu gọn đánh giá', content: 'Review liên quan', loading: 'Đang tổng hợp nội dung…', empty: 'Chưa tìm thấy nội dung phù hợp.', detail: 'Xem chi tiết', all: 'Tất cả', youtube: 'YouTube', tiktok: 'TikTok', social: 'Facebook · IG', articles: 'Bài viết', open: 'Mở nội dung', play: 'Phát tại đây', closePlayer: 'Đóng trình phát', limited: 'TikTok, Facebook và bài báo sẽ xuất hiện khi cấu hình nguồn tìm kiếm web.' },
-  en: { reviewsOnGoogle: (n) => `${n.toLocaleString('en-US')} reviews on Google`, openNow: 'Open now', closedNow: 'Closed', closesAt: (t) => `Closes at ${t}`, hours: 'Opening hours', phone: 'Phone', website: 'Website', directions: 'Directions', routeTitle: 'Route from you', routeLoading: 'Calculating route…', routeError: 'Could not work out a route.', routeNeedsOrigin: 'Use “Near me” or tap the map so FoodTrip can work out the route here.', routeMinutes: (m) => `${m} min`, routeHours: (h, m) => (m ? `${h} hr ${m} min` : `${h} hr`), transportMode: { bike: 'Motorbike', car: 'Car', walk: 'Walking' }, onGoogleMaps: 'View on Google Maps', noListing: 'No public listing found for this place.', score: 'FoodTrip score', assessment: 'At a glance', howScored: 'How FoodTrip scored this', suitability: 'Suitability score', strongPoint: 'Strongest point', consider: 'Worth considering', allPositive: (n) => `All available criteria score at least ${n}/10.`, assessmentNote: 'FoodTrip combines the criteria with available data and rebalances their weights when information is missing. This is a suitability guide, not a first-hand review.', googleReviews: 'Reviews on Google Maps', seeAllOnGoogle: 'See all', reviewSort: { mostRelevant: 'Most relevant', newest: 'Newest', highestRating: 'Highest', lowestRating: 'Lowest' }, reviewsLoading: 'Loading reviews…', reviewsEmpty: 'No written reviews on Google yet.', reviewsError: 'Could not load Google reviews — try again later.', reviewsNoListing: 'This place was not found on Google Maps.', readMore: 'Read more', showLess: 'Show less', ownerReply: 'Response from the owner', anonymous: 'Google user', authorReviews: (n) => `${n.toLocaleString('en-US')} reviews`, showMoreReviews: (n) => `Show ${n} more reviews`, showFewerReviews: 'Show fewer reviews', content: 'Related reviews', loading: 'Collecting content…', empty: 'No related content found.', detail: 'View details', all: 'All', youtube: 'YouTube', tiktok: 'TikTok', social: 'Facebook · IG', articles: 'Articles', open: 'Open content', play: 'Play here', closePlayer: 'Close player', limited: 'TikTok, Facebook and articles appear when web search is configured.' },
+  vi: { reviewsOnGoogle: (n) => `${n.toLocaleString('vi-VN')} bài đánh giá trên Google`, openNow: 'Đang mở cửa', closedNow: 'Đã đóng cửa', closesAt: (t) => `Đóng cửa vào ${t}`, hours: 'Giờ hoạt động', phone: 'Số điện thoại', website: 'Trang web', directions: 'Đường đi', routeTitle: 'Đường đi từ chỗ bạn', straightLine: 'chim bay', straightLineHint: 'Khoảng cách theo đường thẳng. Quãng đường thật theo đường phố ở phần “Đường đi” bên dưới.', startNavigation: 'Bắt đầu dẫn đường', routeLoading: 'Đang tính đường…', routeError: 'Không tính được đường đi.', routeNeedsOrigin: 'Bấm “Gần tôi” hoặc chạm vào bản đồ để FoodTrip tính đường đi tới đây.', routeMinutes: (m) => `${m} phút`, routeHours: (h, m) => (m ? `${h} giờ ${m} phút` : `${h} giờ`), transportMode: { bike: 'Xe máy', car: 'Ô tô', walk: 'Đi bộ' }, onGoogleMaps: 'Xem trên Google Maps', noListing: 'Chưa có thông tin niêm yết cho quán này.', score: 'Điểm FoodTrip', assessment: 'Tổng quan về quán', howScored: 'Cách FoodTrip chấm điểm', suitability: 'Điểm phù hợp', strongPoint: 'Điểm nổi bật', consider: 'Nên cân nhắc', allPositive: (n) => `Các tiêu chí hiện có đều đạt từ ${n}/10.`, assessmentNote: 'FoodTrip tổng hợp các tiêu chí có dữ liệu và tự cân bằng lại trọng số khi thiếu thông tin. Đây là điểm gợi ý phù hợp, không phải đánh giá từ trải nghiệm trực tiếp.', googleReviews: 'Đánh giá trên Google Maps', seeAllOnGoogle: 'Xem tất cả', reviewSort: { mostRelevant: 'Liên quan nhất', newest: 'Mới nhất', highestRating: 'Cao nhất', lowestRating: 'Thấp nhất' }, reviewsLoading: 'Đang tải đánh giá…', reviewsEmpty: 'Quán chưa có đánh giá bằng chữ trên Google.', reviewsError: 'Chưa tải được đánh giá từ Google, thử lại sau nhé.', reviewsNoListing: 'Chưa tìm thấy quán này trên Google Maps.', readMore: 'Xem thêm', showLess: 'Thu gọn', ownerReply: 'Phản hồi của chủ quán', anonymous: 'Người dùng Google', authorReviews: (n) => `${n.toLocaleString('vi-VN')} bài đánh giá`, showMoreReviews: (n) => `Xem thêm ${n} đánh giá`, showFewerReviews: 'Thu gọn đánh giá', content: 'Review liên quan', loading: 'Đang tổng hợp nội dung…', empty: 'Chưa tìm thấy nội dung phù hợp.', detail: 'Xem chi tiết', all: 'Tất cả', youtube: 'YouTube', tiktok: 'TikTok', social: 'Facebook · IG', articles: 'Bài viết', open: 'Mở nội dung', play: 'Phát tại đây', closePlayer: 'Đóng trình phát', limited: 'TikTok, Facebook và bài báo sẽ xuất hiện khi cấu hình nguồn tìm kiếm web.' },
+  en: { reviewsOnGoogle: (n) => `${n.toLocaleString('en-US')} reviews on Google`, openNow: 'Open now', closedNow: 'Closed', closesAt: (t) => `Closes at ${t}`, hours: 'Opening hours', phone: 'Phone', website: 'Website', directions: 'Directions', routeTitle: 'Route from you', straightLine: 'straight', straightLineHint: 'Straight-line distance. The real road distance is under “Route” below.', startNavigation: 'Start navigation', routeLoading: 'Calculating route…', routeError: 'Could not work out a route.', routeNeedsOrigin: 'Use “Near me” or tap the map so FoodTrip can work out the route here.', routeMinutes: (m) => `${m} min`, routeHours: (h, m) => (m ? `${h} hr ${m} min` : `${h} hr`), transportMode: { bike: 'Motorbike', car: 'Car', walk: 'Walking' }, onGoogleMaps: 'View on Google Maps', noListing: 'No public listing found for this place.', score: 'FoodTrip score', assessment: 'At a glance', howScored: 'How FoodTrip scored this', suitability: 'Suitability score', strongPoint: 'Strongest point', consider: 'Worth considering', allPositive: (n) => `All available criteria score at least ${n}/10.`, assessmentNote: 'FoodTrip combines the criteria with available data and rebalances their weights when information is missing. This is a suitability guide, not a first-hand review.', googleReviews: 'Reviews on Google Maps', seeAllOnGoogle: 'See all', reviewSort: { mostRelevant: 'Most relevant', newest: 'Newest', highestRating: 'Highest', lowestRating: 'Lowest' }, reviewsLoading: 'Loading reviews…', reviewsEmpty: 'No written reviews on Google yet.', reviewsError: 'Could not load Google reviews — try again later.', reviewsNoListing: 'This place was not found on Google Maps.', readMore: 'Read more', showLess: 'Show less', ownerReply: 'Response from the owner', anonymous: 'Google user', authorReviews: (n) => `${n.toLocaleString('en-US')} reviews`, showMoreReviews: (n) => `Show ${n} more reviews`, showFewerReviews: 'Show fewer reviews', content: 'Related reviews', loading: 'Collecting content…', empty: 'No related content found.', detail: 'View details', all: 'All', youtube: 'YouTube', tiktok: 'TikTok', social: 'Facebook · IG', articles: 'Articles', open: 'Open content', play: 'Play here', closePlayer: 'Close player', limited: 'TikTok, Facebook and articles appear when web search is configured.' },
 }
 
 const PLATFORM_ICON = { youtube: YoutubeLogo, tiktok: TiktokLogo, facebook: FacebookLogo, instagram: InstagramLogo, article: Article }
@@ -69,12 +69,26 @@ function routeDuration(seconds, copy) {
  * this is the road distance, which is always longer and is the one that matters
  * for deciding whether to go.
  */
-function RouteBar({ route, status, hasOrigin, transport, onTransportChange, copy }) {
+function StartNavigationButton({ onStart, copy }) {
+  if (!onStart) return null
+  return (
+    <button type="button" onClick={onStart} className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-full bg-[#2583d8] px-4 py-2.5 font-utility text-sm font-semibold text-white shadow-soft transition-shadow hover:shadow-lifted">
+      <NavigationArrow size={15} weight="fill" />{copy.startNavigation}
+    </button>
+  )
+}
+
+function RouteBar({ route, status, hasOrigin, transport, onTransportChange, onStartNavigation, copy }) {
+  // Navigation finds the traveller itself, so it is offered even before a
+  // starting point is known.
   if (!hasOrigin) {
     return (
-      <p className="mt-3 rounded-xl border border-dashed border-line-strong px-3 py-2.5 text-xs text-ink-muted">
-        {copy.routeNeedsOrigin}
-      </p>
+      <div className="mt-3">
+        <p className="rounded-xl border border-dashed border-line-strong px-3 py-2.5 text-xs text-ink-muted">
+          {copy.routeNeedsOrigin}
+        </p>
+        <StartNavigationButton onStart={onStartNavigation} copy={copy} />
+      </div>
     )
   }
 
@@ -110,11 +124,12 @@ function RouteBar({ route, status, hasOrigin, transport, onTransportChange, copy
           ))}
         </div>
       </div>
+      <StartNavigationButton onStart={onStartNavigation} copy={copy} />
     </div>
   )
 }
 
-export default function MapPlacePreview({ place, criterion, onClose, route = null, routeStatus = 'idle', hasRouteOrigin = false, transport = 'bike', onTransportChange }) {
+export default function MapPlacePreview({ place, criterion, onClose, route = null, routeStatus = 'idle', hasRouteOrigin = false, transport = 'bike', onTransportChange, onStartNavigation }) {
   const { lang } = useLanguage()
   const copy = COPY[lang]
   const [status, setStatus] = useState('loading')
@@ -140,9 +155,14 @@ export default function MapPlacePreview({ place, criterion, onClose, route = nul
     fetchPlaceDetails({ name: cleanName, address: place.address?.vi ?? '', location: place.location })
       .then((result) => { if (!cancelled) setDetails(result) })
       .catch(() => { if (!cancelled) setDetails({ status: 'error', place: null }) })
+    // The searches get the full name and address, not just the first name
+    // segment: for a one-word name like "Helios - Tiệm Ăn Hàn Quốc" or "Cà phê
+    // Với", the rest of the name or the street is what tells the venue apart
+    // from a laptop, a block of flats or an everyday phrase.
+    const address = place.address?.vi ?? ''
     Promise.allSettled([
-      fetchYoutubeShorts(query, cleanName, cityHint), fetchTikTokAutoSuggestions(query, cleanName, cityHint),
-      fetchPlaceWebContent(query, cleanName), getReviewsForPlace({ name: cleanName }),
+      fetchYoutubeShorts(query, place.name.vi, cityHint, address), fetchTikTokAutoSuggestions(query, place.name.vi, cityHint, address),
+      fetchPlaceWebContent(query, place.name.vi, address), getReviewsForPlace({ name: cleanName }),
     ]).then(([youtubeResult, tiktokResult, webResult, communityResult]) => {
       if (cancelled) return
       const youtube = youtubeResult.status === 'fulfilled' ? (youtubeResult.value.videos || []).map(normalizeYoutube) : []
@@ -185,13 +205,13 @@ export default function MapPlacePreview({ place, criterion, onClose, route = nul
 
   return <aside className="absolute inset-x-3 bottom-3 z-20 max-h-[calc(100%-24px)] overflow-y-auto rounded-2xl border border-line bg-surface/95 p-4 shadow-lifted backdrop-blur-md sm:left-4 sm:right-auto sm:w-[440px]" aria-label={place.name[lang]}>
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-lg font-bold">{place.name[lang]}</h2><p className="mt-1 line-clamp-2 flex items-start gap-1.5 text-xs text-ink-muted"><MapPin size={13} className="mt-0.5 shrink-0 text-chili" />{place.address?.[lang]}</p></div><button type="button" onClick={onClose} aria-label="Đóng" className="shrink-0 rounded-full border border-line p-1.5 text-ink-muted hover:border-chili hover:text-chili"><X size={15} /></button></div>
-    <RouteBar route={route} status={routeStatus} hasOrigin={hasRouteOrigin} transport={transport} onTransportChange={onTransportChange} copy={copy} />
+    <RouteBar route={route} status={routeStatus} hasOrigin={hasRouteOrigin} transport={transport} onTransportChange={onTransportChange} onStartNavigation={onStartNavigation} copy={copy} />
     <PlaceFacts details={details} copy={copy} lang={lang} place={place} />
     {/* Google's pin for the venue is more precise than the map provider's, so
         prefer it when the listing resolved — the panorama snaps to whichever
         captured street is nearest the point it is given. */}
     <StreetView360 location={details?.place?.location ?? place.location} name={place.name[lang]} />
-    <div className="mt-3 flex items-center justify-between rounded-xl bg-paper-2 px-3 py-2.5"><div><div className="font-utility text-micro uppercase tracking-wide text-ink-faint">{criterion === 'overall' ? copy.score : FOODTRIP_CRITERIA[criterion]?.[lang]}</div><div className="mt-0.5 flex items-center gap-1 font-utility text-lg font-bold text-chili">{score?.toFixed(1) ?? '—'} <Star size={14} weight="fill" className="text-lantern" /></div></div>{place.distanceKm != null && <span className="rounded-full bg-surface px-2.5 py-1 font-utility text-2xs font-semibold text-ink-muted">{place.distanceKm < 1 ? `${Math.round(place.distanceKm * 1000)} m` : `${place.distanceKm.toFixed(1)} km`}</span>}{!isLivePlace(place) && <Link to={`/place/${place.id}`} className="inline-flex items-center gap-1 font-utility text-xs font-semibold text-chili hover:underline">{copy.detail}<ArrowSquareOut size={13} /></Link>}</div>
+    <div className="mt-3 flex items-center justify-between rounded-xl bg-paper-2 px-3 py-2.5"><div><div className="font-utility text-micro uppercase tracking-wide text-ink-faint">{criterion === 'overall' ? copy.score : FOODTRIP_CRITERIA[criterion]?.[lang]}</div><div className="mt-0.5 flex items-center gap-1 font-utility text-lg font-bold text-chili">{score?.toFixed(1) ?? '—'} <Star size={14} weight="fill" className="text-lantern" /></div></div>{place.distanceKm != null && <span title={copy.straightLineHint} className="rounded-full bg-surface px-2.5 py-1 font-utility text-2xs font-semibold text-ink-muted">{place.distanceKm < 1 ? `${Math.round(place.distanceKm * 1000)} m` : `${place.distanceKm.toFixed(1)} km`} {copy.straightLine}</span>}{!isLivePlace(place) && <Link to={`/place/${place.id}`} className="inline-flex items-center gap-1 font-utility text-xs font-semibold text-chili hover:underline">{copy.detail}<ArrowSquareOut size={13} /></Link>}</div>
     <WebsiteAssessment place={place} copy={copy} lang={lang} />
     <GoogleReviews details={details} copy={copy} lang={lang} />
     <div className="mt-3"><div className="mb-2 flex items-center justify-between"><div className="font-utility text-2xs font-bold uppercase tracking-wide text-ink-muted">{copy.content}</div>{status === 'ready' && <span className="text-micro text-ink-faint">{items.length}</span>}</div>

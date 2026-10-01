@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useParams, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { MapPin, Star, Users, Bed, CheckCircle, Warning, ArrowLeft } from '@phosphor-icons/react'
 import { ACCENT_GRADIENT } from '../lib/visualTokens.js'
-import { fetchHotelById, hotelScoreBadge, hotelCardAccent, rememberHotel } from '../lib/hotelSearch.js'
-import { getRoomTypesForHotel, AMENITY_LABEL, boardLabel } from '../lib/roomTypes.js'
+import { fetchHotelById, hotelScoreBadge, hotelCardAccent, rememberHotel, hotelMapsUrl } from '../lib/hotelSearch.js'
+import { AMENITY_LABEL, boardLabel } from '../lib/roomTypes.js'
+import { partnerHotel } from '../lib/partnerHotels.js'
+import { AMENITIES, CANCELLATION } from '../lib/partner.js'
 import { createBooking } from '../lib/bookings.js'
-import { startVnpayPayment } from '../lib/vnpay.js'
-import { supabase, hasSupabase } from '../lib/supabaseClient.js'
+import { inventoryError, quoteRooms } from '../lib/inventory.js'
+import { startVnpayPayment, confirmDemoPayment, getPaymentMode } from '../lib/vnpay.js'
+import { getSepayMode } from '../lib/sepay.js'
+import { hasSupabase } from '../lib/supabaseClient.js'
 import HotelExternalLinks from '../components/booking/HotelExternalLinks.jsx'
 import RemoteImage from '../components/ui/RemoteImage.jsx'
 import HotelGallery from '../components/booking/HotelGallery.jsx'
@@ -30,11 +34,18 @@ const C = {
     selectRoom: 'Chọn phòng này', selected: 'Đã chọn',
     guestInfoTitle: 'Thông tin người đặt', guestName: 'Họ tên', guestPhone: 'Số điện thoại', guestEmail: 'Email',
     total: 'Tổng tiền', confirm: 'Xác nhận & Thanh toán', confirming: 'Đang xử lý…',
+    confirmTransfer: 'Đặt phòng & chuyển khoản', transferHint: 'Thanh toán bằng chuyển khoản ngân hàng (VietQR). Đơn được xác nhận tự động khi tiền về.',
     loginHint: 'Đăng nhập (góc trên) để đặt phòng.',
-    demoNoKey: 'Chưa cấu hình cổng thanh toán VNPay (VNPAY_TMN_CODE/VNPAY_HASH_SECRET) — dùng nút xác nhận demo bên dưới để tiếp tục thử luồng đặt phòng.',
+    demoNoKey: 'Cổng thanh toán VNPay chưa được cấu hình, nên đơn được xác nhận ở chế độ demo — không có giao dịch tiền thật nào diễn ra.',
     confirmDemo: 'Xác nhận (chế độ demo, bỏ qua thanh toán thật)',
+    checkingPayment: 'Đang kiểm tra cổng thanh toán…',
     bookingError: 'Đặt phòng thất bại, thử lại nhé.',
     fillGuestInfo: 'Vui lòng nhập họ tên trước khi xác nhận.',
+    partnerBadge: 'Đặt ngay trên FoodTrip — phòng và giá do khách sạn quản lý',
+    referenceTitle: 'Khách sạn này chưa nhận đặt phòng qua FoodTrip',
+    referenceBody: 'Thông tin ở đây chỉ để tham khảo. FoodTrip chỉ nhận đặt phòng và thanh toán cho khách sạn đối tác — nơi phòng trống và giá do chính khách sạn quản lý và xác nhận đơn. Bạn có thể so sánh giá và đặt trên Agoda / Traveloka, hoặc liên hệ trực tiếp khách sạn.',
+    openMaps: 'Xem trên Google Maps (số điện thoại, đường đi)',
+    ownerCta: 'Bạn là chủ khách sạn này? Đăng ký làm đối tác FoodTrip →',
   },
   en: {
     back: 'Back', loading: 'Loading hotel info…', notFound: 'This hotel could not be found.',
@@ -47,11 +58,18 @@ const C = {
     selectRoom: 'Select this room', selected: 'Selected',
     guestInfoTitle: 'Guest details', guestName: 'Full name', guestPhone: 'Phone number', guestEmail: 'Email',
     total: 'Total', confirm: 'Confirm & Pay', confirming: 'Processing…',
+    confirmTransfer: 'Book & pay by transfer', transferHint: 'Pay by bank transfer (VietQR). The booking is confirmed automatically when the money arrives.',
     loginHint: 'Log in (top right) to book a room.',
-    demoNoKey: 'VNPay payment gateway not configured yet (VNPAY_TMN_CODE/VNPAY_HASH_SECRET) — use the demo confirm button below to try the booking flow.',
+    demoNoKey: 'The VNPay gateway is not configured, so this booking is confirmed in demo mode — no real money changes hands.',
     confirmDemo: 'Confirm (demo mode, skips real payment)',
+    checkingPayment: 'Checking the payment gateway…',
     bookingError: 'Booking failed — please try again.',
     fillGuestInfo: 'Please enter a full name before confirming.',
+    partnerBadge: 'Book on FoodTrip — rooms and prices managed by the hotel',
+    referenceTitle: "This hotel doesn't take bookings on FoodTrip yet",
+    referenceBody: 'This page is for reference. FoodTrip only takes bookings and payment for partner hotels, which manage their own availability and prices and confirm each booking. You can compare prices and book on Agoda / Traveloka, or contact the hotel directly.',
+    openMaps: 'View on Google Maps (phone, directions)',
+    ownerCta: 'Own this hotel? Become a FoodTrip partner →',
   },
 }
 
@@ -92,6 +110,54 @@ export default function BookingRoom() {
   const [guestPhone, setGuestPhone] = useState('')
   const [guestEmail, setGuestEmail] = useState(user?.email ?? '')
   const [bookStatus, setBookStatus] = useState('idle') // idle | booking | error
+  const [quote, setQuote] = useState({ status: 'loading', managed: false, rooms: [] })
+  const [quoteRevision, setQuoteRevision] = useState(0)
+  const [bookingError, setBookingError] = useState('')
+  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID())
+  useEffect(() => { setRequestKey(crypto.randomUUID()) }, [selectedRoomKey, checkIn, checkOut, guests, user?.id])
+  useEffect(() => {
+    let active = true
+    setSelectedRoomKey(null)
+    setQuote({ status: 'loading', managed: false, rooms: [] })
+    if (!checkIn || !checkOut || checkOut <= checkIn) return () => { active = false }
+    quoteRooms(placeId, checkIn, checkOut, guests).then((data) => {
+      if (active) setQuote({ ...data, status: 'ready' })
+    }).catch((error) => {
+      if (active) setQuote({ status: 'error', managed: false, rooms: [], error: inventoryError(error) })
+    })
+    return () => { active = false }
+  }, [placeId, checkIn, checkOut, guests, quoteRevision])
+  // A partner hotel found by search (an hb- id) opens with the search's
+  // record; once the quote says a partner runs it, its own photos, facilities
+  // and policies are layered on top.
+  useEffect(() => {
+    if (quote.status !== 'ready' || !quote.managed) return undefined
+    let active = true
+    partnerHotel(placeId).then((own) => {
+      if (!active || !own) return
+      setHotel((h) => (h ? {
+        ...h,
+        gallery: own.gallery, amenities: own.amenities, checkIn: own.checkIn, checkOut: own.checkOut,
+        cancellation: own.cancellation, houseRules: own.houseRules,
+        description: own.description ?? h.description, photoUrl: own.photoUrl ?? h.photoUrl,
+      } : h))
+    })
+    return () => { active = false }
+  }, [quote.status, quote.managed, placeId])
+
+  // Whether the real VNPay gateway is configured. The page used to show the
+  // payment button and the demo button together, whatever the server had.
+  // Bank transfer through SePay comes first when it is configured, then
+  // VNPay, then the labelled demo.
+  const [paymentMode, setPaymentMode] = useState('checking') // checking | sepay | ready | no-key | unknown
+
+  useEffect(() => {
+    let cancelled = false
+    getSepayMode()
+      .then(async (sepay) => (sepay === 'ready' ? 'sepay' : getPaymentMode()))
+      .then((mode) => { if (!cancelled) setPaymentMode(mode) })
+    return () => { cancelled = true }
+  }, [])
   const [gallery, setGallery] = useState({ general: [], rooms: {}, source: 'none' })
 
   useEffect(() => {
@@ -115,6 +181,7 @@ export default function BookingRoom() {
     if (hotel) return
     let cancelled = false
     fetchHotelById(placeId)
+      .then(async (h) => h ?? (await partnerHotel(placeId)))
       .then((h) => {
         if (cancelled) return
         if (!h) {
@@ -138,6 +205,8 @@ export default function BookingRoom() {
   // the array identity changes — rebuilding it each render would make the
   // carousel jump back on every keystroke elsewhere on the page.
   const heroPhotos = useMemo(() => {
+    // A partner's own photos come first: they published them.
+    if (hotel?.gallery?.length > 1) return hotel.gallery
     const cover = hotel?.photoUrl
     if (!gallery.general.length) return cover ? [cover] : []
     return cover && !gallery.general.includes(cover) ? [cover, ...gallery.general] : gallery.general
@@ -145,17 +214,24 @@ export default function BookingRoom() {
 
   const nights = nightsBetween(checkIn, checkOut)
   const datesValid = nights > 0
-  const rooms = hotel ? getRoomTypesForHotel(hotel) : []
+  const rooms = quote.status !== 'ready' ? [] : quote.managed ? quote.rooms.map((r) => ({
+    key: r.id, name: { vi: r.name, en: r.name }, capacity: r.capacity, roomsLeft: r.rooms_left,
+    pricePerNight: Math.round(Number(r.total_price) / nights), totalPrice: Number(r.total_price),
+    managed: true, amenities: [],
+  })).filter((r) => r.roomsLeft > 0) : []
+  const reference = quote.status === 'ready' && !quote.managed
   const selectedRoom = rooms.find((r) => r.key === selectedRoomKey) ?? null
-  const totalPrice = selectedRoom ? selectedRoom.pricePerNight * nights : 0
+  const totalPrice = selectedRoom ? (selectedRoom.totalPrice ?? selectedRoom.pricePerNight * nights) : 0
 
-  async function handleConfirm(demo) {
+  // method: 'sepay' | 'vnpay' | 'demo'
+  async function handleConfirm(method) {
     if (!user || !selectedRoom || !datesValid) return
     if (!guestName.trim()) {
       setBookStatus('error')
       return
     }
     setBookStatus('booking')
+    setBookingError('')
     try {
       const booking = await createBooking({
         userId: user.id,
@@ -168,28 +244,34 @@ export default function BookingRoom() {
         guestName: guestName.trim(),
         guestEmail: guestEmail.trim(),
         guestPhone: guestPhone.trim(),
+        requestKey,
       })
 
-      if (demo) {
-        // No VNPay sandbox credentials configured — mark it obviously as a
-        // demo confirmation rather than a real payment result.
-        await supabase.from('bookings').update({ payment_status: 'paid', payment_txn_ref: 'DEMO' }).eq('id', booking.id)
+      if (method === 'sepay') {
+        // The payment page shows the QR and waits for the SePay webhook.
+        navigate(`/pay/${booking.id}`)
+        return
+      }
+
+      if (method === 'demo') {
+        // Confirmed by the server, labelled DEMO — the browser cannot mark a
+        // booking paid on its own any more.
+        await confirmDemoPayment(booking.id)
         navigate(`/booking/return?bookingId=${booking.id}&status=paid&demo=1`)
         return
       }
 
-      const result = await startVnpayPayment({
-        bookingId: booking.id,
-        amount: booking.total_price,
-        orderInfo: `FoodTrip - ${hotel.name} - ${selectedRoom.name[lang]}`,
-      })
+      // The server reads the amount from the booking; nothing about the price
+      // is sent from here.
+      const result = await startVnpayPayment({ bookingId: booking.id })
       if (result === 'no-key') {
         // Shouldn't normally happen (UI hides the real-payment button when
         // no-key), but fall back gracefully if config changed mid-session.
         navigate(`/booking/return?bookingId=${booking.id}&status=pending`)
       }
       // otherwise startVnpayPayment already redirected the browser to VNPay
-    } catch {
+    } catch (error) {
+      setBookingError(selectedRoom.managed ? inventoryError(error) : c.bookingError)
       setBookStatus('error')
     }
   }
@@ -251,11 +333,55 @@ export default function BookingRoom() {
             <span className="flex items-center gap-1 text-chili font-medium"><Star size={14} weight="fill" /> {hotel.rating.toFixed(1)}</span>
           )}
         </motion.div>
-        <motion.div variants={fadeUp} className="mt-3">
-          <HotelExternalLinks hotelName={hotel.name} cityName={hotel.address} />
-        </motion.div>
+        {hotel.description && <motion.p variants={fadeUp} className="mt-3 max-w-[70ch] text-md text-ink-muted">{hotel.description}</motion.p>}
+        {/* On a reference page the same links sit in the panel below. */}
+        {!reference && (
+          <motion.div variants={fadeUp} className="mt-3">
+            <HotelExternalLinks hotelName={hotel.name} cityName={hotel.address} />
+          </motion.div>
+        )}
       </motion.div>
 
+      {quote.status === 'ready' && quote.managed && (
+        <p className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-herb px-3 py-1 font-utility text-xs font-bold text-herb-ink"><CheckCircle size={13} weight="fill" />{c.partnerBadge}</p>
+      )}
+      {/* What a partner promises — facilities and policies, as on Agoda/Traveloka. */}
+      {quote.status === 'ready' && quote.managed && (hotel.amenities?.length > 0 || hotel.checkIn || hotel.cancellation) && (
+        <section className="mb-8 grid gap-4 rounded-xl border border-line-strong p-5 sm:grid-cols-2">
+          {hotel.amenities?.length > 0 && (
+            <div className="sm:col-span-2">
+              <div className="mb-2 font-utility text-2xs font-bold uppercase tracking-wide text-ink-faint">{lang === 'vi' ? 'Tiện nghi' : 'Facilities'}</div>
+              <div className="flex flex-wrap gap-1.5">{hotel.amenities.filter((a) => AMENITIES[a]).map((a) => <span key={a} className="rounded-full bg-paper-2 px-2.5 py-1 text-xs">{AMENITIES[a][lang]}</span>)}</div>
+            </div>
+          )}
+          {(hotel.checkIn || hotel.checkOut) && (
+            <div>
+              <div className="mb-1 font-utility text-2xs font-bold uppercase tracking-wide text-ink-faint">{lang === 'vi' ? 'Nhận / trả phòng' : 'Check-in / out'}</div>
+              <div className="text-sm">{lang === 'vi' ? `Nhận từ ${hotel.checkIn ?? '—'} · Trả trước ${hotel.checkOut ?? '—'}` : `From ${hotel.checkIn ?? '—'} · By ${hotel.checkOut ?? '—'}`}</div>
+            </div>
+          )}
+          {CANCELLATION[hotel.cancellation] && (
+            <div>
+              <div className="mb-1 font-utility text-2xs font-bold uppercase tracking-wide text-ink-faint">{lang === 'vi' ? 'Chính sách huỷ' : 'Cancellation'}</div>
+              <div className="text-sm">{CANCELLATION[hotel.cancellation][lang]}</div>
+            </div>
+          )}
+          {hotel.houseRules && <p className="text-sm text-ink-muted sm:col-span-2">{hotel.houseRules}</p>}
+        </section>
+      )}
+      {reference && (
+        <section className="mb-8 rounded-xl border border-line-strong bg-paper-2 p-5">
+          <h2 className="flex items-center gap-2 text-lg font-bold"><Warning size={18} className="text-lantern" />{c.referenceTitle}</h2>
+          <p className="mt-2 text-md text-ink-muted">{c.referenceBody}</p>
+          <div className="mt-4 flex flex-col gap-3">
+            <HotelExternalLinks hotelName={hotel.name} cityName={hotel.address} />
+            <a href={hotelMapsUrl(hotel)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 self-start font-utility text-sm font-semibold text-chili hover:underline"><MapPin size={14} />{c.openMaps} ↗</a>
+            <Link to={`/partner?${new URLSearchParams({ claim: hotel.id, name: hotel.name, address: hotel.address ?? '' })}`} className="self-start font-utility text-sm font-semibold text-ink-muted hover:text-chili">{c.ownerCta}</Link>
+          </div>
+        </section>
+      )}
+
+      {!reference && (
       <div className="rounded-xl border border-line-strong p-5 mb-8 grid gap-4 sm:grid-cols-3">
         <label className="flex flex-col gap-1.5">
           <span className="font-utility text-2xs font-bold uppercase tracking-wide text-ink-faint">{c.checkIn}</span>
@@ -276,8 +402,13 @@ export default function BookingRoom() {
           <p className="sm:col-span-3 flex items-center gap-2 text-sm text-chili"><Warning size={15} /> {c.invalidDates}</p>
         )}
       </div>
+      )}
 
       <div className="grid gap-4 mb-8">
+        {datesValid && quote.status === 'loading' && <p role="status">{lang === 'vi' ? 'Đang kiểm tra phòng trống…' : 'Checking availability…'}</p>}
+        {quote.status === 'error' && <div role="alert"><p className="text-chili">{quote.error}</p><button className="mt-2 underline" onClick={() => setQuoteRevision((n) => n + 1)}>{lang === 'vi' ? 'Tải lại giá' : 'Retry availability'}</button></div>}
+        {quote.status === 'ready' && quote.managed && <p className="text-sm text-herb">{lang === 'vi' ? 'Giá và phòng trống do đối tác quản lý. Giá mỗi đêm hiển thị là trung bình; tổng tiền tính theo từng ngày.' : 'Partner-managed availability. Nightly price is an average; the total uses each date’s rate.'}</p>}
+        {quote.status === 'ready' && quote.managed && !rooms.length && <p role="status">{lang === 'vi' ? 'Không còn phòng phù hợp ngày và số khách đã chọn.' : 'No rooms available for these dates and guests.'}</p>}
         {rooms.map((room) => {
           const isSelected = selectedRoomKey === room.key
           return (
@@ -362,24 +493,43 @@ export default function BookingRoom() {
             <p className="text-center text-sm text-ink-faint">{c.loginHint}</p>
           ) : (
             <>
-              <button
-                onClick={() => handleConfirm(false)}
-                disabled={bookStatus === 'booking'}
-                className="w-full inline-flex items-center justify-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow disabled:opacity-60"
-              >
-                {bookStatus === 'booking' ? c.confirming : c.confirm}
-              </button>
-              <p className="flex items-start gap-2 text-sm text-ink-faint mt-3">
-                <Warning size={14} className="shrink-0 mt-0.5" /> {c.demoNoKey}
-              </p>
-              <button
-                onClick={() => handleConfirm(true)}
-                disabled={bookStatus === 'booking'}
-                className="w-full mt-2 inline-flex items-center justify-center gap-2 font-utility font-semibold text-md px-6 py-3 rounded-full border-[1.5px] border-line-strong hover:border-chili hover:text-chili transition-colors disabled:opacity-60"
-              >
-                {c.confirmDemo}
-              </button>
-              {bookStatus === 'error' && <p className="text-center text-sm text-chili mt-3">{!guestName.trim() ? c.fillGuestInfo : c.bookingError}</p>}
+              {paymentMode === 'sepay' && (
+                <>
+                  <button
+                    onClick={() => handleConfirm('sepay')}
+                    disabled={bookStatus === 'booking'}
+                    className="w-full inline-flex items-center justify-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow disabled:opacity-60"
+                  >
+                    {bookStatus === 'booking' ? c.confirming : c.confirmTransfer}
+                  </button>
+                  <p className="mt-2 text-center text-2xs text-ink-faint">{c.transferHint}</p>
+                </>
+              )}
+              {paymentMode === 'ready' && (
+                <button
+                  onClick={() => handleConfirm('vnpay')}
+                  disabled={bookStatus === 'booking'}
+                  className="w-full inline-flex items-center justify-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow disabled:opacity-60"
+                >
+                  {bookStatus === 'booking' ? c.confirming : c.confirm}
+                </button>
+              )}
+              {(paymentMode === 'no-key' || paymentMode === 'unknown') && (
+                <>
+                  <p className="flex items-start gap-2 text-sm text-ink-faint">
+                    <Warning size={14} className="shrink-0 mt-0.5" /> {c.demoNoKey}
+                  </p>
+                  <button
+                    onClick={() => handleConfirm('demo')}
+                    disabled={bookStatus === 'booking'}
+                    className="w-full mt-3 inline-flex items-center justify-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-ink text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
+                  >
+                    {bookStatus === 'booking' ? c.confirming : c.confirmDemo}
+                  </button>
+                </>
+              )}
+              {paymentMode === 'checking' && <p className="text-center text-sm text-ink-faint">{c.checkingPayment}</p>}
+              {bookStatus === 'error' && <div role="alert" className="text-center text-sm text-chili mt-3"><p>{!guestName.trim() ? c.fillGuestInfo : bookingError || c.bookingError}</p><button className="underline" onClick={() => setQuoteRevision((n) => n + 1)}>{lang === 'vi' ? 'Tải lại giá và phòng trống' : 'Refresh availability'}</button></div>}
             </>
           )}
         </motion.div>

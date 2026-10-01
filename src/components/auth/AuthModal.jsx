@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { X, EnvelopeSimple, LockSimple, Eye, EyeSlash, ArrowRight, Coffee, ForkKnife, MapPin, BookmarkSimple, CheckCircle, WarningCircle, CircleNotch } from '@phosphor-icons/react'
 import { useAuth } from '../../auth/AuthContext.jsx'
@@ -182,6 +183,7 @@ export default function AuthModal({ onClose }) {
               <label className="ft-auth-label" htmlFor="auth-password">{c.password}</label>
               <div className="ft-auth-input"><LockSimple size={18} aria-hidden="true" /><input id="auth-password" name="password" type={visible ? 'text' : 'password'} autoComplete={isSignUp ? 'new-password' : 'current-password'} required minLength={isSignUp ? 6 : undefined} disabled={busy} value={password} onChange={(event) => { setPassword(event.target.value); setError('') }} placeholder={isSignUp ? c.newPasswordPlaceholder : c.passwordPlaceholder} aria-describedby={isSignUp ? 'auth-password-hint' : undefined} /><button type="button" aria-label={visible ? c.hide : c.show} aria-pressed={visible} onClick={() => setVisible(!visible)}>{visible ? <EyeSlash size={19} /> : <Eye size={19} />}</button></div>
               {isSignUp && <><p id="auth-password-hint" className="ft-auth-hint">{c.passwordHint}</p><label className="ft-auth-label" htmlFor="auth-confirm">{c.confirm}</label><div className="ft-auth-input"><LockSimple size={18} aria-hidden="true" /><input ref={confirmRef} id="auth-confirm" name="confirm-password" type={visible ? 'text' : 'password'} autoComplete="new-password" required minLength={6} disabled={busy} value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError('') }} placeholder={c.confirmPlaceholder} aria-invalid={error === c.mismatch} aria-describedby={error === c.mismatch ? 'auth-error' : undefined} /></div></>}
+              {!isSignUp && <Link to="/forgot-password" onClick={onClose} className="self-end text-sm text-chili underline">{lang === 'vi' ? 'Quên mật khẩu?' : 'Forgot your password?'}</Link>}
               {error && <div id="auth-error" className="ft-auth-message ft-auth-error" role="alert"><WarningCircle size={19} /><p>{error}</p></div>}
               {success && <div className="ft-auth-message ft-auth-success" role="status"><CheckCircle size={19} /><p>{success}</p></div>}
               <button type="submit" disabled={busy} className="ft-auth-submit">{busy ? <><CircleNotch size={19} className="ft-auth-spinner" />{c.busy}</> : <>{isSignUp ? c.submitUp : c.submitIn}<ArrowRight size={19} /></>}</button>
