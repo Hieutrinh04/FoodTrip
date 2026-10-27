@@ -1,0 +1,85 @@
+{"question":"hướng dẫn mình đặt phòng với","id":"book-how","source":"held-out"}
+{"question":"sao chỗ này chỉ có link agoda mà không đặt được","id":"book-reference-label","source":"held-out"}
+{"question":"web tính tiền phòng mỗi đêm từ ngân sách như nào","id":"book-hotel-budget","source":"held-out"}
+{"question":"mình trả tiền phòng kiểu gì","id":"pay-methods","source":"held-out"}
+{"question":"đặt rồi để đó chưa chuyển tiền có sao không","id":"pay-hold-30","source":"held-out"}
+{"question":"chuyển khoản phải ghi mã gì","id":"pay-transfer-note","source":"held-out"}
+{"question":"mình chuyển rồi mà vẫn hiện chờ thanh toán","id":"pay-confirm-time","source":"held-out"}
+{"question":"lỡ chuyển khoản sau 30 phút thì tiền đi đâu","id":"pay-late-transfer","source":"held-out"}
+{"question":"sao đơn của mình ghi là demo","id":"pay-demo","source":"held-out"}
+{"question":"huỷ trước 3 ngày có lấy lại tiền được không","id":"refund-policy","source":"held-out"}
+{"question":"nút huỷ đơn nằm chỗ nào","id":"refund-how-cancel","source":"held-out"}
+{"question":"bên khách sạn không nhận đơn thì tiền mình sao","id":"refund-hotel-rejects","source":"held-out"}
+{"question":"huỷ rồi bao giờ tiền về","id":"refund-when","source":"held-out"}
+{"question":"mình muốn bỏ tour đã đặt","id":"refund-tour","source":"held-out"}
+{"question":"mình muốn xem lại các đơn đã đặt","id":"status-where","source":"held-out"}
+{"question":"web có báo khi khách sạn xác nhận không","id":"status-notifications","source":"held-out"}
+{"question":"mình muốn lịch trình có tour","id":"tour-in-plan","source":"held-out"}
+{"question":"gửi yêu cầu tour rồi mà chưa thấy trả lời","id":"tour-confirm-48h","source":"held-out"}
+{"question":"đặt tour có phải trả tiền trên web không","id":"tour-price-payment","source":"held-out"}
+{"question":"có cách nào lên lịch dựa trên tour mình thích không","id":"tour-page-share","source":"held-out"}
+{"question":"FoodTrip chọn quán cho lịch trình kiểu gì","id":"plan-how","source":"held-out"}
+{"question":"số tiền nhập vào là tổng hay mỗi người","id":"plan-budget-meaning","source":"held-out"}
+{"question":"mình muốn đi Quy Nhơn mà không thấy trong list","id":"plan-custom-city","source":"held-out"}
+{"question":"mình không thích quán này muốn đổi","id":"plan-edit-stops","source":"held-out"}
+{"question":"web có báo mưa trong mấy ngày đi không","id":"plan-weather","source":"held-out"}
+{"question":"tạo xong lịch rồi muốn giữ lại","id":"trips-save","source":"held-out"}
+{"question":"cho bạn mình xem lịch trình kiểu gì","id":"trips-share","source":"held-out"}
+{"question":"có tải file lịch trình được không","id":"trips-export","source":"held-out"}
+{"question":"cả nhóm cùng xem lịch trình lúc đi được không","id":"trips-live","source":"held-out"}
+{"question":"con số điểm ở mỗi quán nghĩa là gì","id":"explore-score","source":"held-out"}
+{"question":"đói mà không biết ăn gì quanh đây","id":"explore-nearby","source":"held-out"}
+{"question":"mình bấm lưu quán rồi giờ xem lại ở đâu","id":"saved-places","source":"held-out"}
+{"question":"sao map trắng trơn vậy","id":"map-not-showing","source":"held-out"}
+{"question":"mình có clip tiktok quán ngon muốn đăng lên","id":"share-how","source":"held-out"}
+{"question":"tìm quán từ video mà nó báo không nêu tên quán","id":"share-not-found","source":"held-out"}
+{"question":"dán link fb được không","id":"share-links","source":"held-out"}
+{"question":"clip food tour nhiều quán thì có lấy hết không","id":"share-multi-plan","source":"held-out"}
+{"question":"mình muốn gỡ bài đã đăng","id":"share-edit-delete","source":"held-out"}
+{"question":"mình ở xong rồi muốn review khách sạn","id":"review-when","source":"held-out"}
+{"question":"người khác có thấy tên đầy đủ của mình không","id":"review-name-hidden","source":"held-out"}
+{"question":"mình quên pass rồi","id":"account-signin","source":"held-out"}
+{"question":"chưa có tài khoản thì xài được không","id":"account-needed","source":"held-out"}
+{"question":"nhà nghỉ của mình muốn lên foodtrip","id":"partner-stay-signup","source":"held-out"}
+{"question":"duyệt rồi mà chưa bán phòng được","id":"partner-checklist","source":"held-out"}
+{"question":"đăng ký đối tác cần chuẩn bị gì","id":"partner-papers","source":"held-out"}
+{"question":"foodtrip lấy bao nhiêu phần trăm","id":"partner-commission","source":"held-out"}
+{"question":"mình làm du lịch muốn bán tour trên đây","id":"partner-tour-signup","source":"held-out"}
+{"question":"thông tin quán trên web bị sai thì báo ở đâu","id":"contact","source":"held-out"}
+{"question":"bạn có phải chatgpt không","id":"assistant-privacy","source":"held-out"}
+{"question":"làm sao đặt phòng trên web vậy","id":"book-how","source":"hand"}
+{"question":"sao khách sạn này có chữ tham khảo không đặt được","id":"book-reference-label","source":"hand"}
+{"question":"dat phong o dau","id":"book-how","source":"hand"}
+{"question":"Có trả bằng VNPay được ko","id":"pay-methods","source":"hand"}
+{"question":"mình chuyển khoản rồi mà đơn vẫn chưa xác nhận","id":"pay-confirm-time","source":"hand"}
+{"question":"giữ phòng bao lâu vậy ad","id":"pay-hold-30","source":"hand"}
+{"question":"chuyen khoan tre 1 tieng co sao khong","id":"pay-late-transfer","source":"hand"}
+{"question":"huỷ phòng trước 2 ngày có được hoàn tiền ko","id":"refund-policy","source":"hand"}
+{"question":"mình muốn huỷ đơn đặt phòng tuần sau","id":"refund-how-cancel","source":"hand"}
+{"question":"chính sách hoàn tiền sao vậy","id":"refund-policy","source":"hand"}
+{"question":"khách sạn từ chối đơn của mình thì tiền đi đâu","id":"refund-hotel-rejects","source":"hand"}
+{"question":"huy tour co bi mat phi khong","id":"refund-tour","source":"hand"}
+{"question":"bao giờ mình nhận lại tiền hoàn","id":"refund-when","source":"hand"}
+{"question":"đơn đặt phòng của mình nằm ở đâu","id":"status-where","source":"hand"}
+{"question":"xem lại tour đã đặt ở đâu","id":"status-where","source":"hand"}
+{"question":"lên lịch kèm tour được ko","id":"tour-in-plan","source":"hand"}
+{"question":"dán link tiktok vào đâu để tìm quán","id":"share-how","source":"hand"}
+{"question":"sao link youtube không ra quán nào","id":"share-not-found","source":"hand"}
+{"question":"video có nhiều quán thì có lấy hết được không","id":"share-multi-plan","source":"hand"}
+{"question":"lưu lịch trình lại kiểu gì","id":"trips-save","source":"hand"}
+{"question":"gửi lịch trình cho nhóm bạn xem được ko","id":"trips-share","source":"hand"}
+{"question":"xuất lịch trình ra file excel","id":"trips-export","source":"hand"}
+{"question":"lịch trình hôm qua mình lưu đâu mất rồi","id":"trips-save","source":"hand"}
+{"question":"đi cả nhóm có theo dõi vị trí nhau được không","id":"trips-live","source":"hand"}
+{"question":"viết đánh giá khách sạn ở đâu vậy","id":"review-when","source":"hand"}
+{"question":"sao mình không đánh giá tour được","id":"review-when","source":"hand"}
+{"question":"quên mật khẩu rồi làm sao","id":"account-signin","source":"hand"}
+{"question":"không cần đăng nhập có lên lịch được không","id":"account-needed","source":"hand"}
+{"question":"mình có homestay ở Mũi Né muốn đăng lên web","id":"partner-stay-signup","source":"hand"}
+{"question":"công ty du lịch muốn hợp tác bán tour","id":"partner-tour-signup","source":"hand"}
+{"question":"phí hoa hồng cho đối tác là bao nhiêu","id":"partner-commission","source":"hand"}
+{"question":"đăng ký đối tác cần giấy tờ gì","id":"partner-papers","source":"hand"}
+{"question":"báo lỗi: địa chỉ quán này sai","id":"contact","source":"hand"}
+{"question":"liên hệ admin kiểu gì","id":"contact","source":"hand"}
+{"question":"web bị lỗi không load được bản đồ","id":"map-not-showing","source":"hand"}
+{"question":"mày là ai","id":"assistant-privacy","source":"hand"}

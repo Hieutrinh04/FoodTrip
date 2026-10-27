@@ -1,0 +1,366 @@
+{"question":"làm sao để đặt phòng","id":"book-how"}
+{"question":"lam sao de dat phong","id":"book-how"}
+{"question":"cho mình hỏi làm sao để đặt phòng","id":"book-how"}
+{"question":"đặt khách sạn trên web thế nào","id":"book-how"}
+{"question":"dat khach san tren web the nao","id":"book-how"}
+{"question":"ad ơi đặt khách sạn trên web thế nào?","id":"book-how"}
+{"question":"các bước đặt phòng","id":"book-how"}
+{"question":"cac buoc dat phong","id":"book-how"}
+{"question":"bạn ơi các bước đặt phòng","id":"book-how"}
+{"question":"khách sạn có nhãn tham khảo là sao","id":"book-reference-label"}
+{"question":"khach san co nhan tham khao la sao","id":"book-reference-label"}
+{"question":"cho mình hỏi khách sạn có nhãn tham khảo là sao","id":"book-reference-label"}
+{"question":"sao khách sạn này không đặt được","id":"book-reference-label"}
+{"question":"sao khach san nay khong dat duoc","id":"book-reference-label"}
+{"question":"ad ơi sao khách sạn này không đặt được?","id":"book-reference-label"}
+{"question":"tham khảo nghĩa là gì","id":"book-reference-label"}
+{"question":"tham khao nghia la gi","id":"book-reference-label"}
+{"question":"bạn ơi tham khảo nghĩa là gì","id":"book-reference-label"}
+{"question":"khách sạn được gợi ý theo ngân sách thế nào","id":"book-hotel-budget"}
+{"question":"khach san duoc goi y theo ngan sach the nao","id":"book-hotel-budget"}
+{"question":"cho mình hỏi khách sạn được gợi ý theo ngân sách thế nào","id":"book-hotel-budget"}
+{"question":"vì sao gợi ý khách sạn này","id":"book-hotel-budget"}
+{"question":"vi sao goi y khach san nay","id":"book-hotel-budget"}
+{"question":"ad ơi vì sao gợi ý khách sạn này?","id":"book-hotel-budget"}
+{"question":"ngân sách phòng mỗi đêm tính sao","id":"book-hotel-budget"}
+{"question":"ngan sach phong moi dem tinh sao","id":"book-hotel-budget"}
+{"question":"bạn ơi ngân sách phòng mỗi đêm tính sao","id":"book-hotel-budget"}
+{"question":"thanh toán bằng cách nào","id":"pay-methods"}
+{"question":"thanh toan bang cach nao","id":"pay-methods"}
+{"question":"cho mình hỏi thanh toán bằng cách nào","id":"pay-methods"}
+{"question":"có những cách trả tiền nào","id":"pay-methods"}
+{"question":"co nhung cach tra tien nao","id":"pay-methods"}
+{"question":"ad ơi có những cách trả tiền nào?","id":"pay-methods"}
+{"question":"trả bằng vnpay được không","id":"pay-methods"}
+{"question":"tra bang vnpay duoc khong","id":"pay-methods"}
+{"question":"bạn ơi trả bằng vnpay được không","id":"pay-methods"}
+{"question":"giữ phòng bao lâu","id":"pay-hold-30"}
+{"question":"giu phong bao lau","id":"pay-hold-30"}
+{"question":"cho mình hỏi giữ phòng bao lâu","id":"pay-hold-30"}
+{"question":"chưa thanh toán thì phòng giữ được bao lâu","id":"pay-hold-30"}
+{"question":"chua thanh toan thi phong giu duoc bao lau","id":"pay-hold-30"}
+{"question":"ad ơi chưa thanh toán thì phòng giữ được bao lâu?","id":"pay-hold-30"}
+{"question":"quá 30 phút chưa trả tiền thì sao","id":"pay-hold-30"}
+{"question":"qua 30 phut chua tra tien thi sao","id":"pay-hold-30"}
+{"question":"bạn ơi quá 30 phút chưa trả tiền thì sao","id":"pay-hold-30"}
+{"question":"nội dung chuyển khoản ghi gì","id":"pay-transfer-note"}
+{"question":"noi dung chuyen khoan ghi gi","id":"pay-transfer-note"}
+{"question":"cho mình hỏi nội dung chuyển khoản ghi gì","id":"pay-transfer-note"}
+{"question":"chuyển khoản có cần ghi chú không","id":"pay-transfer-note"}
+{"question":"chuyen khoan co can ghi chu khong","id":"pay-transfer-note"}
+{"question":"ad ơi chuyển khoản có cần ghi chú không?","id":"pay-transfer-note"}
+{"question":"ghi sai nội dung chuyển khoản","id":"pay-transfer-note"}
+{"question":"ghi sai noi dung chuyen khoan","id":"pay-transfer-note"}
+{"question":"bạn ơi ghi sai nội dung chuyển khoản","id":"pay-transfer-note"}
+{"question":"chuyển khoản xong bao lâu thì xác nhận","id":"pay-confirm-time"}
+{"question":"chuyen khoan xong bao lau thi xac nhan","id":"pay-confirm-time"}
+{"question":"cho mình hỏi chuyển khoản xong bao lâu thì xác nhận","id":"pay-confirm-time"}
+{"question":"đã chuyển tiền mà đơn vẫn chờ","id":"pay-confirm-time"}
+{"question":"da chuyen tien ma don van cho","id":"pay-confirm-time"}
+{"question":"ad ơi đã chuyển tiền mà đơn vẫn chờ?","id":"pay-confirm-time"}
+{"question":"thanh toán rồi sao chưa thấy cập nhật","id":"pay-confirm-time"}
+{"question":"thanh toan roi sao chua thay cap nhat","id":"pay-confirm-time"}
+{"question":"bạn ơi thanh toán rồi sao chưa thấy cập nhật","id":"pay-confirm-time"}
+{"question":"chuyển khoản trễ có sao không","id":"pay-late-transfer"}
+{"question":"chuyen khoan tre co sao khong","id":"pay-late-transfer"}
+{"question":"cho mình hỏi chuyển khoản trễ có sao không","id":"pay-late-transfer"}
+{"question":"chuyển tiền sau khi đơn hết hạn","id":"pay-late-transfer"}
+{"question":"chuyen tien sau khi don het han","id":"pay-late-transfer"}
+{"question":"ad ơi chuyển tiền sau khi đơn hết hạn?","id":"pay-late-transfer"}
+{"question":"đơn bị huỷ mà mình đã chuyển tiền","id":"pay-late-transfer"}
+{"question":"don bi huy ma minh da chuyen tien","id":"pay-late-transfer"}
+{"question":"bạn ơi đơn bị huỷ mà mình đã chuyển tiền","id":"pay-late-transfer"}
+{"question":"chế độ demo là gì","id":"pay-demo"}
+{"question":"che do demo la gi","id":"pay-demo"}
+{"question":"cho mình hỏi chế độ demo là gì","id":"pay-demo"}
+{"question":"đơn thử có mất tiền thật không","id":"pay-demo"}
+{"question":"don thu co mat tien that khong","id":"pay-demo"}
+{"question":"ad ơi đơn thử có mất tiền thật không?","id":"pay-demo"}
+{"question":"chính sách hoàn tiền thế nào","id":"refund-policy"}
+{"question":"chinh sach hoan tien the nao","id":"refund-policy"}
+{"question":"cho mình hỏi chính sách hoàn tiền thế nào","id":"refund-policy"}
+{"question":"huỷ phòng được hoàn bao nhiêu","id":"refund-policy"}
+{"question":"huy phong duoc hoan bao nhieu","id":"refund-policy"}
+{"question":"ad ơi huỷ phòng được hoàn bao nhiêu?","id":"refund-policy"}
+{"question":"hoàn tiền mấy phần trăm","id":"refund-policy"}
+{"question":"hoan tien may phan tram","id":"refund-policy"}
+{"question":"bạn ơi hoàn tiền mấy phần trăm","id":"refund-policy"}
+{"question":"làm sao để huỷ đơn","id":"refund-how-cancel"}
+{"question":"lam sao de huy don","id":"refund-how-cancel"}
+{"question":"cho mình hỏi làm sao để huỷ đơn","id":"refund-how-cancel"}
+{"question":"huỷ đặt phòng ở đâu","id":"refund-how-cancel"}
+{"question":"huy dat phong o dau","id":"refund-how-cancel"}
+{"question":"ad ơi huỷ đặt phòng ở đâu?","id":"refund-how-cancel"}
+{"question":"muốn huỷ phòng","id":"refund-how-cancel"}
+{"question":"muon huy phong","id":"refund-how-cancel"}
+{"question":"bạn ơi muốn huỷ phòng","id":"refund-how-cancel"}
+{"question":"khách sạn từ chối đơn thì sao","id":"refund-hotel-rejects"}
+{"question":"khach san tu choi don thi sao","id":"refund-hotel-rejects"}
+{"question":"cho mình hỏi khách sạn từ chối đơn thì sao","id":"refund-hotel-rejects"}
+{"question":"khách sạn huỷ đơn của mình","id":"refund-hotel-rejects"}
+{"question":"khach san huy don cua minh","id":"refund-hotel-rejects"}
+{"question":"ad ơi khách sạn huỷ đơn của mình?","id":"refund-hotel-rejects"}
+{"question":"bao lâu thì nhận được tiền hoàn","id":"refund-when"}
+{"question":"bao lau thi nhan duoc tien hoan","id":"refund-when"}
+{"question":"cho mình hỏi bao lâu thì nhận được tiền hoàn","id":"refund-when"}
+{"question":"tiền hoàn về tài khoản nào","id":"refund-when"}
+{"question":"tien hoan ve tai khoan nao","id":"refund-when"}
+{"question":"ad ơi tiền hoàn về tài khoản nào?","id":"refund-when"}
+{"question":"khi nào hoàn tiền xong","id":"refund-when"}
+{"question":"khi nao hoan tien xong","id":"refund-when"}
+{"question":"bạn ơi khi nào hoàn tiền xong","id":"refund-when"}
+{"question":"huỷ tour có mất phí không","id":"refund-tour"}
+{"question":"huy tour co mat phi khong","id":"refund-tour"}
+{"question":"cho mình hỏi huỷ tour có mất phí không","id":"refund-tour"}
+{"question":"huỷ yêu cầu giữ chỗ tour","id":"refund-tour"}
+{"question":"huy yeu cau giu cho tour","id":"refund-tour"}
+{"question":"ad ơi huỷ yêu cầu giữ chỗ tour?","id":"refund-tour"}
+{"question":"xem đơn đặt phòng ở đâu","id":"status-where"}
+{"question":"xem don dat phong o dau","id":"status-where"}
+{"question":"cho mình hỏi xem đơn đặt phòng ở đâu","id":"status-where"}
+{"question":"đơn của mình nằm ở đâu","id":"status-where"}
+{"question":"don cua minh nam o dau","id":"status-where"}
+{"question":"ad ơi đơn của mình nằm ở đâu?","id":"status-where"}
+{"question":"kiểm tra tình trạng đơn","id":"status-where"}
+{"question":"kiem tra tinh trang don","id":"status-where"}
+{"question":"bạn ơi kiểm tra tình trạng đơn","id":"status-where"}
+{"question":"thông báo ở đâu","id":"status-notifications"}
+{"question":"thong bao o dau","id":"status-notifications"}
+{"question":"cho mình hỏi thông báo ở đâu","id":"status-notifications"}
+{"question":"sao không thấy thông báo","id":"status-notifications"}
+{"question":"sao khong thay thong bao","id":"status-notifications"}
+{"question":"ad ơi sao không thấy thông báo?","id":"status-notifications"}
+{"question":"có nhắc lịch trước ngày đi không","id":"status-notifications"}
+{"question":"co nhac lich truoc ngay di khong","id":"status-notifications"}
+{"question":"bạn ơi có nhắc lịch trước ngày đi không","id":"status-notifications"}
+{"question":"lên lịch có kèm tour được không","id":"tour-in-plan"}
+{"question":"len lich co kem tour duoc khong","id":"tour-in-plan"}
+{"question":"cho mình hỏi lên lịch có kèm tour được không","id":"tour-in-plan"}
+{"question":"tìm tour ở đâu","id":"tour-in-plan"}
+{"question":"tim tour o dau","id":"tour-in-plan"}
+{"question":"ad ơi tìm tour ở đâu?","id":"tour-in-plan"}
+{"question":"có tour không","id":"tour-in-plan"}
+{"question":"co tour khong","id":"tour-in-plan"}
+{"question":"bạn ơi có tour không","id":"tour-in-plan"}
+{"question":"giữ chỗ tour bao lâu thì được xác nhận","id":"tour-confirm-48h"}
+{"question":"giu cho tour bao lau thi duoc xac nhan","id":"tour-confirm-48h"}
+{"question":"cho mình hỏi giữ chỗ tour bao lâu thì được xác nhận","id":"tour-confirm-48h"}
+{"question":"đặt tour xong chờ bao lâu","id":"tour-confirm-48h"}
+{"question":"dat tour xong cho bao lau","id":"tour-confirm-48h"}
+{"question":"ad ơi đặt tour xong chờ bao lâu?","id":"tour-confirm-48h"}
+{"question":"thanh toán tour thế nào","id":"tour-price-payment"}
+{"question":"thanh toan tour the nao","id":"tour-price-payment"}
+{"question":"cho mình hỏi thanh toán tour thế nào","id":"tour-price-payment"}
+{"question":"giá tour đã gồm gì","id":"tour-price-payment"}
+{"question":"gia tour da gom gi","id":"tour-price-payment"}
+{"question":"ad ơi giá tour đã gồm gì?","id":"tour-price-payment"}
+{"question":"chia sẻ trang tour cho bạn","id":"tour-page-share"}
+{"question":"chia se trang tour cho ban","id":"tour-page-share"}
+{"question":"cho mình hỏi chia sẻ trang tour cho bạn","id":"tour-page-share"}
+{"question":"lên lịch quanh một tour","id":"tour-page-share"}
+{"question":"len lich quanh mot tour","id":"tour-page-share"}
+{"question":"ad ơi lên lịch quanh một tour?","id":"tour-page-share"}
+{"question":"lịch trình được tạo thế nào","id":"plan-how"}
+{"question":"lich trinh duoc tao the nao","id":"plan-how"}
+{"question":"cho mình hỏi lịch trình được tạo thế nào","id":"plan-how"}
+{"question":"web xếp lịch dựa vào đâu","id":"plan-how"}
+{"question":"web xep lich dua vao dau","id":"plan-how"}
+{"question":"ad ơi web xếp lịch dựa vào đâu?","id":"plan-how"}
+{"question":"ai lên lịch trình cho mình","id":"plan-how"}
+{"question":"ai len lich trinh cho minh","id":"plan-how"}
+{"question":"bạn ơi ai lên lịch trình cho mình","id":"plan-how"}
+{"question":"ngân sách là cho một người hay cả nhóm","id":"plan-budget-meaning"}
+{"question":"ngan sach la cho mot nguoi hay ca nhom","id":"plan-budget-meaning"}
+{"question":"cho mình hỏi ngân sách là cho một người hay cả nhóm","id":"plan-budget-meaning"}
+{"question":"ngân sách tính thế nào","id":"plan-budget-meaning"}
+{"question":"ngan sach tinh the nao","id":"plan-budget-meaning"}
+{"question":"ad ơi ngân sách tính thế nào?","id":"plan-budget-meaning"}
+{"question":"điểm đến không có trong danh sách thì sao","id":"plan-custom-city"}
+{"question":"diem den khong co trong danh sach thi sao","id":"plan-custom-city"}
+{"question":"cho mình hỏi điểm đến không có trong danh sách thì sao","id":"plan-custom-city"}
+{"question":"lên lịch cho tỉnh khác được không","id":"plan-custom-city"}
+{"question":"len lich cho tinh khac duoc khong","id":"plan-custom-city"}
+{"question":"ad ơi lên lịch cho tỉnh khác được không?","id":"plan-custom-city"}
+{"question":"đổi quán trong lịch trình","id":"plan-edit-stops"}
+{"question":"doi quan trong lich trinh","id":"plan-edit-stops"}
+{"question":"cho mình hỏi đổi quán trong lịch trình","id":"plan-edit-stops"}
+{"question":"sửa lịch trình thế nào","id":"plan-edit-stops"}
+{"question":"sua lich trinh the nao","id":"plan-edit-stops"}
+{"question":"ad ơi sửa lịch trình thế nào?","id":"plan-edit-stops"}
+{"question":"đổi thứ tự điểm đến","id":"plan-edit-stops"}
+{"question":"doi thu tu diem den","id":"plan-edit-stops"}
+{"question":"bạn ơi đổi thứ tự điểm đến","id":"plan-edit-stops"}
+{"question":"lịch trình có xem thời tiết không","id":"plan-weather"}
+{"question":"lich trinh co xem thoi tiet khong","id":"plan-weather"}
+{"question":"cho mình hỏi lịch trình có xem thời tiết không","id":"plan-weather"}
+{"question":"lưu lịch trình thế nào","id":"trips-save"}
+{"question":"luu lich trinh the nao","id":"trips-save"}
+{"question":"cho mình hỏi lưu lịch trình thế nào","id":"trips-save"}
+{"question":"lịch trình đã lưu ở đâu","id":"trips-save"}
+{"question":"lich trinh da luu o dau","id":"trips-save"}
+{"question":"ad ơi lịch trình đã lưu ở đâu?","id":"trips-save"}
+{"question":"mất lịch trình vừa tạo","id":"trips-save"}
+{"question":"mat lich trinh vua tao","id":"trips-save"}
+{"question":"bạn ơi mất lịch trình vừa tạo","id":"trips-save"}
+{"question":"chia sẻ lịch trình cho bạn bè","id":"trips-share"}
+{"question":"chia se lich trinh cho ban be","id":"trips-share"}
+{"question":"cho mình hỏi chia sẻ lịch trình cho bạn bè","id":"trips-share"}
+{"question":"gửi link lịch trình","id":"trips-share"}
+{"question":"gui link lich trinh","id":"trips-share"}
+{"question":"ad ơi gửi link lịch trình?","id":"trips-share"}
+{"question":"xuất lịch trình ra excel","id":"trips-export"}
+{"question":"xuat lich trinh ra excel","id":"trips-export"}
+{"question":"cho mình hỏi xuất lịch trình ra excel","id":"trips-export"}
+{"question":"in lịch trình","id":"trips-export"}
+{"question":"in lich trinh","id":"trips-export"}
+{"question":"ad ơi in lịch trình?","id":"trips-export"}
+{"question":"tải lịch trình về máy","id":"trips-export"}
+{"question":"tai lich trinh ve may","id":"trips-export"}
+{"question":"bạn ơi tải lịch trình về máy","id":"trips-export"}
+{"question":"bắt đầu chuyến đi là gì","id":"trips-live"}
+{"question":"bat dau chuyen di la gi","id":"trips-live"}
+{"question":"cho mình hỏi bắt đầu chuyến đi là gì","id":"trips-live"}
+{"question":"đi nhóm theo dõi nhau được không","id":"trips-live"}
+{"question":"di nhom theo doi nhau duoc khong","id":"trips-live"}
+{"question":"ad ơi đi nhóm theo dõi nhau được không?","id":"trips-live"}
+{"question":"dẫn đường trong chuyến đi","id":"trips-live"}
+{"question":"dan duong trong chuyen di","id":"trips-live"}
+{"question":"bạn ơi dẫn đường trong chuyến đi","id":"trips-live"}
+{"question":"điểm foodtrip là gì","id":"explore-score"}
+{"question":"diem foodtrip la gi","id":"explore-score"}
+{"question":"cho mình hỏi điểm foodtrip là gì","id":"explore-score"}
+{"question":"điểm foodtrip khác đánh giá google thế nào","id":"explore-score"}
+{"question":"diem foodtrip khac danh gia google the nao","id":"explore-score"}
+{"question":"ad ơi điểm foodtrip khác đánh giá google thế nào?","id":"explore-score"}
+{"question":"tìm quán gần mình","id":"explore-nearby"}
+{"question":"tim quan gan minh","id":"explore-nearby"}
+{"question":"cho mình hỏi tìm quán gần mình","id":"explore-nearby"}
+{"question":"ăn gì gần đây","id":"explore-nearby"}
+{"question":"an gi gan day","id":"explore-nearby"}
+{"question":"ad ơi ăn gì gần đây?","id":"explore-nearby"}
+{"question":"vòng quay chọn món là gì","id":"explore-nearby"}
+{"question":"vong quay chon mon la gi","id":"explore-nearby"}
+{"question":"bạn ơi vòng quay chọn món là gì","id":"explore-nearby"}
+{"question":"lưu quán yêu thích","id":"saved-places"}
+{"question":"luu quan yeu thich","id":"saved-places"}
+{"question":"cho mình hỏi lưu quán yêu thích","id":"saved-places"}
+{"question":"địa điểm đã lưu ở đâu","id":"saved-places"}
+{"question":"dia diem da luu o dau","id":"saved-places"}
+{"question":"ad ơi địa điểm đã lưu ở đâu?","id":"saved-places"}
+{"question":"bản đồ không hiện","id":"map-not-showing"}
+{"question":"ban do khong hien","id":"map-not-showing"}
+{"question":"cho mình hỏi bản đồ không hiện","id":"map-not-showing"}
+{"question":"tìm kiếm không ra gì","id":"map-not-showing"}
+{"question":"tim kiem khong ra gi","id":"map-not-showing"}
+{"question":"ad ơi tìm kiếm không ra gì?","id":"map-not-showing"}
+{"question":"chia sẻ quán từ video thế nào","id":"share-how"}
+{"question":"chia se quan tu video the nao","id":"share-how"}
+{"question":"cho mình hỏi chia sẻ quán từ video thế nào","id":"share-how"}
+{"question":"dán link tiktok ở đâu","id":"share-how"}
+{"question":"dan link tiktok o dau","id":"share-how"}
+{"question":"ad ơi dán link tiktok ở đâu?","id":"share-how"}
+{"question":"đăng video review quán","id":"share-how"}
+{"question":"dang video review quan","id":"share-how"}
+{"question":"bạn ơi đăng video review quán","id":"share-how"}
+{"question":"sao dán link không ra quán","id":"share-not-found"}
+{"question":"sao dan link khong ra quan","id":"share-not-found"}
+{"question":"cho mình hỏi sao dán link không ra quán","id":"share-not-found"}
+{"question":"video không tìm được quán","id":"share-not-found"}
+{"question":"video khong tim duoc quan","id":"share-not-found"}
+{"question":"ad ơi video không tìm được quán?","id":"share-not-found"}
+{"question":"link facebook có dùng được không","id":"share-links"}
+{"question":"link facebook co dung duoc khong","id":"share-links"}
+{"question":"cho mình hỏi link facebook có dùng được không","id":"share-links"}
+{"question":"hỗ trợ những link nào","id":"share-links"}
+{"question":"ho tro nhung link nao","id":"share-links"}
+{"question":"ad ơi hỗ trợ những link nào?","id":"share-links"}
+{"question":"video có nhiều quán thì sao","id":"share-multi-plan"}
+{"question":"video co nhieu quan thi sao","id":"share-multi-plan"}
+{"question":"cho mình hỏi video có nhiều quán thì sao","id":"share-multi-plan"}
+{"question":"video lịch trình có tạo kế hoạch được không","id":"share-multi-plan"}
+{"question":"video lich trinh co tao ke hoach duoc khong","id":"share-multi-plan"}
+{"question":"ad ơi video lịch trình có tạo kế hoạch được không?","id":"share-multi-plan"}
+{"question":"xoá bài chia sẻ quán","id":"share-edit-delete"}
+{"question":"xoa bai chia se quan","id":"share-edit-delete"}
+{"question":"cho mình hỏi xoá bài chia sẻ quán","id":"share-edit-delete"}
+{"question":"sửa bài chia sẻ","id":"share-edit-delete"}
+{"question":"sua bai chia se","id":"share-edit-delete"}
+{"question":"ad ơi sửa bài chia sẻ?","id":"share-edit-delete"}
+{"question":"viết đánh giá ở đâu","id":"review-when"}
+{"question":"viet danh gia o dau","id":"review-when"}
+{"question":"cho mình hỏi viết đánh giá ở đâu","id":"review-when"}
+{"question":"sao không đánh giá được","id":"review-when"}
+{"question":"sao khong danh gia duoc","id":"review-when"}
+{"question":"ad ơi sao không đánh giá được?","id":"review-when"}
+{"question":"khi nào được đánh giá khách sạn","id":"review-when"}
+{"question":"khi nao duoc danh gia khach san","id":"review-when"}
+{"question":"bạn ơi khi nào được đánh giá khách sạn","id":"review-when"}
+{"question":"đánh giá có hiện tên mình không","id":"review-name-hidden"}
+{"question":"danh gia co hien ten minh khong","id":"review-name-hidden"}
+{"question":"cho mình hỏi đánh giá có hiện tên mình không","id":"review-name-hidden"}
+{"question":"đánh giá bị ẩn","id":"review-name-hidden"}
+{"question":"danh gia bi an","id":"review-name-hidden"}
+{"question":"ad ơi đánh giá bị ẩn?","id":"review-name-hidden"}
+{"question":"đăng ký tài khoản thế nào","id":"account-signin"}
+{"question":"dang ky tai khoan the nao","id":"account-signin"}
+{"question":"cho mình hỏi đăng ký tài khoản thế nào","id":"account-signin"}
+{"question":"không đăng nhập được","id":"account-signin"}
+{"question":"khong dang nhap duoc","id":"account-signin"}
+{"question":"ad ơi không đăng nhập được?","id":"account-signin"}
+{"question":"quên mật khẩu","id":"account-signin"}
+{"question":"quen mat khau","id":"account-signin"}
+{"question":"bạn ơi quên mật khẩu","id":"account-signin"}
+{"question":"có cần tài khoản để lên lịch không","id":"account-needed"}
+{"question":"co can tai khoan de len lich khong","id":"account-needed"}
+{"question":"cho mình hỏi có cần tài khoản để lên lịch không","id":"account-needed"}
+{"question":"không đăng nhập dùng được gì","id":"account-needed"}
+{"question":"khong dang nhap dung duoc gi","id":"account-needed"}
+{"question":"ad ơi không đăng nhập dùng được gì?","id":"account-needed"}
+{"question":"đăng ký làm đối tác khách sạn","id":"partner-stay-signup"}
+{"question":"dang ky lam doi tac khach san","id":"partner-stay-signup"}
+{"question":"cho mình hỏi đăng ký làm đối tác khách sạn","id":"partner-stay-signup"}
+{"question":"mình có homestay muốn hợp tác","id":"partner-stay-signup"}
+{"question":"minh co homestay muon hop tac","id":"partner-stay-signup"}
+{"question":"ad ơi mình có homestay muốn hợp tác?","id":"partner-stay-signup"}
+{"question":"đăng bán phòng trên foodtrip","id":"partner-stay-signup"}
+{"question":"dang ban phong tren foodtrip","id":"partner-stay-signup"}
+{"question":"bạn ơi đăng bán phòng trên foodtrip","id":"partner-stay-signup"}
+{"question":"danh sách kiểm tra đối tác gồm gì","id":"partner-checklist"}
+{"question":"danh sach kiem tra doi tac gom gi","id":"partner-checklist"}
+{"question":"cho mình hỏi danh sách kiểm tra đối tác gồm gì","id":"partner-checklist"}
+{"question":"sao khách sạn mình chưa hiện cho khách","id":"partner-checklist"}
+{"question":"sao khach san minh chua hien cho khach","id":"partner-checklist"}
+{"question":"ad ơi sao khách sạn mình chưa hiện cho khách?","id":"partner-checklist"}
+{"question":"hồ sơ đối tác cần giấy tờ gì","id":"partner-papers"}
+{"question":"ho so doi tac can giay to gi","id":"partner-papers"}
+{"question":"cho mình hỏi hồ sơ đối tác cần giấy tờ gì","id":"partner-papers"}
+{"question":"có cần căn cước không","id":"partner-papers"}
+{"question":"co can can cuoc khong","id":"partner-papers"}
+{"question":"ad ơi có cần căn cước không?","id":"partner-papers"}
+{"question":"phí hoa hồng bao nhiêu","id":"partner-commission"}
+{"question":"phi hoa hong bao nhieu","id":"partner-commission"}
+{"question":"cho mình hỏi phí hoa hồng bao nhiêu","id":"partner-commission"}
+{"question":"đối tác nhận tiền thế nào","id":"partner-commission"}
+{"question":"doi tac nhan tien the nao","id":"partner-commission"}
+{"question":"ad ơi đối tác nhận tiền thế nào?","id":"partner-commission"}
+{"question":"công ty tour muốn đăng tour lên web","id":"partner-tour-signup"}
+{"question":"cong ty tour muon dang tour len web","id":"partner-tour-signup"}
+{"question":"cho mình hỏi công ty tour muốn đăng tour lên web","id":"partner-tour-signup"}
+{"question":"đăng ký đối tác tour","id":"partner-tour-signup"}
+{"question":"dang ky doi tac tour","id":"partner-tour-signup"}
+{"question":"ad ơi đăng ký đối tác tour?","id":"partner-tour-signup"}
+{"question":"liên hệ hỗ trợ ở đâu","id":"contact"}
+{"question":"lien he ho tro o dau","id":"contact"}
+{"question":"cho mình hỏi liên hệ hỗ trợ ở đâu","id":"contact"}
+{"question":"báo lỗi địa chỉ quán sai","id":"contact"}
+{"question":"bao loi dia chi quan sai","id":"contact"}
+{"question":"ad ơi báo lỗi địa chỉ quán sai?","id":"contact"}
+{"question":"gặp nhân viên","id":"contact"}
+{"question":"gap nhan vien","id":"contact"}
+{"question":"bạn ơi gặp nhân viên","id":"contact"}
+{"question":"trợ lý có lưu tin nhắn không","id":"assistant-privacy"}
+{"question":"tro ly co luu tin nhan khong","id":"assistant-privacy"}
+{"question":"cho mình hỏi trợ lý có lưu tin nhắn không","id":"assistant-privacy"}
+{"question":"bạn là ai","id":"assistant-privacy"}
+{"question":"ban la ai","id":"assistant-privacy"}
+{"question":"ad ơi bạn là ai?","id":"assistant-privacy"}

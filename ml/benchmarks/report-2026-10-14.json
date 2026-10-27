@@ -1,0 +1,118 @@
+{
+  "data": "ml/colab-package/data/test.jsonl",
+  "predictions": "ml/models/baseline-20261014-4bce851abafe/test-errors.json",
+  "captions": 103,
+  "site": {
+    "positives": 2,
+    "hit1": 2,
+    "hit3": 2,
+    "negatives": 4,
+    "suggested_on_negative": 4,
+    "median_ms": 2465
+  },
+  "model": {
+    "positives": 53,
+    "found": 23,
+    "negatives": 50,
+    "invented": 37,
+    "missing": 0
+  },
+  "examples": [
+    {
+      "text": "ĂN GÌ - Ở ĐÂU - VỚI AI : Địa điểm ngắm hoàng hôn đẹp nhất ở PHÚ QUỐC | CHUỒN CHUỒN BISTRO ",
+      "gold": [
+        "PHÚ QUỐC",
+        "CHUỒN CHUỒN BISTRO & BAR"
+      ],
+      "model": [
+        "CHUỒN CHUỒN BISTRO"
+      ]
+    },
+    {
+      "text": "Về Cái Răng thưởng thức món Bánh Xèo 7 Tới ngon nức tiếng ở Cần Thơ | The best pancakes in",
+      "gold": [],
+      "model": [
+        "Bánh Xèo 7 Tới"
+      ]
+    },
+    {
+      "text": "Khám Phá Tiệm Cà Phê Bình Minh Ơi Ngắm Đồi Thông Tuyệt Đẹp ở Đà Lạt",
+      "gold": [
+        "Tiệm Cà Phê Bình Minh Ơi"
+      ],
+      "model": []
+    },
+    {
+      "text": "Nhà hàng Chạn ở Huế là quán cơm niêu và món ăn gia đình rất nổi tiếng .",
+      "gold": [],
+      "model": [
+        "Nhà hàng Chạn",
+        "quán cơm niêu và món ăn gia đình"
+      ]
+    },
+    {
+      "text": "Nhà hàng Lúa Đại Việt với các món ngon ba miền ở phố tây Bùi Viện",
+      "gold": [
+        "Nhà hàng Lúa Đại Việt"
+      ],
+      "model": [
+        "Nhà hàng Lúa Đại Việt"
+      ]
+    },
+    {
+      "text": "Top 7 quán cơm phần ngon ở Cần Thơ # comphancantho",
+      "gold": [],
+      "model": []
+    },
+    {
+      "text": "NHÀ HÀNG NGON 160 PASTEUR QUẬN 1",
+      "gold": [
+        "NHÀ HÀNG NGON"
+      ],
+      "model": [
+        "NHÀ HÀNG NGON 160"
+      ]
+    },
+    {
+      "text": "Tiệm Cafe Túi Mơ To Đà Lạt - Góc Nhỏ Bình Yên Giữa Núi Đồi",
+      "gold": [],
+      "model": [
+        "Tiệm Cafe Túi Mơ"
+      ]
+    },
+    {
+      "text": "Khám phá nhà hàng Lúa Đại Việt trên phố đi bộ Bùi Viện , Quận 1 , Tp . HCM với ZaiTri",
+      "gold": [
+        "nhà hàng Lúa Đại Việt"
+      ],
+      "model": [
+        "nhà hàng Lúa Đại Việt"
+      ]
+    },
+    {
+      "text": "하노이v-log]하노이 분위기 좋은 카페 XOFA_브런치카페_예쁜카페_소파_Xofa Café & Bistro",
+      "gold": [],
+      "model": [
+        "XOFA_브런치카페_예쁜카페_소파_Xofa   "
+      ]
+    },
+    {
+      "text": "Du lịch Phú Quốc - Quán cà phê Chuồn Chuồn Bistro & Bar nơi sống ảo có view đồi tuyệt đẹp ",
+      "gold": [
+        "Phú Quốc",
+        "Chuồn Chuồn Bistro & Bar"
+      ],
+      "model": [
+        "Quán cà phê Chuồn Chuồn Bistro"
+      ]
+    },
+    {
+      "text": "Review : Cafe Giảng - Lotte Westlake I Hà Nội I Vietnam I Thang Vu",
+      "gold": [],
+      "model": [
+        "Cafe Giảng",
+        "Lotte Westlake"
+      ]
+    }
+  ]
+}

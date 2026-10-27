@@ -1,0 +1,869 @@
+{
+ "t0": {
+  "B": [
+   "Bánh Xèo 7 Tới"
+  ],
+  "L": [
+   "Cái Răng",
+   "Cần Thơ",
+   "Vietnam"
+  ]
+ },
+ "t1": {
+  "B": [
+   "Nhà hàng Chạn"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "t2": {
+  "B": [
+   "CHUỒN CHUỒN BISTRO & BAR"
+  ],
+  "L": [
+   "PHÚ QUỐC"
+  ]
+ },
+ "t3": {
+  "B": [],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t4": {
+  "B": [
+   "Tiệm Cà Phê Bình Minh Ơi"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t5": {
+  "B": [
+   "Nhà hàng Lúa Đại Việt"
+  ],
+  "L": [
+   "Bùi Viện"
+  ]
+ },
+ "t6": {
+  "B": [
+   "Tiệm Cafe Túi Mơ To"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t7": {
+  "B": [
+   "NHÀ HÀNG NGON"
+  ],
+  "L": [
+   "PASTEUR",
+   "QUẬN 1"
+  ]
+ },
+ "t8": {
+  "B": [
+   "Xofa Café & Bistro"
+  ],
+  "L": [],
+  "flag": "N",
+  "note": "Tiêu đề lẫn tiếng Hàn; 하노이 (Hà Nội) dính chữ nên không gán được."
+ },
+ "t9": {
+  "B": [
+   "nhà hàng Lúa Đại Việt"
+  ],
+  "L": [
+   "Bùi Viện",
+   "Quận 1",
+   "Tp . HCM"
+  ]
+ },
+ "t10": {
+  "B": [
+   "Quán cà phê Chuồn Chuồn Bistro & Bar"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t11": {
+  "B": [
+   "TIỆM CÀ PHÊ NOỌNG ƠI"
+  ],
+  "L": [
+   "Linh Đông",
+   "TP.HCM"
+  ],
+  "flag": "N",
+  "note": "Token \"TP.Thủ\" còn dính dấu chấm nên không gán được Thủ Đức."
+ },
+ "t12": {
+  "B": [
+   "Cafe Giảng"
+  ],
+  "L": [
+   "Lotte Westlake",
+   "Hà Nội",
+   "Vietnam"
+  ]
+ },
+ "t13": {
+  "B": [
+   "Ra Khơi"
+  ],
+  "L": [
+   "Phú Quốc"
+  ],
+  "flag": "N",
+  "note": "Tên trong ngoặc kép: Nhà Hàng Hải Sản \" Ra Khơi \" — chỉ gán phần trong ngoặc."
+ },
+ "t14": {
+  "B": [],
+  "L": [
+   "phú quốc"
+  ],
+  "flag": "N",
+  "note": "Có thể là lời chào hoặc nhà hàng Xin Chào ở Phú Quốc — cần xem video."
+ },
+ "t15": {
+  "B": [
+   "Ra Khơi restaurant"
+  ],
+  "L": [
+   "Phú quốc"
+  ]
+ },
+ "t16": {
+  "B": [
+   "quán cà phê Bình Minh ơi"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t17": {
+  "B": [
+   "nhà hàng Dũng phố núi"
+  ],
+  "L": [
+   "Tràng An",
+   "Ninh Bình"
+  ]
+ },
+ "t18": {
+  "B": [],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t19": {
+  "B": [
+   "Quán cơm Nam Đô"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t20": {
+  "B": [],
+  "L": [
+   "Địa Trung Hải",
+   "Phú Quốc"
+  ],
+  "flag": "X",
+  "note": "Video bất động sản, không phải ẩm thực/du lịch."
+ },
+ "t21": {
+  "B": [
+   "Cafe Giảng"
+  ],
+  "L": [
+   "Hà Nội"
+  ]
+ },
+ "t22": {
+  "B": [
+   "Cà phê Trứng Giảng"
+  ],
+  "L": [
+   "Hà Nội"
+  ]
+ },
+ "t23": {
+  "B": [],
+  "L": [
+   "PHÚ QUỐC",
+   "Vinpearl",
+   "Vinwonders",
+   "Grand World",
+   "Safari",
+   "Hòn Thơm",
+   "Phu Quoc"
+  ]
+ },
+ "t24": {
+  "B": [
+   "Bánh xèo 7 Tới"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t25": {
+  "B": [
+   "Nhà hàng Ra Khơi"
+  ],
+  "L": [
+   "30 Tháng 4",
+   "Phú Quốc",
+   "Kiên Giang"
+  ]
+ },
+ "t26": {
+  "B": [
+   "43 Factory Coffee Roaster",
+   "XLIII Specialty Coffee"
+  ],
+  "L": [
+   "Da Nang"
+  ]
+ },
+ "t27": {
+  "B": [
+   "nhà hàng Ra Khơi"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t28": {
+  "B": [
+   "Coffee Chuồn Chuồn Bistro & Bar"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t29": {
+  "B": [
+   "cửa hàng cafe Thực Giang"
+  ],
+  "L": [
+   "Tràng An",
+   "Ninh Bình"
+  ]
+ },
+ "t30": {
+  "B": [
+   "cơm niêu Chạn"
+  ],
+  "L": [
+   "Huế",
+   "Nguyễn Thái Học"
+  ]
+ },
+ "t31": {
+  "B": [
+   "Lẩu Vịt Nấu Chao Thành Giao"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t32": {
+  "B": [
+   "cà phê Chuồn chuồn Bistro & Bar"
+  ],
+  "L": [
+   "Phú quốc",
+   "Dương Đông",
+   "Phú Quốc"
+  ]
+ },
+ "t33": {
+  "B": [],
+  "L": [
+   "PHÚ QUỐC",
+   "BẮC ĐẢO",
+   "NAM ĐẢO",
+   "VINPEAL",
+   "HÒN THƠM",
+   "SAFARI"
+  ]
+ },
+ "t34": {
+  "B": [
+   "QUÁN CAFE TÚI MƠ TO"
+  ],
+  "L": [
+   "ĐÀ LẠT"
+  ]
+ },
+ "t35": {
+  "B": [
+   "Cơm Đốt Thố Hội An"
+  ],
+  "L": [
+   "Linh Đàm"
+  ],
+  "flag": "N",
+  "note": "Quán tên 'Cơm Đốt Thố Hội An' ở Linh Đàm (Hà Nội)? Hội An có thể là địa danh."
+ },
+ "t36": {
+  "B": [],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t37": {
+  "B": [
+   "Bánh xèo chú 7 Tới"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t38": {
+  "B": [
+   "Hải sản Mộc quán",
+   "Moc Seafood"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "t39": {
+  "B": [],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t40": {
+  "B": [
+   "Tiệm Cà Phê Túi Mơ To"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t41": {
+  "B": [
+   "Cafe Chuồn Chuồn",
+   "Chuon Chuon Bistro & Bar"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t42": {
+  "B": [],
+  "L": [
+   "Hà Nội"
+  ]
+ },
+ "t43": {
+  "B": [
+   "quán cơm Quê Ngoại"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t44": {
+  "B": [
+   "Nhà Hàng Xin Chào Seafood Restaurant"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t45": {
+  "B": [
+   "LẨU VỊT NẤU CHAO Thành Giao"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t46": {
+  "B": [
+   "Quán cà phê Bình Minh ơi"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t47": {
+  "B": [
+   "quán Chuồn Chuồn coffee Bistro sky bar"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t48": {
+  "B": [],
+  "L": [
+   "Hà Nội"
+  ]
+ },
+ "t49": {
+  "B": [
+   "Lẩu vịt nấu chao Thành Giao"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t50": {
+  "B": [
+   "cà phê Giảng",
+   "Giang coffee"
+  ],
+  "L": [
+   "Hà Nội",
+   "Hanoi"
+  ]
+ },
+ "t51": {
+  "B": [
+   "nhà hàng xịn chào 66"
+  ],
+  "L": [
+   "Dương Đông",
+   "Phú Quốc"
+  ],
+  "flag": "N",
+  "note": "Có lẽ là 'Xin Chào 66' viết sai chính tả."
+ },
+ "t52": {
+  "B": [
+   "cafe Giảng"
+  ],
+  "L": [
+   "Hà Nội"
+  ]
+ },
+ "t53": {
+  "B": [
+   "Xin chào 68"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t54": {
+  "B": [
+   "quán cf Bình Minh Ơi"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t55": {
+  "B": [
+   "Tiệm Cà Phê Túi Mơ To"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t56": {
+  "B": [
+   "Cafe Túi Mơ To"
+  ],
+  "L": [
+   "Da Lat",
+   "Đà Lạt"
+  ]
+ },
+ "t57": {
+  "B": [
+   "Lẩu Vịt Nấu Chao Thành Giao"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t58": {
+  "B": [
+   "Cơm niêu Chạn"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "t59": {
+  "B": [
+   "Tiệm Cà Phê Noọng Ơi"
+  ],
+  "L": [
+   "Linh Đông",
+   "Thủ Đức",
+   "Hồ Chí Minh",
+   "Vietnam"
+  ]
+ },
+ "t60": {
+  "B": [
+   "Cơm niêu Chạn"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "t61": {
+  "B": [
+   "Tiệm Cà Phê Túi Mơ To"
+  ],
+  "L": [
+   "Đà Lạt",
+   "Lâm Đồng",
+   "Vietnam"
+  ]
+ },
+ "t62": {
+  "B": [
+   "BÁNH XÈO 7 TỚI"
+  ],
+  "L": [
+   "CẦN THƠ"
+  ]
+ },
+ "t63": {
+  "B": [
+   "Wyndham Garden"
+  ],
+  "L": [
+   "Phú Quốc",
+   "Venice"
+  ]
+ },
+ "t64": {
+  "B": [
+   "chú 7 Tới"
+  ],
+  "L": [
+   "Cần Thơ",
+   "miền Tây"
+  ],
+  "flag": "N",
+  "note": "Món 'bánh xèo củ hủ dừa' đứng trước tên — chỉ gán 'chú 7 Tới'."
+ },
+ "t65": {
+  "B": [
+   "NHÀ HÀNG RA KHƠI"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t66": {
+  "B": [],
+  "L": [
+   "cần thơ"
+  ]
+ },
+ "t67": {
+  "B": [
+   "Cà phê Giảng"
+  ],
+  "L": [
+   "Nguyễn Hữu Huân",
+   "Hà Nội"
+  ]
+ },
+ "t68": {
+  "B": [
+   "Bánh Xèo 7 Tới"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t69": {
+  "B": [
+   "Quán hải sản Ra Khơi",
+   "Ra Khoi seafood restaurant"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t70": {
+  "B": [
+   "Bánh Xèo 7 Tới"
+  ],
+  "L": [
+   "Cần Thơ",
+   "Việt Nam"
+  ]
+ },
+ "t71": {
+  "B": [
+   "CHUỒN CHUỒN BISTRO & SKYBAR"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t72": {
+  "B": [
+   "nhà hàng Xin Chào"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t73": {
+  "B": [
+   "Lẩu vịt nấu chao Thành Giao"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t74": {
+  "B": [],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t75": {
+  "B": [
+   "cơm niêu Chạn"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "t76": {
+  "B": [
+   "quán cà phê Túi Mơ To"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t77": {
+  "B": [],
+  "L": [
+   "Hà Nội"
+  ],
+  "flag": "N",
+  "note": "'Quán Phở Gia Truyền' có thể là tên quán (Phở Gia Truyền Bát Đàn) — cần xem video."
+ },
+ "t78": {
+  "B": [
+   "Bình Minh ơi coffee"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t79": {
+  "B": [
+   "Red Dzao House"
+  ],
+  "L": [
+   "Sa Pa",
+   "Tây Bắc"
+  ]
+ },
+ "t80": {
+  "B": [
+   "cơm niêu Chạn"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "t81": {
+  "B": [
+   "CÀ PHÊ GIẢNG"
+  ],
+  "L": [
+   "HÀ NỘI"
+  ]
+ },
+ "t82": {
+  "B": [
+   "quán ăn Mộc Seafood"
+  ],
+  "L": [
+   "Tô Hiến Thành",
+   "Đà Nẵng"
+  ]
+ },
+ "t83": {
+  "B": [
+   "Lúa Đại Việt"
+  ],
+  "L": [
+   "Bùi Viện",
+   "Quận 1",
+   "Sài Gòn"
+  ]
+ },
+ "t84": {
+  "B": [
+   "Nhà Hàng Thịt Dê Chính Thư",
+   "Chinh Thu Goat Meat Restaurant"
+  ],
+  "L": [
+   "Hoa Lư",
+   "Ninh Bình"
+  ]
+ },
+ "t85": {
+  "B": [
+   "cafe Giảng"
+  ],
+  "L": [
+   "Hà Nội"
+  ]
+ },
+ "t86": {
+  "B": [
+   "Tiệm cà phê Túi Mơ To"
+  ],
+  "L": []
+ },
+ "t87": {
+  "B": [
+   "Bình Minh ơi"
+  ],
+  "L": [
+   "ĐÀ LẠT",
+   "Đà Lạt"
+  ],
+  "flag": "N",
+  "note": "Tên trong ngoặc kép — chỉ gán phần trong ngoặc."
+ },
+ "t88": {
+  "B": [],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t89": {
+  "B": [
+   "nhà hàng Lúa Đại Việt"
+  ],
+  "L": [
+   "Quận 1",
+   "TpHcm"
+  ]
+ },
+ "t90": {
+  "B": [
+   "Quán cà phê Bình Minh Ơi"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t91": {
+  "B": [],
+  "L": [
+   "Chợ Phú Quốc",
+   "Phú Quốc"
+  ]
+ },
+ "t92": {
+  "B": [
+   "Bình Minh Ơi"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "t93": {
+  "B": [
+   "XLIII Coffee"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "t94": {
+  "B": [
+   "Nhà hàng hải sản Ra Khơi"
+  ],
+  "L": [
+   "Phú Quốc"
+  ]
+ },
+ "t95": {
+  "B": [
+   "HẢI SẢN RA KHƠI"
+  ],
+  "L": [
+   "PHÚ QUỐC"
+  ]
+ },
+ "t96": {
+  "B": [
+   "BÁNH XÈO 7 TỚI"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t97": {
+  "B": [
+   "Lẩu vịt nấu chao Thành Giao"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "t98": {
+  "B": [
+   "Chạn"
+  ],
+  "L": [
+   "Huế"
+  ],
+  "flag": "N",
+  "note": "'Cơm Niêu Huế - Chạn': tên quán là Chạn (Cơm niêu Chạn)."
+ },
+ "t99": {
+  "B": [
+   "Tiệm cà phê Noọng Ơi"
+  ],
+  "L": [
+   "Tây Bắc",
+   "Sài Gòn"
+  ]
+ },
+ "t100": {
+  "B": [],
+  "L": [
+   "Quận 3",
+   "TPHCM"
+  ]
+ },
+ "t101": {
+  "B": [
+   "cơm niêu Chạn"
+  ],
+  "L": [
+   "HUẾ",
+   "Huế"
+  ]
+ },
+ "t102": {
+  "B": [
+   "CHUỒN CHUỒN BISTRO & SKYBAR"
+  ],
+  "L": [
+   "PHÚ QUỐC",
+   "PHU QUOC"
+  ]
+ }
+}

@@ -1,0 +1,684 @@
+{
+ "r0": {
+  "B": [
+   "HẢI SẢN THANH SƯƠNG"
+  ],
+  "L": [
+   "NHA TRANG"
+  ]
+ },
+ "r1": {
+  "B": [
+   "Bánh Mì Phượng"
+  ],
+  "L": [
+   "Hội An",
+   "Hàn Quốc"
+  ]
+ },
+ "r2": {
+  "B": [
+   "Ocean Coffee"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "r3": {
+  "B": [
+   "Mê Linh Coffee Garden"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "r4": {
+  "B": [
+   "Hải Sản Thanh Sương"
+  ],
+  "L": [
+   "Nha Trang"
+  ]
+ },
+ "r5": {
+  "B": [
+   "Me Linh Coffee Garden"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "r6": {
+  "B": [
+   "XÓM MỚI GARDEN"
+  ],
+  "L": []
+ },
+ "r7": {
+  "B": [
+   "Thanh Sương 2"
+  ],
+  "L": [
+   "Nha Trang"
+  ],
+  "flag": "N",
+  "note": "Emoji nằm giữa 'Quán Hải Sản 🦀 Thanh Sương 2' — chỉ gán phần tên sau emoji."
+ },
+ "r8": {
+  "B": [
+   "Mê Linh Coffee Garden"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "r9": {
+  "B": [
+   "Bà Dưỡng",
+   "Bà Ngọc"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ],
+  "flag": "N",
+  "note": "Hai quán Bánh Xèo Bà Dưỡng và Bà Ngọc, chữ 'Bánh Xèo' đứng tách xa tên."
+ },
+ "r10": {
+  "B": [
+   "Vựa Cua Đăng Quân"
+  ],
+  "L": [
+   "Cần Thơ"
+  ],
+  "flag": "N",
+  "note": "Tên kênh trùng tên cửa hàng — gán BUSINESS; 'Quán Bún Riêu Nổi Tiếng' là mô tả chung."
+ },
+ "r11": {
+  "B": [
+   "bánh mì Phượng"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r12": {
+  "B": [
+   "DU MIÊN GARDEN CAFE"
+  ],
+  "L": [
+   "PHAN VĂN TRỊ",
+   "GÒ VẤP",
+   "HỒ CHÍ MINH"
+  ]
+ },
+ "r13": {
+  "B": [
+   "Bánh Mì Phượng"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r14": {
+  "B": [
+   "Faifo Coffee"
+  ],
+  "L": [
+   "Hoi An"
+  ]
+ },
+ "r15": {
+  "B": [
+   "Bánh Xèo Bà Dưỡng"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "r16": {
+  "B": [
+   "Mộc Nhân Villa",
+   "Ocean Coffee"
+  ],
+  "L": [
+   "Novaworld",
+   "Phan Thiết"
+  ]
+ },
+ "r17": {
+  "B": [
+   "Du Miên Garden Cafe"
+  ],
+  "L": [
+   "Phan Văn Trị",
+   "Quận Gò Vấp",
+   "TP . HCM"
+  ],
+  "flag": "N",
+  "note": "'[ Zen Cafe ]' có thể là tên kênh, để O."
+ },
+ "r18": {
+  "B": [
+   "DU MIÊN GARDEN CAFE"
+  ],
+  "L": [
+   "SÀI GÒN"
+  ]
+ },
+ "r19": {
+  "B": [
+   "Bánh Xèo Bà Dưỡng"
+  ],
+  "L": []
+ },
+ "r20": {
+  "B": [
+   "Vua Chả Cá"
+  ],
+  "L": [
+   "Nguyễn Thị Định",
+   "Trung Hoà",
+   "Cầu Giấy",
+   "Hà Nội",
+   "Vietnam"
+  ]
+ },
+ "r21": {
+  "B": [
+   "Faifo Coffee"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r22": {
+  "B": [
+   "Bánh Xèo Bà Dưỡng"
+  ],
+  "L": [
+   "Da Nang"
+  ]
+ },
+ "r23": {
+  "B": [
+   "Mê Linh Coffee Garden"
+  ],
+  "L": [
+   "Đà Lạt",
+   "Da Lat",
+   "VietNam"
+  ]
+ },
+ "r24": {
+  "B": [
+   "Bánh xèo bà Dưỡng"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "r25": {
+  "B": [
+   "VUA CHẢ CÁ"
+  ],
+  "L": []
+ },
+ "r26": {
+  "B": [
+   "Du Miên Garden Cafe"
+  ],
+  "L": [
+   "Sài Gòn"
+  ]
+ },
+ "r27": {
+  "B": [
+   "NHÀ HÀNG HOA SỨ"
+  ],
+  "L": [
+   "CẦN THƠ"
+  ]
+ },
+ "r28": {
+  "B": [
+   "quán hải sản Thanh Sương"
+  ],
+  "L": [
+   "Nha Trang"
+  ]
+ },
+ "r29": {
+  "B": [
+   "Bánh xèo Bà Dưỡng"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "r30": {
+  "B": [
+   "Trình Cà Phê & Bistro"
+  ],
+  "L": [
+   "Hội An",
+   "Sông Hoài"
+  ]
+ },
+ "r31": {
+  "B": [
+   "Mê Linh Coffee Garden"
+  ],
+  "L": []
+ },
+ "r32": {
+  "B": [
+   "Vựa Cua Đăng Quân"
+  ],
+  "L": [],
+  "flag": "N",
+  "note": "Video nấu ăn tại nhà; tên kênh trùng tên cửa hàng."
+ },
+ "r33": {
+  "B": [
+   "Vua Chả Cá"
+  ],
+  "L": [
+   "Giảng Võ",
+   "Hà Nội",
+   "Vietnam"
+  ]
+ },
+ "r34": {
+  "B": [
+   "Xóm Mới Garden"
+  ],
+  "L": [
+   "Nha Trang"
+  ]
+ },
+ "r35": {
+  "B": [
+   "Bánh Xèo Bà Dưỡng"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "r36": {
+  "B": [
+   "Faifo coffee"
+  ],
+  "L": []
+ },
+ "r37": {
+  "B": [
+   "Khách sạn Hậu Giang",
+   "Nhà hàng Hoa Sứ"
+  ],
+  "L": []
+ },
+ "r38": {
+  "B": [
+   "HẢI SẢN THANH SƯƠNG"
+  ],
+  "L": [
+   "Nha Trang"
+  ]
+ },
+ "r39": {
+  "B": [
+   "Vựa Cua Đăng Quân"
+  ],
+  "L": [],
+  "flag": "N",
+  "note": "Video nấu ăn tại nhà; tên kênh trùng tên cửa hàng."
+ },
+ "r40": {
+  "B": [
+   "Vựa Cua Đăng Quân 2"
+  ],
+  "L": []
+ },
+ "r41": {
+  "B": [
+   "Faifo Coffee"
+  ],
+  "L": [
+   "Hoi An"
+  ]
+ },
+ "r42": {
+  "B": [
+   "Nhà hàng Hoa Sứ"
+  ],
+  "L": [
+   "Cần Thơ"
+  ]
+ },
+ "r43": {
+  "B": [
+   "Ocean Coffee"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "r44": {
+  "B": [
+   "Faifo Coffee"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r45": {
+  "B": [
+   "bánh mì Phượng"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r46": {
+  "B": [
+   "Thắng Cố A Quỳnh"
+  ],
+  "L": [
+   "Sa Pa",
+   "SaPa",
+   "Vietnam"
+  ]
+ },
+ "r47": {
+  "B": [
+   "NHÀ HÀNG HOA SỨ"
+  ],
+  "L": [
+   "CẦN THƠ"
+  ]
+ },
+ "r48": {
+  "B": [
+   "Vua Chả Cá"
+  ],
+  "L": [
+   "Hà Nội"
+  ]
+ },
+ "r49": {
+  "B": [
+   "VUA CHẢ CÁ"
+  ],
+  "L": [
+   "Hà Nội",
+   "Q1",
+   "Sài Gòn"
+  ]
+ },
+ "r50": {
+  "B": [
+   "Xóm Mới Garden Restaurant"
+  ],
+  "L": [
+   "Da Nang"
+  ]
+ },
+ "r51": {
+  "B": [
+   "Ocean Coffee"
+  ],
+  "L": [
+   "Phan Thiết",
+   "Bình Thuận"
+  ]
+ },
+ "r52": {
+  "B": [
+   "Bánh mì Phượng"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r53": {
+  "B": [
+   "Bánh khoái Hạnh"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "r54": {
+  "B": [
+   "BÁNH MÌ PHƯỢNG"
+  ],
+  "L": [
+   "HỘI AN"
+  ]
+ },
+ "r55": {
+  "B": [
+   "Cơm Niêu PanDa"
+  ],
+  "L": [
+   "Mũi Né",
+   "Phan Thiết"
+  ]
+ },
+ "r56": {
+  "B": [
+   "Cà Phê Mê Linh",
+   "Mê Linh Coffee Garden"
+  ],
+  "L": [
+   "Tà Nung",
+   "Đà Lạt"
+  ]
+ },
+ "r57": {
+  "B": [
+   "Nhà hàng hải sản Cây Bàng"
+  ],
+  "L": [
+   "Mũi Né",
+   "Phan Thiết"
+  ]
+ },
+ "r58": {
+  "B": [
+   "Ocean Dune Coffee"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "r59": {
+  "B": [
+   "Bánh mì PHƯỢNG"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r60": {
+  "B": [
+   "Bánh Xèo Bà Dưỡng"
+  ],
+  "L": [
+   "Đà Nẵng",
+   "Miền Trung"
+  ]
+ },
+ "r61": {
+  "B": [
+   "Ocean Cofee"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "r62": {
+  "B": [
+   "Vựa Cua Đăng Quân"
+  ],
+  "L": [],
+  "flag": "N",
+  "note": "Video nấu ăn tại nhà; tên kênh trùng tên cửa hàng."
+ },
+ "r63": {
+  "B": [
+   "Faifo"
+  ],
+  "L": [
+   "HỘI AN",
+   "VIETNAM"
+  ]
+ },
+ "r64": {
+  "B": [
+   "DU MIÊN GARDEN CAFE"
+  ],
+  "L": [
+   "VIỆT NAM"
+  ]
+ },
+ "r65": {
+  "B": [
+   "KHÁCH SẠN HOA SỨ"
+  ],
+  "L": [
+   "CẦN THƠ"
+  ]
+ },
+ "r66": {
+  "B": [
+   "Vua Chả Cá"
+  ],
+  "L": [
+   "Đào Tấn",
+   "Hà Nội",
+   "Vietnam"
+  ]
+ },
+ "r67": {
+  "B": [
+   "XÓM MỚI GARDEN"
+  ],
+  "L": [
+   "ĐÀ NẴNG"
+  ]
+ },
+ "r68": {
+  "B": [
+   "Ocean Coffee"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "r69": {
+  "B": [
+   "Hải Sản Thanh Sương"
+  ],
+  "L": [
+   "Nha Trang"
+  ]
+ },
+ "r70": {
+  "B": [
+   "Cơm Niêu Panda"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "r71": {
+  "B": [
+   "Xóm Mới Garden"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "r72": {
+  "B": [
+   "Faifo Coffee"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r73": {
+  "B": [
+   "NHÀ HÀNG HOA SỨ"
+  ],
+  "L": [
+   "Cần Thơ",
+   "Ô Môn"
+  ]
+ },
+ "r74": {
+  "B": [
+   "OCEAN Coffee"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "r75": {
+  "B": [
+   "Quán Hải Sản Thanh Sương"
+  ],
+  "L": [
+   "Nah Trang"
+  ]
+ },
+ "r76": {
+  "B": [
+   "bánh mì Phượng"
+  ],
+  "L": [
+   "Hội An"
+  ]
+ },
+ "r77": {
+  "B": [
+   "Hải sản Thanh Sương"
+  ],
+  "L": [
+   "nha trang"
+  ]
+ },
+ "r78": {
+  "B": [
+   "Vua Chả Cá"
+  ],
+  "L": [
+   "Mai Hắc Đế",
+   "Hà Nội",
+   "Vietnam"
+  ]
+ },
+ "r79": {
+  "B": [
+   "Mê Linh Coffee Garden"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "r80": {
+  "B": [
+   "Vua Chả Cá"
+  ],
+  "L": [
+   "Hà Nội"
+  ]
+ },
+ "r81": {
+  "B": [
+   "Faifo Coffee"
+  ],
+  "L": []
+ }
+}
