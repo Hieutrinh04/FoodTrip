@@ -1,5 +1,6 @@
 import { searchPlaces, reverseGeocode, haversineKm } from './trackAsia.js'
 import { searchMapArea } from './mapAreaSearch.js'
+import { isWantedPlace } from './placeTypes.js'
 
 const KEYWORDS = {
   buffet: 'nhà hàng buffet',
@@ -105,6 +106,9 @@ export async function searchExplorePlaces({ foodType, category = 'all', query, c
     if (!result?.location) continue
     const nameKey = result.name.toLowerCase().normalize('NFC').replace(/\s+/g, ' ').trim()
     if (!nameKey || seenIds.has(result.id) || seenNames.has(nameKey)) continue
+    // The provider matches names, not kinds: drop the ward, the contractor and
+    // the phone shop that only share a word with the search.
+    if (!isWantedPlace(result.types, result.name, category)) continue
     const place = normalizePlace(result, { keyword, category, cityId: city?.id, origin })
     if (origin && place.distanceKm != null && place.distanceKm > radiusKm) continue
     seenIds.add(result.id)

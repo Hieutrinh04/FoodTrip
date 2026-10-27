@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Broadcast,
   Check,
@@ -19,7 +19,7 @@ import LiveTripMap from '../components/map/LiveTripMap.jsx'
 import ItineraryTicket from '../components/ticket/ItineraryTicket.jsx'
 import { getCity, getPlace, registerCustomPlaces } from '../data/destinations.js'
 import { fetchCustomPlaces } from '../lib/customPlacesCache.js'
-import { getPublicItinerary } from '../lib/itineraries.js'
+import { liveTripError, manageLiveTrip } from '../lib/liveTrips.js'
 import { normalizeLiveRoomToken } from '../lib/liveTripRoom.js'
 import { shareOrCopyLink } from '../lib/shareLink.js'
 import { useLiveTripRoom } from '../hooks/useLiveTripRoom.js'
@@ -35,14 +35,14 @@ const C = {
     invalidTitle: 'Liên kết phòng không hợp lệ',
     invalidBody: 'Hãy mở đúng liên kết được người tạo chuyến đi chia sẻ.',
     notFoundTitle: 'Không mở được lịch trình',
-    notFoundBody: 'Lịch trình có thể đã bị xoá hoặc không còn công khai.',
+    notFoundBody: 'Lịch trình có thể đã bị xoá hoặc phòng không còn cho phép truy cập.',
     plan: 'Tạo lịch trình mới',
     share: 'Mời thành viên', copied: 'Đã sao chép link', shared: 'Đã chia sẻ', shareError: 'Không thể chia sẻ liên kết.',
     members: 'Thành viên trong phòng', online: (n) => `${n} người đang trực tuyến`,
     noSharing: 'Chưa ai chia sẻ vị trí trực tiếp.',
     name: 'Tên hiển thị', saveName: 'Cập nhật',
     shareLocation: 'Chia sẻ vị trí trực tiếp', locating: 'Đang lấy vị trí…', stopSharing: 'Dừng chia sẻ vị trí',
-    privacy: 'Tọa độ chỉ được truyền tạm thời cho người có link phòng; FoodTrip không lưu lịch sử vị trí.',
+    privacy: 'Chỉ thành viên của phòng được xem vị trí. Máy chủ giữ tọa độ mới nhất, ẩn sau 15 giây không cập nhật và tự xóa. Dừng chia sẻ sẽ xóa tọa độ.',
     connected: 'Đã kết nối trực tiếp', connecting: 'Đang kết nối…', connectionError: 'Mất kết nối — đang chờ thử lại.', unavailable: 'Chưa cấu hình Supabase Realtime.',
     locationDenied: 'Trình duyệt đã từ chối quyền vị trí. Hãy cho phép Location cho trang này rồi thử lại.',
     locationTimeout: 'Thiết bị chưa xác định được vị trí. Hãy bật GPS rồi thử lại.',
@@ -59,13 +59,13 @@ const C = {
     subtitle: 'See the route and every member’s current location on one map.',
     loading: 'Opening the live journey room…',
     invalidTitle: 'Invalid room link', invalidBody: 'Open the exact invitation link shared by the trip organiser.',
-    notFoundTitle: 'Cannot open itinerary', notFoundBody: 'The itinerary may have been deleted or is no longer public.',
+    notFoundTitle: 'Cannot open itinerary', notFoundBody: 'The itinerary may have been deleted or the room no longer allows access.',
     plan: 'Plan a new trip',
     share: 'Invite members', copied: 'Link copied', shared: 'Shared', shareError: 'Could not share the link.',
     members: 'Room members', online: (n) => `${n} online`, noSharing: 'No one is sharing a live location yet.',
     name: 'Display name', saveName: 'Update',
     shareLocation: 'Share live location', locating: 'Finding your location…', stopSharing: 'Stop sharing location',
-    privacy: 'Coordinates are sent temporarily to people with the room link; FoodTrip does not store location history.',
+    privacy: 'Only room members can read locations. The server keeps the latest fix, hides it after 15 seconds without updates, and expires it automatically. Stopping sharing deletes it.',
     connected: 'Live connection active', connecting: 'Connecting…', connectionError: 'Connection lost — waiting to retry.', unavailable: 'Supabase Realtime is not configured.',
     locationDenied: 'Location permission was denied. Allow Location for this site and try again.',
     locationTimeout: 'Your device could not determine a location. Turn on GPS and try again.',
@@ -113,35 +113,55 @@ function locationErrorText(code, c) {
 export default function LiveTrip() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()
+  const { user } = useAuth()
+  return <LiveTripRoom key={`${user?.id}-${id}-${searchParams.get('room')}`} />
+}
+
+function LiveTripRoom() {
+  const { id } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const { lang } = useLanguage()
   const { user } = useAuth()
   const c = C[lang]
   const roomToken = normalizeLiveRoomToken(searchParams.get('room'))
   const suggestedName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || ''
-  const live = useLiveTripRoom({ roomToken, suggestedName })
+  const live = useLiveTripRoom({ roomToken, suggestedName, itineraryId: id, userId: user?.id })
   const [status, setStatus] = useState(roomToken ? 'loading' : 'invalid')
   const [trip, setTrip] = useState(null)
   const [activeDay, setActiveDay] = useState(0)
   const [nameDraft, setNameDraft] = useState(live.member.name)
   const [shareStatus, setShareStatus] = useState('idle')
   const [followMemberId, setFollowMemberId] = useState(null)
+  const [managing, setManaging] = useState(false)
+  const [roomError, setRoomError] = useState('')
 
   useEffect(() => {
     if (!roomToken) return
     let cancelled = false
-    getPublicItinerary(id).then(async (data) => {
-      if (cancelled) return
-      if (!data) {
-        setStatus('not-found')
-        return
-      }
-      await hydrateCustomPlaces(data.days)
+    if (!live.trip) return undefined
+    const data = live.trip
+    hydrateCustomPlaces(data.days).then(() => {
       if (cancelled) return
       setTrip(data)
       setStatus('ready')
-    })
+    }).catch(() => { if (!cancelled) setStatus('not-found') })
     return () => { cancelled = true }
-  }, [id, roomToken])
+  }, [id, roomToken, live.trip])
+
+  async function manageRoom(action, memberId = null) {
+    if (managing) return
+    if (action === 'close' && !window.confirm(lang === 'vi' ? 'Kết thúc phòng và dừng chia sẻ vị trí của cả nhóm?' : 'End the room and stop group location sharing?')) return
+    if (action === 'remove' && !window.confirm(lang === 'vi' ? 'Gỡ thành viên này khỏi phòng?' : 'Remove this member?')) return
+    setManaging(true); setRoomError('')
+    try {
+      const result = await manageLiveTrip(live.roomId, action, memberId)
+      if (action === 'rotate') setSearchParams({ room: result.token })
+      else if (action === 'close') navigate('/trips')
+      else live.retry()
+    } catch (err) { setRoomError(liveTripError(err, lang)) }
+    finally { setManaging(false) }
+  }
 
   const mapStops = useMemo(() => (trip ? buildDayStops(trip, activeDay) : []), [trip, activeDay])
   const memberLocations = useMemo(
@@ -169,6 +189,7 @@ export default function LiveTrip() {
     setNameDraft(savedName)
   }
 
+  if (live.error) return <section className="mx-auto max-w-2xl px-5 py-16 text-center"><h1 className="text-2xl font-bold">{liveTripError(live.error, lang)}</h1><div className="mt-5 flex justify-center gap-4"><button onClick={live.retry} className="rounded-full border border-line px-5 py-3">{lang === 'vi' ? 'Thử lại' : 'Retry'}</button><Link to="/trips" className="rounded-full bg-chili px-5 py-3 text-chili-ink">{lang === 'vi' ? 'Lịch trình của tôi' : 'My trips'}</Link></div></section>
   if (status === 'loading') return <div className="mx-auto max-w-[1180px] px-5 py-16"><Spinner label={c.loading} /></div>
   if (status === 'invalid' || status === 'not-found') {
     return (
@@ -205,6 +226,11 @@ export default function LiveTrip() {
         </button>
       </div>
       {shareStatus === 'error' && <p className="mb-4 text-sm text-chili">{c.shareError}</p>}
+      {roomError && <p role="alert" className="mb-4 text-chili">{roomError}</p>}
+      <div className="mb-5 flex flex-wrap gap-3 text-sm">
+        {live.ownerId === user?.id && <><button disabled={managing} className="rounded-full border border-line px-4 py-2" onClick={() => manageRoom('rotate')}>{lang === 'vi' ? 'Đổi link mời' : 'Rotate invite link'}</button><button disabled={managing} className="rounded-full border border-chili px-4 py-2 text-chili" onClick={() => manageRoom('close')}>{lang === 'vi' ? 'Kết thúc phòng' : 'End room'}</button></>}
+        <button className="rounded-full border border-line px-4 py-2" onClick={() => navigate('/trips')}>{lang === 'vi' ? 'Rời phòng' : 'Leave room'}</button>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="min-w-0 overflow-hidden rounded-2xl border border-line bg-surface shadow-soft">
@@ -238,7 +264,7 @@ export default function LiveTrip() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h2 className="flex items-center gap-2 font-bold"><UsersThree size={20} className="text-chili" /> {c.members}</h2>
-                <p className="mt-1 text-sm text-ink-muted">{c.online(live.members.length)}</p>
+                <p className="mt-1 text-sm text-ink-muted">{c.online(live.members.filter((m) => m.online).length)}</p>
               </div>
               <span className={`mt-1 h-2.5 w-2.5 rounded-full ${live.connectionStatus === 'connected' ? 'bg-herb' : 'bg-lantern'}`} />
             </div>
@@ -254,10 +280,11 @@ export default function LiveTrip() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold">{member.name}{member.id === live.member.id ? (lang === 'vi' ? ' (bạn)' : ' (you)') : ''}</div>
                     <div className={`flex items-center gap-1 text-xs ${member.sharing ? 'text-herb' : 'text-ink-faint'}`}>
-                      <MapPin size={12} weight={member.sharing ? 'fill' : 'regular'} /> {member.sharing ? c.sharing : c.waiting}
+                      <MapPin size={12} weight={member.sharing ? 'fill' : 'regular'} /> {member.sharing ? c.sharing : member.online ? c.waiting : (lang === 'vi' ? 'Ngoại tuyến' : 'Offline')}
                     </div>
                     {member.sharing && member.location?.accuracy != null && <div className="mt-0.5 text-2xs text-ink-faint">{c.accuracy(member.location.accuracy)}</div>}
                   </div>
+                  {live.ownerId === user?.id && member.id !== user.id && <button disabled={managing} className="text-xs text-chili" onClick={() => manageRoom('remove', member.id)}>{lang === 'vi' ? 'Gỡ' : 'Remove'}</button>}
                   {member.sharing && (
                     <button
                       type="button"
@@ -283,7 +310,7 @@ export default function LiveTrip() {
                 <button type="submit" aria-label={c.saveName} className="grid w-10 place-items-center rounded-lg border border-line-strong hover:border-chili hover:text-chili"><PencilSimple size={16} /></button>
               </div>
             </form>
-            {live.sharingStatus === 'sharing' ? (
+            {live.sharingStatus !== 'off' ? (
               <button onClick={live.stopSharing} className="flex w-full items-center justify-center gap-2 rounded-full bg-ink px-4 py-3 font-utility text-sm font-semibold text-paper">
                 <Stop size={16} weight="fill" /> {c.stopSharing}
               </button>
@@ -292,6 +319,7 @@ export default function LiveTrip() {
                 <NavigationArrow size={16} weight="fill" /> {live.sharingStatus === 'locating' ? c.locating : c.shareLocation}
               </button>
             )}
+            {live.sharingStatus === 'locating' && <p className="mt-2 text-xs text-ink-muted" role="status">{c.locating}</p>}
             {live.locationError && <p className="mt-3 text-sm text-chili" role="alert">{locationErrorText(live.locationError, c)}</p>}
             <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-ink-faint"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-herb" /> {c.privacy}</p>
           </section>

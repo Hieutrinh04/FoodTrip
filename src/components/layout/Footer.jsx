@@ -16,7 +16,7 @@ const CONTENT = {
     cols: [
       { title: 'Sản phẩm', links: [{ to: '/explore', label: 'Khám phá' }, { to: '/plan', label: 'Lịch trình AI' }, { to: '/community', label: 'Cộng đồng du lịch' }] },
       { title: 'Công ty', links: [{ to: '/about', label: 'Về chúng tôi' }, { to: '/blog', label: 'Blog ẩm thực' }, { to: '/hop-tac', label: 'Hợp tác với FoodTrip' }] },
-      { title: 'Hỗ trợ', links: [{ to: '/help', label: 'Trung tâm trợ giúp' }, { to: '/contact', label: 'Liên hệ' }, { to: '/terms', label: 'Điều khoản' }] },
+      { title: 'Hỗ trợ', links: [{ to: '/help', label: 'Trung tâm trợ giúp' }, { to: '/permissions', label: 'Vai trò & quyền truy cập' }, { to: '/contact', label: 'Liên hệ' }, { to: '/terms', label: 'Điều khoản' }] },
     ],
     bottom: '© 2026 FoodTrip. Made with vị giác tại Việt Nam.',
   },
@@ -29,7 +29,7 @@ const CONTENT = {
     cols: [
       { title: 'Product', links: [{ to: '/explore', label: 'Explore' }, { to: '/plan', label: 'AI Itinerary' }, { to: '/community', label: 'Travel community' }] },
       { title: 'Company', links: [{ to: '/about', label: 'About us' }, { to: '/blog', label: 'Food blog' }, { to: '/hop-tac', label: 'Partner with FoodTrip' }] },
-      { title: 'Support', links: [{ to: '/help', label: 'Help center' }, { to: '/contact', label: 'Contact' }, { to: '/terms', label: 'Terms' }] },
+      { title: 'Support', links: [{ to: '/help', label: 'Help center' }, { to: '/permissions', label: 'Roles & permissions' }, { to: '/contact', label: 'Contact' }, { to: '/terms', label: 'Terms' }] },
     ],
     bottom: '© 2026 FoodTrip. Made with vị giác in Vietnam.',
   },

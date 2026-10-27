@@ -1,6 +1,7 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
 import { fetchHotelGallery, hasHotelbedsKeys } from '../_shared/hotelbeds.ts'
 import { photoHostAllowed, photoMatchesHotel } from '../_shared/hotelMatch.ts'
+import { hasSerperKey, serperFetch } from '../_shared/serper.ts'
 
 /**
  * The photo gallery for one hotel's booking page.
@@ -26,7 +27,6 @@ import { photoHostAllowed, photoMatchesHotel } from '../_shared/hotelMatch.ts'
 // cost far more CDN round trips than the three or four shown on the page.
 const MAX_ROOM_CODES = 6
 
-const IMAGES_URL = 'https://google.serper.dev/images'
 const MAX_WEB_PHOTOS = 8
 
 // Below this a thumbnail is too small to fill a hero, and tiny results are
@@ -51,15 +51,9 @@ type SerperImage = {
  * showing one photo, so anything that cannot clear all three is dropped.
  */
 async function webPhotos(name: string, cityName: string) {
-  const apiKey = Deno.env.get('SERPER_API_KEY')
-  if (!apiKey || !name) return []
+  if (!hasSerperKey() || !name) return []
   try {
-    const response = await fetch(IMAGES_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'X-API-KEY': apiKey },
-      body: JSON.stringify({ q: `${name} ${cityName} khách sạn phòng`, gl: 'vn', hl: 'vi', num: 30 }),
-      signal: AbortSignal.timeout(15000),
-    })
+    const response = await serperFetch('images', { q: `${name} ${cityName} khách sạn phòng`, gl: 'vn', hl: 'vi', num: 30 })
     if (!response.ok) throw new Error(`Serper images ${response.status}`)
     const json = await response.json() as { images?: SerperImage[] }
 

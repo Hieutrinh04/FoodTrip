@@ -5,10 +5,13 @@ import Nav from './Nav.jsx'
 import Footer from './Footer.jsx'
 import { pageVariants } from '../../motion/variants.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
+import GuestLoginBar, { useGuestBarVisible } from '../auth/GuestLoginBar.jsx'
+import AssistantChat from '../assistant/AssistantChat.jsx'
 
 export default function Layout() {
   const location = useLocation()
   const { authError } = useAuth()
+  const guestBar = useGuestBarVisible()
   const isExplore = location.pathname === '/explore'
   const mainRef = useRef(null)
 
@@ -18,7 +21,7 @@ export default function Layout() {
   }, [location.pathname])
 
   return (
-    <div className="min-h-dvh flex flex-col relative z-10">
+    <div className={`min-h-dvh flex flex-col relative z-10 ${guestBar ? 'pb-36 md:pb-24' : ''}`}>
       <Nav />
       {authError && <div role="alert" className="border-b border-line bg-paper-2 px-5 py-3 text-center text-sm">Chưa kiểm tra được phiên đăng nhập. / Could not check your session. <button className="underline" onClick={() => window.location.reload()}>Tải lại / Retry</button></div>}
       <motion.main
@@ -33,6 +36,8 @@ export default function Layout() {
         <Outlet />
       </motion.main>
       {!isExplore && <Footer />}
+      <GuestLoginBar />
+      <AssistantChat />
     </div>
   )
 }

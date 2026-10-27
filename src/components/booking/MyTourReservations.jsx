@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { CalendarBlank, Compass, MapPin, X } from '@phosphor-icons/react'
-import { tourRpc, tourError, tourMoney, tourDate, TOUR_STATUS } from '../../lib/tours.js'
+import { ArrowSquareOut, CalendarBlank, Compass, MapPin, X } from '@phosphor-icons/react'
+import { tourRpc, tourError, tourMoney, tourDate, tourStatusLabel } from '../../lib/tours.js'
+import { tourReviewable } from '../../lib/reviews.js'
+import ReviewForm from '../reviews/ReviewForm.jsx'
 
 const STATUS_STYLE = {
   requested: 'bg-lantern/20 text-lantern',
@@ -19,6 +21,7 @@ const C = {
     people: (n) => `${n} người`,
     cancel: 'Huỷ giữ chỗ', confirmCancel: 'Huỷ giữ chỗ tour này? Chỗ sẽ được trả lại cho chuyến.',
     loading: 'Đang tải tour đã đặt…', retry: 'Tải lại danh sách tour',
+    tourPage: 'Trang tour', cancelNote: 'Khách hủy yêu cầu chưa thanh toán',
     acceptedTerms: 'Nội dung tại thời điểm giữ chỗ', programme: 'Lịch trình', included: 'Bao gồm', notIncluded: 'Không bao gồm', policy: 'Chính sách',
   },
   en: {
@@ -29,12 +32,13 @@ const C = {
     people: (n) => `${n} people`,
     cancel: 'Cancel reservation', confirmCancel: 'Cancel this tour reservation? The seats go back to the departure.',
     loading: 'Loading reserved tours…', retry: 'Reload tour reservations',
+    tourPage: 'Tour page', cancelNote: 'Guest cancelled an unpaid request',
     acceptedTerms: 'Terms accepted when reserved', programme: 'Programme', included: 'Included', notIncluded: 'Not included', policy: 'Policies',
   },
 }
 
 /** The signed-in traveller's tour requests, inside "My bookings". */
-export default function MyTourReservations({ lang }) {
+export default function MyTourReservations({ lang, reviews = new Map(), onReviewed }) {
   const c = C[lang]
   const [rows, setRows] = useState(null)
   const [error, setError] = useState('')
@@ -47,9 +51,9 @@ export default function MyTourReservations({ lang }) {
     setError('')
     tourRpc('tour_my_reservations')
       .then((data) => { if (active) { setRows(data ?? []); setError('') } })
-      .catch((e) => { if (active) { setRows([]); setError(tourError(e)) } })
+      .catch((e) => { if (active) { setRows([]); setError(tourError(e, lang)) } })
     return () => { active = false }
-  }, [tick])
+  }, [tick, lang])
 
   // Arriving from the planner at /bookings#tours: the section only exists once
   // the list has loaded, so the browser cannot jump to it by itself.
@@ -61,10 +65,10 @@ export default function MyTourReservations({ lang }) {
     if (!window.confirm(c.confirmCancel)) return
     setBusyId(id)
     try {
-      await tourRpc('tour_set_reservation', { p_booking: id, p_status: 'cancelled', p_note: 'Khách hủy yêu cầu chưa thanh toán' })
+      await tourRpc('tour_set_reservation', { p_booking: id, p_status: 'cancelled', p_note: c.cancelNote })
       setTick((n) => n + 1)
     } catch (e) {
-      setError(tourError(e))
+      setError(tourError(e, lang))
     } finally {
       setBusyId(null)
     }
@@ -87,12 +91,12 @@ export default function MyTourReservations({ lang }) {
             <article key={r.id} className="flex flex-col gap-2.5 rounded-xl border border-line bg-surface p-5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="text-base font-bold">{r.title}</div>
+                  {r.tour_id ? <Link to={`/tour/${r.tour_id}`} className="text-base font-bold hover:text-chili">{r.title}</Link> : <div className="text-base font-bold">{r.title}</div>}
                   <div className="mt-0.5 text-xs text-ink-faint">{r.operator_name}</div>
                 </div>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 font-utility text-2xs font-bold uppercase tracking-wide ${STATUS_STYLE[r.status] ?? ''}`}>{TOUR_STATUS[r.status] ?? r.status}</span>
+                <span className={`shrink-0 rounded-full px-2.5 py-1 font-utility text-2xs font-bold uppercase tracking-wide ${STATUS_STYLE[r.status] ?? ''}`}>{tourStatusLabel(r.status, lang)}</span>
               </div>
-              <div className="flex items-center gap-1.5 text-sm text-ink-muted"><CalendarBlank size={14} className="shrink-0 text-herb" />{tourDate(r.starts_at)}</div>
+              <div className="flex items-center gap-1.5 text-sm text-ink-muted"><CalendarBlank size={14} className="shrink-0 text-herb" />{tourDate(r.starts_at, lang)}</div>
               <div className="flex items-start gap-1.5 text-sm text-ink-muted"><MapPin size={14} className="mt-0.5 shrink-0 text-chili" />{r.meeting_point}</div>
               <div className="text-sm">{c.people(r.seats)} · <span className="font-bold tabular text-chili">{tourMoney(r.total_price)}</span></div>
               {r.note && <p className="text-sm text-ink-muted">{r.note}</p>}
@@ -108,6 +112,10 @@ export default function MyTourReservations({ lang }) {
                   </div>
                 </details>
               )}
+              {(reviews.has(r.id) || tourReviewable(r)) && (
+                <ReviewForm kind="tour" refId={r.id} review={reviews.get(r.id)} lang={lang} onSaved={onReviewed} />
+              )}
+              {r.tour_id && <Link to={`/tour/${r.tour_id}`} className="inline-flex items-center gap-1 self-start font-utility text-xs font-semibold text-chili hover:underline">{c.tourPage}<ArrowSquareOut size={12} /></Link>}
               {['requested', 'confirmed'].includes(r.status) && new Date(r.starts_at) > new Date() && (
                 <button
                   type="button"

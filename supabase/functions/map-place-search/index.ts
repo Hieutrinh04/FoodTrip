@@ -1,5 +1,6 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
 import { callSerperMaps, haversineKm, shapePlace } from '../_shared/serperPlace.ts'
+import { hasSerperKey } from '../_shared/serper.ts'
 
 /**
  * Searches Google's Maps data for every place of a kind around a point.
@@ -72,8 +73,7 @@ Deno.serve(async (request) => {
   const radiusKm = Math.min(Math.max(Number(params.get('radiusKm')) || 3, 0.3), MAX_RADIUS_KM)
   const pages = Math.min(Math.max(Number(params.get('pages')) || 2, 1), MAX_PAGES)
 
-  const apiKey = Deno.env.get('SERPER_API_KEY')
-  if (!apiKey) return jsonResponse({ status: 'no-key', places: [] })
+  if (!hasSerperKey()) return jsonResponse({ status: 'no-key', places: [] })
 
   try {
     const zoom = zoomForRadius(radiusKm)
@@ -83,7 +83,7 @@ Deno.serve(async (request) => {
     const failures: string[] = []
     const responses = await Promise.all(
       Array.from({ length: pages }, (_, index) =>
-        callSerperMaps(apiKey, {
+        callSerperMaps({
           q: query,
           ...locationBias,
           gl: 'vn',

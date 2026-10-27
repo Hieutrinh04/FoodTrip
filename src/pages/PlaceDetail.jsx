@@ -15,6 +15,7 @@ import { usePlaceEnrichment } from '../hooks/usePlaceEnrichment.js'
 import { useVideoReviewsForPlace } from '../hooks/useVideoReviewsForPlace.js'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
+import { useLoginPrompt } from '../auth/LoginPromptContext.jsx'
 import { getSavedPlaceIds, setPlaceSaved } from '../lib/savedPlaces.js'
 import { fadeUp, staggerContainer, viewportOnce } from '../motion/variants.js'
 import NotFound from './NotFound.jsx'
@@ -72,6 +73,7 @@ export default function PlaceDetail() {
   const c = C[lang]
   const place = getPlace(id)
   const { user } = useAuth()
+  const openLogin = useLoginPrompt()
   const [saved, setSaved] = useState(false)
   const enrichment = usePlaceEnrichment(place)
   const videoReviews = useVideoReviewsForPlace({ googlePlaceId: enrichment.data?.placeId, name: place?.name?.vi })
@@ -92,6 +94,7 @@ export default function PlaceDetail() {
   const open = isOpenNow(place.hours)
 
   async function toggleSave() {
+    if (!user) { openLogin(lang === 'vi' ? 'Đăng nhập để lưu địa điểm này' : 'Sign in to save this place'); return }
     const next = !saved
     setSaved(next)
     try {

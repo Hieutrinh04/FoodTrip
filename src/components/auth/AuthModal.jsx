@@ -66,11 +66,11 @@ function friendlyError(error, c) {
   return c.generic
 }
 
-export default function AuthModal({ onClose }) {
+export default function AuthModal({ onClose, initialMode = 'signIn', reason = '' }) {
   const { lang } = useLanguage()
   const c = COPY[lang] || COPY.vi
   const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState('signIn')
+  const [mode, setMode] = useState(initialMode === 'signUp' ? 'signUp' : 'signIn')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
@@ -176,7 +176,7 @@ export default function AuthModal({ onClose }) {
               onClick={() => switchMode(item)} onKeyDown={(event) => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); const next = event.key === 'Home' ? 'signIn' : event.key === 'End' ? 'signUp' : mode === 'signIn' ? 'signUp' : 'signIn'; switchMode(next); document.getElementById(`auth-tab-${next}`)?.focus() } }}>{c[item]}</button>)}
           </div>
           <div role="tabpanel" id="auth-panel" aria-labelledby={`auth-tab-${mode}`}>
-            <div className="ft-auth-form-heading"><span className="ft-auth-step">{isSignUp ? '01 / LET’S GO' : '01 / WELCOME BACK'}</span><h2 id="auth-modal-title">{isSignUp ? c.titleUp : c.titleIn}</h2><p id="auth-modal-description">{isSignUp ? c.subUp : c.subIn}</p></div>
+            <div className="ft-auth-form-heading"><span className="ft-auth-step">{isSignUp ? '01 / LET’S GO' : '01 / WELCOME BACK'}</span><h2 id="auth-modal-title">{isSignUp ? c.titleUp : c.titleIn}</h2><p id="auth-modal-description">{reason || (isSignUp ? c.subUp : c.subIn)}</p></div>
             <form onSubmit={handleSubmit} className="ft-auth-form" aria-busy={busy}>
               <label className="ft-auth-label" htmlFor="auth-email">{c.email}</label>
               <div className="ft-auth-input"><EnvelopeSimple size={18} aria-hidden="true" /><input ref={emailRef} id="auth-email" name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} required disabled={busy} value={email} onChange={(event) => { setEmail(event.target.value); setError('') }} placeholder={c.emailPlaceholder} /></div>

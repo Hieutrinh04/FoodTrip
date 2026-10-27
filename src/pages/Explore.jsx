@@ -523,6 +523,11 @@ export default function Explore() {
       <div className="explore-panels" data-view={mobileView}>
         <section className="explore-results" aria-label={copy.list}>
           <div className="explore-results-toolbar"><span role="status" className="font-utility text-xs font-semibold text-ink-muted">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang tìm địa điểm…' : 'Finding places…') : copy.results(filtered.length)}</span><select value={sort} onChange={(event) => setSort(event.target.value)} aria-label={copy.sort} className="shrink-0 rounded-full border border-line-strong bg-surface px-3 py-2 font-utility text-xs text-ink-muted"><option value="relevant">{copy.relevant}</option><option value="highest">{copy.highest}</option><option value="low-price">{copy.lowPrice}</option></select></div>
+          {/* Google's map data (photos, ratings) comes through Serper; without it
+              the basemap provider stands in, and says so rather than looking broken. */}
+          {liveStatus !== 'loading' && filtered.length > 0 && filtered.every((place) => place.source === 'track-asia') && (
+            <p role="note" className="sticky top-[57px] z-[2] mx-4 mb-2 rounded-lg bg-paper-2 px-3 py-2 text-2xs text-ink-muted">{lang === 'vi' ? 'Ảnh và đánh giá từ Google Maps tạm thời không có — đang hiển thị dữ liệu bản đồ cơ bản.' : 'Google Maps photos and ratings are unavailable right now — showing basic map data.'}</p>
+          )}
           {(foodType !== 'all' || category !== 'all') && !userLocation && !mapSearchOrigin && cityFilter === 'all' && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-3 text-xs text-ink-muted">{lang === 'vi' ? 'Chọn thành phố, dùng “Gần tôi” hoặc bấm trực tiếp lên bản đồ.' : 'Choose a city, use “Near me”, or click the map.'}</div>}
           {livePlaces.length > 0 && <p className="explore-result-note">{lang === 'vi' ? 'Điểm phù hợp /10 do FoodTrip tính, không phải điểm đánh giá /5.' : 'FoodTrip suitability /10 is distinct from user ratings /5.'}</p>}
           {liveStatus === 'error' && <p role="alert" className="explore-result-note">{lang === 'vi' ? 'Chưa tải được kết quả trực tuyến. Đang hiển thị địa điểm có sẵn phù hợp bộ lọc.' : 'Live search is unavailable. Showing matching saved catalogue places.'}</p>}

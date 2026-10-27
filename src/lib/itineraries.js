@@ -1,4 +1,5 @@
 import { supabase, hasSupabase } from './supabaseClient.js'
+import { isUuid } from './communityValidation.js'
 
 function daysWithStartDate(days, startDate) {
   if (!startDate || !days?.[0]?.[0]) return days
@@ -72,7 +73,7 @@ export async function setItineraryPublic(id, isPublic) {
 
 /** Fetches a shared itinerary by id — works for anonymous visitors, since RLS allows reading public rows without auth. */
 export async function getPublicItinerary(id) {
-  if (!hasSupabase) return null
+  if (!hasSupabase || !isUuid(id)) return null
   const { data, error } = await supabase.from('itineraries').select('*').eq('id', id).eq('is_public', true).single()
   if (error) return null
   return normalizeItinerary(data)

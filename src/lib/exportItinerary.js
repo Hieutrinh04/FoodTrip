@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx'
 import { getPlace, TRANSPORT } from '../data/destinations.js'
-import { priceRangeLabel } from './pricing.js'
+import { placePrice, isCuratedPlace } from './pricing.js'
 import { vnDate, vnTime } from './tourTrip.js'
 
 function formatVnd(n) {
@@ -76,8 +76,9 @@ function buildRows({ city, days, startDate, people, budget, transport, lang }) {
         localized(place?.name,lang,stop.placeId),
         localized(stop.note,lang),
         localized(place?.address,lang),
-        place?.rating ?? '',
-        place ? priceRangeLabel(place.price, lang) : '',
+        // The real rating (Google's, looked up when the trip was made), or the curated one — not a search placeholder.
+        stop.liveRating ?? (isCuratedPlace(place) ? place.rating ?? '' : ''),
+        place ? placePrice(place, lang).label : '',
         localized(stop.distance,lang),
       ])
     })

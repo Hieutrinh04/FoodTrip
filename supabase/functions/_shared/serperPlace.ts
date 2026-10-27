@@ -1,3 +1,4 @@
+import { serperFetch } from './serper.ts'
 import { normalizeSearchText } from './relevance.ts'
 
 /**
@@ -82,12 +83,8 @@ export function haversineKm(a: { lat: number; lng: number }, b: { lat: number; l
   return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }
 
-export async function callSerperMaps(apiKey: string, body: Record<string, unknown>) {
-  const response = await fetch('https://google.serper.dev/maps', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify(body),
-  })
+export async function callSerperMaps(body: Record<string, unknown>) {
+  const response = await serperFetch('maps', body)
   if (!response.ok) throw new Error(`Serper ${response.status}: ${(await response.text()).slice(0, 180)}`)
   return await response.json() as { places?: SerperPlace[] }
 }

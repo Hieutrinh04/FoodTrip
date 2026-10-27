@@ -32,7 +32,8 @@ export function destinationNames(city, cityId) {
   return [...new Set(names.filter((name) => name.length >= 2))]
 }
 
-function inDestination(row, names) {
+/** Whether a tour runs in the place these names (from destinationNames) describe. */
+export function inDestination(row, names) {
   const text = ` ${normalizeVi(`${row.destination} ${row.title}`)} `
   return names.some((name) => text.includes(` ${name} `))
 }

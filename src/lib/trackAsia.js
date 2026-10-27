@@ -11,10 +11,17 @@
 // dataset, opening hours default to "always open", and photos fall back to
 // the themed gradient placeholders.
 
-const apiKey = import.meta.env.VITE_TRACK_ASIA_API_KEY || ''
+// The keys in the order they are tried: the main one, then a backup that takes
+// over for the rest of the session once the main one is rejected or out of
+// quota. Track-Asia answers 401 for a bad key; 403/429 cover a revoked or
+// exhausted one.
+const apiKeys = [import.meta.env.VITE_TRACK_ASIA_API_KEY, import.meta.env.VITE_TRACK_ASIA_API_KEY_BACKUP].filter(Boolean)
+let keyIndex = 0
+const currentKey = () => apiKeys[keyIndex] ?? ''
+const KEY_REJECTED = new Set([401, 402, 403, 429])
 
 /** Kept under the old name so every `if (!hasMapsKey)` guard in the app still reads the same. */
-export const hasMapsKey = Boolean(apiKey)
+export const hasMapsKey = apiKeys.length > 0
 
 const GEOCODE_URL = 'https://maps.track-asia.com/api/v2/geocode/json'
 const STYLE_URL = 'https://maps.track-asia.com/styles/v1/streets.json'
@@ -33,9 +40,26 @@ async function fetchWithTimeout(url, timeoutMs, options = {}) {
   }
 }
 
+/**
+ * Fetches a Track-Asia URL built for a key, moving on to the next key when the
+ * current one is refused. Only the request that saw the refusal advances the
+ * key, so parallel requests failing together skip one key, not several.
+ */
+async function fetchWithKey(buildUrl, timeoutMs) {
+  for (;;) {
+    const tried = keyIndex
+    const res = timeoutMs ? await fetchWithTimeout(buildUrl(currentKey()), timeoutMs) : await fetch(buildUrl(currentKey()))
+    if (!KEY_REJECTED.has(res.status) || tried >= apiKeys.length - 1) return res
+    if (keyIndex === tried) {
+      keyIndex = tried + 1
+      console.warn(`track-asia: key ${tried + 1}/${apiKeys.length} refused (${res.status}), switching to the next`)
+    }
+  }
+}
+
 /** MapLibre style URL — the style already embeds the key for its own glyph/sprite/tile sources. */
 export function mapStyleUrl() {
-  return `${STYLE_URL}?key=${apiKey}`
+  return `${STYLE_URL}?key=${currentKey()}`
 }
 
 // Track-Asia exposes three tile paths and only one carries the full basemap:
@@ -66,13 +90,13 @@ export async function loadMapStyle({ lightweight = false } = {}) {
   if (!hasMapsKey) return null
   if (!stylePromise) {
     stylePromise = (async () => {
-      const res = await fetchWithTimeout(mapStyleUrl(), STYLE_TIMEOUT_MS)
+      const res = await fetchWithKey((key) => `${STYLE_URL}?key=${key}`, STYLE_TIMEOUT_MS)
       if (!res.ok) throw new Error(`track-asia style ${res.status}`)
       const style = await res.json()
       for (const source of Object.values(style.sources ?? {})) {
         if (source.type !== 'vector') continue
         delete source.url
-        source.tiles = [`${TILE_TEMPLATE}?key=${apiKey}`]
+        source.tiles = [`${TILE_TEMPLATE}?key=${currentKey()}`]
         source.minzoom ??= 0
         source.maxzoom ??= 16
         source.attribution ??= '<a href="https://track-asia.com/">TrackAsia</a> · OpenStreetMap'
@@ -97,12 +121,15 @@ export async function loadMapStyle({ lightweight = false } = {}) {
   return style
 }
 
-/** Safety net: keep any stray label-only tile URL off the map. */
+/**
+ * Every map request passes through here: keep any stray label-only tile URL
+ * off the map, and give Track-Asia requests the key in use now, so a map whose
+ * style was loaded before a switch to the backup key keeps loading tiles.
+ */
 export function mapRequestTransform(url) {
-  if (url.startsWith(LABEL_ONLY_TILE_HOST)) {
-    return { url: url.replace(LABEL_ONLY_TILE_HOST, 'https://tiles.track-asia.com/tiles/v1') }
-  }
-  return { url }
+  let next = url.startsWith(LABEL_ONLY_TILE_HOST) ? url.replace(LABEL_ONLY_TILE_HOST, 'https://tiles.track-asia.com/tiles/v1') : url
+  if (keyIndex > 0 && /^https:\/\/[a-z]+\.track-asia\.com\//.test(next)) next = next.replace(/([?&]key=)[^&]*/, `$1${currentKey()}`)
+  return { url: next }
 }
 
 function normalizeResult(r) {
@@ -117,8 +144,7 @@ function normalizeResult(r) {
 }
 
 async function geocodeRequest(params) {
-  const query = new URLSearchParams({ ...params, key: apiKey, new_admin: 'true' })
-  const res = await fetch(`${GEOCODE_URL}?${query}`)
+  const res = await fetchWithKey((key) => `${GEOCODE_URL}?${new URLSearchParams({ ...params, key, new_admin: 'true' })}`)
   if (!res.ok) throw new Error(`track-asia geocode ${res.status}`)
   const json = await res.json()
   if (json.status !== 'OK') return []
@@ -210,8 +236,8 @@ export async function fetchRouteDetails(points, transport = 'car', { geometry = 
   const promise = (async () => {
     try {
       const overview = geometry ? 'full' : 'false'
-      const res = await fetchWithTimeout(
-        `${ROUTE_URL}/${profile}/${coords}?key=${apiKey}&overview=${overview}&geometries=geojson&steps=false`,
+      const res = await fetchWithKey(
+        (key) => `${ROUTE_URL}/${profile}/${coords}?key=${key}&overview=${overview}&geometries=geojson&steps=false`,
         ROUTE_TIMEOUT_MS
       )
       if (!res.ok) return null

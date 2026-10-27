@@ -239,3 +239,68 @@ export function hotelIdFromLink(text) {
   const match = String(text ?? '').match(/\/booking\/([^/?#\s]+)/)
   return match ? decodeURIComponent(match[1]) : ''
 }
+
+/** The partner side of the business: live properties, tours, what is owed. */
+export async function getPartnerOverview() {
+  const { data, error } = await supabase.rpc('admin_partner_overview')
+  if (error) throw error
+  return data
+}
+
+/** Partners with finished bookings not yet settled: { stays: [...], tours: [...] }. */
+export async function getSettlementCandidates() {
+  const { data, error } = await supabase.rpc('admin_settlement_candidates')
+  if (error) throw error
+  return data
+}
+
+export async function listSettlements() {
+  const { data, error } = await supabase.from('settlements')
+    .select('*, property:properties(name), operator:tour_operators(name)').order('created_at', { ascending: false }).limit(200)
+  if (error) throw error
+  return { rows: data, count: data.length }
+}
+
+/** Settles one partner's finished bookings up to a date ('stay' | 'tour'). */
+export async function createSettlement(kind, targetId, until) {
+  const { data, error } = await supabase.rpc('admin_create_settlement', { p_kind: kind, p_target: targetId, p_until: until })
+  if (error) throw error
+  return data
+}
+
+export async function markSettlementPaid(id, reference) {
+  const { error } = await supabase.rpc('admin_mark_settlement_paid', { p_settlement: id, p_reference: reference })
+  if (error) throw error
+}
+
+/** Suspends (with a reason) or restores a property; a suspended one takes no new bookings. */
+export async function setPropertyActive(id, active, note = '') {
+  const { error } = await supabase.rpc('admin_set_property_active', { p_property: id, p_active: active, p_note: note })
+  if (error) throw error
+}
+
+export async function listAllTours() {
+  const { data, error } = await supabase.rpc('admin_list_tours')
+  if (error) throw error
+  return { rows: data ?? [], count: (data ?? []).length }
+}
+
+/** Hides a published tour, with a reason kept in the activity log. */
+export async function hideTour(id, note) {
+  const { error } = await supabase.rpc('admin_hide_tour', { p_tour: id, p_note: note })
+  if (error) throw error
+}
+
+/** Bookings owed a refund (guest cancelled under the policy, or hotel rejected), oldest first. */
+export async function listRefunds() {
+  const { data, error } = await supabase.from('bookings')
+    .select('id, hotel_name, guest_name, guest_phone, guest_email, total_price, refund_amount, refund_bank, refund_account, refund_holder, fulfillment_status, cancel_reason, hotel_note, cancelled_at, payment_code')
+    .eq('refund_status', 'pending').order('cancelled_at', { ascending: true }).limit(200)
+  if (error) throw error
+  return { rows: data, count: data.length }
+}
+
+export async function completeRefund(id, reference) {
+  const { error } = await supabase.rpc('admin_complete_refund', { p_booking: id, p_reference: reference })
+  if (error) throw error
+}

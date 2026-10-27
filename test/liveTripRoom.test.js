@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   createLiveRoomToken,
   flattenPresenceState,
+  freshLiveLocation,
   normalizeLiveRoomToken,
 } from '../src/lib/liveTripRoom.js'
 
@@ -14,6 +15,14 @@ test('live room tokens are high-entropy URL-safe values and malformed tokens are
   assert.equal(normalizeLiveRoomToken(first), first)
   assert.equal(normalizeLiveRoomToken('short'), null)
   assert.equal(normalizeLiveRoomToken(`${first}?injected=true`), null)
+})
+
+test('stale GPS is not published as fresh; unknown accuracy, heading and speed remain unknown', () => {
+  const fix={lat:10,lng:106,accuracy:null,heading:null,speed:null}
+  assert.deepEqual(freshLiveLocation(fix,10000,11000),fix)
+  assert.equal(freshLiveLocation(fix,10000,26000),null)
+  assert.equal(freshLiveLocation(fix,30000,10000),null)
+  assert.equal(freshLiveLocation({lat:null,lng:106},10000,11000),null)
 })
 
 test('presence state keeps the newest safe location for each member', () => {

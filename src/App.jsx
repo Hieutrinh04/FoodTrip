@@ -3,6 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import { MotionConfig } from 'framer-motion'
 import { LanguageProvider } from './i18n/LanguageContext.jsx'
 import { AuthProvider } from './auth/AuthContext.jsx'
+import { AccessProvider } from './auth/AccessContext.jsx'
+import RequireAccess from './auth/RequireAccess.jsx'
+import { LoginPromptProvider } from './auth/LoginPromptContext.jsx'
 import Layout from './components/layout/Layout.jsx'
 import RecoveryRedirect from './auth/RecoveryRedirect.jsx'
 
@@ -28,6 +31,8 @@ const TourPartner = lazy(() => import('./pages/TourPartner.jsx'))
 const PartnerLanding = lazy(() => import('./pages/PartnerLanding.jsx'))
 const NotFound = lazy(() => import('./pages/NotFound.jsx'))
 const PasswordRecovery = lazy(() => import('./pages/PasswordRecovery.jsx'))
+const TourPage = lazy(() => import('./pages/TourPage.jsx'))
+const Permissions = lazy(() => import('./pages/Permissions.jsx'))
 
 function PageFallback() {
   return <div role="status" className="mx-auto max-w-[1180px] px-5 py-16 text-center font-utility text-sm text-ink-muted">Đang tải… / Loading…</div>
@@ -38,6 +43,8 @@ function App() {
     <MotionConfig reducedMotion="user">
       <LanguageProvider>
         <AuthProvider>
+          <LoginPromptProvider>
+          <AccessProvider>
           <RecoveryRedirect />
           <Suspense fallback={<PageFallback />}>
             <Routes>
@@ -49,14 +56,14 @@ function App() {
                 <Route path="/place/:id" element={<PlaceDetail />} />
                 <Route path="/plan" element={<Planner />} />
                 <Route path="/nearby" element={<NearbyEats />} />
-                <Route path="/trips" element={<SavedTrips />} />
-                <Route path="/saved" element={<SavedPlaces />} />
+                <Route path="/trips" element={<RequireAccess><SavedTrips /></RequireAccess>} />
+                <Route path="/saved" element={<RequireAccess><SavedPlaces /></RequireAccess>} />
                 <Route path="/trip/:id" element={<SharedTrip />} />
-                <Route path="/live/:id" element={<LiveTrip />} />
-                <Route path="/bookings" element={<MyBookings />} />
+                <Route path="/live/:id" element={<RequireAccess><LiveTrip /></RequireAccess>} />
+                <Route path="/bookings" element={<RequireAccess><MyBookings /></RequireAccess>} />
                 <Route path="/booking/return" element={<BookingReturn />} />
                 <Route path="/booking/:placeId" element={<BookingRoom />} />
-                <Route path="/pay/:bookingId" element={<BookingPayment />} />
+                <Route path="/pay/:bookingId" element={<RequireAccess><BookingPayment /></RequireAccess>} />
                 <Route path="/share" element={<ShareVideo />} />
                 <Route path="/community" element={<Community />} />
                 <Route path="/community/:postId" element={<Community />} />
@@ -66,18 +73,22 @@ function App() {
                 <Route path="/help" element={<InfoPage page="help" />} />
                 <Route path="/contact" element={<InfoPage page="contact" />} />
                 <Route path="/terms" element={<InfoPage page="terms" />} />
-                <Route path="/admin" element={<Admin />} />
-                <Route path="/partner" element={<Partner />} />
+                <Route path="/permissions" element={<Permissions />} />
+                <Route path="/admin" element={<RequireAccess capability="admin"><Admin /></RequireAccess>} />
+                <Route path="/partner" element={<RequireAccess><Partner /></RequireAccess>} />
                 {/* Tours are chosen inside the planner and listed with the
                     other bookings; the old addresses still lead there. */}
                 <Route path="/tours" element={<Navigate to="/plan" replace />} />
+                <Route path="/tour/:id" element={<TourPage />} />
                 <Route path="/my-tours" element={<Navigate to="/bookings#tours" replace />} />
-                <Route path="/partner/tours" element={<TourPartner />} />
+                <Route path="/partner/tours" element={<RequireAccess><TourPartner /></RequireAccess>} />
                 <Route path="/hop-tac" element={<PartnerLanding />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>
           </Suspense>
+          </AccessProvider>
+          </LoginPromptProvider>
         </AuthProvider>
       </LanguageProvider>
     </MotionConfig>

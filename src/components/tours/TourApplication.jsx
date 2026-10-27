@@ -4,6 +4,7 @@ import { CITIES } from '../../data/destinations.js'
 import { getCurrentTerms } from '../../lib/partner.js'
 import { applyAsOperator, tourError, OPERATOR_TYPES } from '../../lib/tours.js'
 import Spinner from '../ui/Spinner.jsx'
+import { useLanguage } from '../../i18n/LanguageContext.jsx'
 
 const INPUT = 'mt-1 block w-full rounded-xl border border-line-strong bg-paper px-3.5 py-2.5 text-md focus:border-chili'
 const BUTTON = 'inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 font-utility text-sm font-semibold transition-colors hover:border-chili hover:text-chili'
@@ -14,7 +15,8 @@ const BUTTON = 'inline-flex items-center gap-1.5 rounded-full border border-line
  * applying and its papers, the tour partner terms, then a review. Profile,
  * photos and tours come after approval, in the publish checklist.
  */
-export default function TourApplication({ rejected, onDone, lang = 'vi' }) {
+export default function TourApplication({ rejected, onDone }) {
+  const { lang } = useLanguage()
   const t = (vi, en) => (lang === 'vi' ? vi : en)
   const [step, setStep] = useState(0)
   const [form, setForm] = useState({
@@ -64,12 +66,12 @@ export default function TourApplication({ rejected, onDone, lang = 'vi' }) {
       })
       onDone()
     } catch (err) {
-      setError(tourError(err)); setBusy(false)
+      setError(tourError(err, lang)); setBusy(false)
     }
   }
 
-  const papers = [form.travelLicense && `${t('GP lữ hành', 'Travel licence')} ${form.travelLicense}`, form.businessLicense && `GPKD ${form.businessLicense}`,
-    form.guideCard && `${t('Thẻ HDV', 'Guide card')} ${form.guideCard}`, form.taxCode && `MST ${form.taxCode}`].filter(Boolean).join(' · ')
+  const papers = [form.travelLicense && `${t('GP lữ hành', 'Travel licence')} ${form.travelLicense}`, form.businessLicense && `${t('GPKD', 'Business reg.')} ${form.businessLicense}`,
+    form.guideCard && `${t('Thẻ HDV', 'Guide card')} ${form.guideCard}`, form.taxCode && `${t('MST', 'Tax code')} ${form.taxCode}`].filter(Boolean).join(' · ')
   const review = [
     [t('Đơn vị', 'Operator'), `${form.name} · ${OPERATOR_TYPES[form.operatorType][lang]}`, 0],
     [t('Hoạt động tại', 'Operates in'), form.cities.join(', '), 0],

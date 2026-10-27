@@ -2,12 +2,8 @@ import { supabase, hasSupabase } from './supabaseClient.js'
 
 /**
  * Whether the real VNPay sandbox gateway is configured on the server, so the
- * booking page offers either the payment button or the demo one — not both,
- * which is what it used to do regardless of configuration.
- *
- * Resolves 'ready' | 'no-key' | 'unknown'. 'unknown' (the check itself failed)
- * is treated like 'no-key' by the caller: it is safer to offer a labelled demo
- * than a payment button that may not work.
+ * booking page can offer that gateway only when configuration is verified.
+ * Resolves 'ready' | 'no-key' | 'unknown'; missing keys never imply free payment.
  */
 export async function getPaymentMode() {
   if (!hasSupabase) return 'no-key'
@@ -35,15 +31,4 @@ export async function startVnpayPayment({ bookingId }) {
   if (data.status !== 'ok' || !data.paymentUrl) throw new Error('payment-failed')
   window.location.href = data.paymentUrl
   return 'redirecting'
-}
-
-/**
- * Confirms a booking in demo mode. Done by the server with the reference
- * "DEMO", and only while VNPay is not configured — the browser can no longer
- * mark a booking paid itself.
- */
-export async function confirmDemoPayment(bookingId) {
-  if (!hasSupabase) throw new Error('no-supabase')
-  const { data, error } = await supabase.functions.invoke('vnpay-create-payment', { body: { bookingId, demo: true } })
-  if (error || data?.status !== 'demo-confirmed') throw new Error('demo-failed')
 }

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Trash, MapTrifold, ArrowLeft, ShareNetwork, Check, UserCircle, Compass, FileXls, FilePdf, PlayCircle } from '@phosphor-icons/react'
 import ItineraryTicket from '../components/ticket/ItineraryTicket.jsx'
@@ -10,7 +10,7 @@ import { getCity, getPlace, registerCustomPlaces } from '../data/destinations.js
 import { getMyItineraries, deleteItinerary, setItineraryPublic } from '../lib/itineraries.js'
 import { fetchCustomPlaces } from '../lib/customPlacesCache.js'
 import { shareOrCopyLink } from '../lib/shareLink.js'
-import { createLiveRoomToken } from '../lib/liveTripRoom.js'
+import { createLiveTrip } from '../lib/liveTrips.js'
 import { destinationWeatherLocation } from '../lib/tripWeather.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
@@ -98,6 +98,9 @@ export default function SavedTrips() {
 
 function SavedTripsForAccount() {
   const navigate = useNavigate()
+  // ?open=<id>: a trip just created elsewhere (e.g. from a shared video) opens straight away.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const openId = searchParams.get('open')
   const { lang } = useLanguage()
   const c = C[lang]
   const { user, hasAuth } = useAuth()
@@ -132,6 +135,15 @@ function SavedTripsForAccount() {
     }).catch(() => { if (active) setStatus('error') })
     return () => { active = false }
   }, [user, revision])
+
+  useEffect(() => {
+    if (status !== 'ready' || !openId) return
+    const trip = trips.find((t) => t.id === openId)
+    setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete('open'); return next }, { replace: true })
+    if (trip) openTripView(trip)
+    // openTripView only reads state setters; running once per id is the intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, openId, trips])
 
   async function openTripView(trip) {
     setActionError(false)
@@ -204,9 +216,8 @@ function SavedTripsForAccount() {
   async function handleStartLiveTrip(trip) {
     setLiveStatus('starting')
     try {
-      if (!trip.is_public) await setItineraryPublic(trip.id, true)
-      updatePublic(trip.id,true)
-      navigate(`/live/${trip.id}?room=${encodeURIComponent(createLiveRoomToken())}`)
+      const room = await createLiveTrip(trip.id)
+      navigate(`/live/${trip.id}?room=${encodeURIComponent(room.token)}`)
     } catch {
       setLiveStatus('error')
     }

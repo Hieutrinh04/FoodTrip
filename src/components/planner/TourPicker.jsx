@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CalendarBlank, Check, CheckCircle, Compass, MapTrifold, Plus, Users, Warning } from '@phosphor-icons/react'
+import { CalendarBlank, Check, CheckCircle, Compass, MapTrifold, Plus, Star, Users, Warning } from '@phosphor-icons/react'
 import TourDetail from '../tours/TourDetail.jsx'
 import Spinner from '../ui/Spinner.jsx'
 import {
@@ -25,6 +25,7 @@ const C = {
     notEnough: (n) => `Chỉ còn ${n} chỗ — không đủ cho nhóm bạn`,
     details: 'Xem chi tiết', choose: 'Chọn tour', chosen: 'Đã chọn',
     replaces: 'Trùng giờ với tour đã chọn — chọn tour này sẽ bỏ tour kia.',
+    reviews: (n) => `${n} đánh giá`,
   },
   en: {
     selfTitle: 'On your own',
@@ -43,6 +44,7 @@ const C = {
     notEnough: (n) => `Only ${n} seats left — not enough for your group`,
     details: 'View details', choose: 'Choose tour', chosen: 'Chosen',
     replaces: 'Overlaps a tour you chose — choosing this one drops the other.',
+    reviews: (n) => (n === 1 ? '1 review' : `${n} reviews`),
   },
 }
 
@@ -65,9 +67,9 @@ export default function TourPicker({ city, cityId, startDate, duration, people, 
     setError('')
     tourRpc('tour_catalog')
       .then((data) => { if (active) setRows(data ?? []) })
-      .catch((e) => { if (active) { setError(tourError(e)); setRows([]) } })
+      .catch((e) => { if (active) { setError(tourError(e, lang)); setRows([]) } })
     return () => { active = false }
-  }, [])
+  }, [lang])
 
   const fitsTrip = (row) => {
     const { first, last } = tourDays(row, startDate)
@@ -99,7 +101,7 @@ export default function TourPicker({ city, cityId, startDate, duration, people, 
     try {
       setDetail({ status: 'ready', tourId, tour: await tourDetail(tourId) })
     } catch (e) {
-      setDetail({ status: 'error', tourId, error: tourError(e) })
+      setDetail({ status: 'error', tourId, error: tourError(e, lang) })
     }
   }
   function closeDetail() {
@@ -130,6 +132,7 @@ export default function TourPicker({ city, cityId, startDate, duration, people, 
               else choose({ ...departure, tour_id: detail.tour.id, title: detail.tour.title, destination: detail.tour.destination, operator_name: detail.tour.operator_name, meeting_point: detail.tour.meeting_point, cover_url: detail.tour.cover_url })
             }}
             onBack={closeDetail}
+            pageLink
           />
         )}
       </div>
@@ -240,7 +243,10 @@ function TourCard({ row, c, lang, people, dayNumber, chosen, clashes, onChoose, 
         <h3 className="line-clamp-2 text-base font-bold leading-snug">
           <button type="button" onClick={onDetails} className="text-left hover:text-chili">{row.title}</button>
         </h3>
-        <div className="text-xs text-ink-faint">{row.operator_name}</div>
+        <div className="flex flex-wrap items-center gap-x-2 text-xs text-ink-faint">
+          <span>{row.operator_name}</span>
+          {Number(row.review_count) > 0 && <span className="inline-flex items-center gap-1 font-semibold text-chili"><Star size={12} weight="fill" />{Number(row.rating).toFixed(1)} <span className="font-normal text-ink-faint">({c.reviews(Number(row.review_count))})</span></span>}
+        </div>
         {(row.summary || row.description) && <p className="line-clamp-2 text-sm text-ink-muted">{row.summary || row.description}</p>}
         {row.highlights?.length > 0 && (
           <ul className="flex flex-col gap-1">

@@ -14,6 +14,8 @@ test('video aliases and tracking parameters resolve to a stable identity', () =>
   const expected = { platform: 'youtube', url: 'https://www.youtube.com/watch?v=AbCdEf123_-' }
   for (const url of ['https://youtu.be/AbCdEf123_-?si=tracking', 'https://m.youtube.com/shorts/AbCdEf123_-', 'https://youtube.com/watch?v=AbCdEf123_-&utm_source=test#chapter']) assert.deepEqual(parseVideoUrl(url), expected)
   assert.equal(parseVideoUrl('https://www.tiktok.com/@food/video/123456?is_from_webapp=1').url, 'https://www.tiktok.com/@food/video/123456')
+  // A photo post is one post too, at its video address (where TikTok serves its data).
+  assert.equal(parseVideoUrl('https://www.tiktok.com/@diquan.reviewbd/photo/7661635191370255637?is_from_webapp=1&sender_device=pc').url, 'https://www.tiktok.com/@diquan.reviewbd/video/7661635191370255637')
   assert.equal(parseVideoUrl('https://instagram.com/reels/ABC_123/?utm_source=x').url, 'https://www.instagram.com/reel/ABC_123/')
   assert.equal(parseVideoUrl('https://vm.tiktok.com/ABC/').platform, 'tiktok')
   assert.equal(parseVideoUrl('https://www.facebook.com/reel/123456?mibextid=tracking').url, 'https://www.facebook.com/reel/123456')

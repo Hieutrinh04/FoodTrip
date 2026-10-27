@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ChatCircle, Compass, MagnifyingGlass, Plus, ArrowClockwise } from '@phosphor-icons/react'
 import { useAuth } from '../auth/AuthContext.jsx'
 import AuthModal from '../components/auth/AuthModal.jsx'
+import GuestLoginWall from '../components/auth/GuestLoginWall.jsx'
 import PostComposer from '../components/community/PostComposer.jsx'
 import PostCard from '../components/community/PostCard.jsx'
 import CommentThread from '../components/community/CommentThread.jsx'
@@ -13,7 +14,7 @@ import './Community.css'
 
 export default function Community() {
   const t = useCommunityText()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const { postId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -37,22 +38,24 @@ export default function Community() {
     if (!loading && postId && location.hash === '#discussion') document.getElementById('discussion')?.scrollIntoView()
   }, [loading, postId, location.hash])
   useEffect(() => {
+    if (authLoading) return undefined
     const requests = request
     const controller = new AbortController()
     const token = ++request.current
     setRows([]); setLoading(true); setError(''); setMoreBusy(false)
     const promise = postId
       ? isUuid(postId) ? getCommunityPost(postId, controller.signal).then((row) => row ? [row] : []) : Promise.resolve([])
-      : listCommunityPosts({ mine: mineId, search, signal: controller.signal })
+      : listCommunityPosts({ mine: mineId, search: user ? search : '', limit: user ? POST_PAGE_SIZE : 3, signal: controller.signal })
     promise.then((data) => {
       if (token !== request.current) return
       setRows(data); setHasMore(!postId && data.length === POST_PAGE_SIZE)
     }).catch(() => { if (!controller.signal.aborted) setError('load') })
       .finally(() => { if (token === request.current) setLoading(false) })
     return () => { controller.abort(); requests.current++ }
-  }, [postId, mineId, search, refresh])
+  }, [postId, mineId, search, refresh, user, authLoading])
 
   async function more() {
+    if (!user) { setAuthOpen(true); return }
     if (loading || moreBusy) return
     const token = request.current
     setMoreBusy(true); setError('')
@@ -76,18 +79,19 @@ export default function Community() {
       <div className="community-feed">
         {notice && <p className="community-notice" role="status">{notice}</p>}
         {postId ? <Link to="/community" className="community-text-button community-back"><ArrowLeft size={17} />{t('Về bảng tin', 'Back to feed')}</Link> : <>
-          {!composing && <button type="button" className="community-start community-card" onClick={() => setComposing(true)}><span className="community-avatar"><Plus size={23} /></span><span><strong>{t('Bạn vừa khám phá nơi nào?', 'Where have you been lately?')}</strong><small>{t('Chia sẻ địa điểm, hình ảnh và câu chuyện của bạn', 'Share a place, photos and your story')}</small></span><Plus size={21} /></button>}
+          {!composing && <button type="button" className="community-start community-card" onClick={() => user ? setComposing(true) : setAuthOpen(true)}><span className="community-avatar"><Plus size={23} /></span><span><strong>{t('Bạn vừa khám phá nơi nào?', 'Where have you been lately?')}</strong><small>{t('Chia sẻ địa điểm, hình ảnh và câu chuyện của bạn', 'Share a place, photos and your story')}</small></span><Plus size={21} /></button>}
           {composing && <PostComposer onSaved={saved} onCancel={() => setComposing(false)} onLogin={() => setAuthOpen(true)} />}
           <div className="community-feed-tools"><div className="community-tabs"><button type="button" aria-pressed={!mine} className={!mine ? 'active' : ''} onClick={() => setMine(false)}>{t('Mới nhất', 'Latest')}</button><button type="button" aria-pressed={mine} className={mine ? 'active' : ''} onClick={() => user ? setMine(true) : setAuthOpen(true)}>{t('Bài của tôi', 'My posts')}</button></div><button className="community-icon" type="button" disabled={loading} aria-label={t('Làm mới bảng tin', 'Refresh feed')} onClick={() => setRefresh((value) => value + 1)}><ArrowClockwise size={20} /></button></div>
-          <form className="community-feed-search" onSubmit={(event) => { event.preventDefault(); setSearch(input.trim()) }}><MagnifyingGlass size={19} /><input aria-label={t('Tìm bài theo tên địa điểm', 'Search posts by place name')} maxLength={200} value={input} onChange={(event) => setInput(event.target.value)} placeholder={t('Tìm một địa điểm trong cộng đồng…', 'Find a place in the community…')} /><button type="submit">{t('Tìm', 'Search')}</button></form>
+          <form className="community-feed-search" onSubmit={(event) => { event.preventDefault(); if (user) setSearch(input.trim()); else setAuthOpen(true) }}><MagnifyingGlass size={19} /><input aria-label={t('Tìm bài theo tên địa điểm', 'Search posts by place name')} maxLength={200} value={input} onChange={(event) => setInput(event.target.value)} placeholder={t('Tìm một địa điểm trong cộng đồng…', 'Find a place in the community…')} /><button type="submit">{t('Tìm', 'Search')}</button></form>
           {search && <button className="community-text-button" type="button" onClick={() => { setInput(''); setSearch('') }}>{t('Bỏ bộ lọc:', 'Clear filter:')} {search} ×</button>}
         </>}
         {loading && <div className="community-card community-empty" role="status">{t('Đang tải bài chia sẻ…', 'Loading stories…')}</div>}
         {error && <div className="community-card community-error" role="alert"><p>{t('Chưa tải được cộng đồng. Kiểm tra kết nối và thử lại.', 'Could not load the community. Check your connection and retry.')}</p><button type="button" className="community-button" onClick={() => error === 'more' ? more() : setRefresh((value) => value + 1)}>{t('Thử lại', 'Retry')}</button></div>}
         {!loading && !error && !rows.length && <div className="community-card community-empty"><Compass size={44} weight="duotone" /><h2>{postId ? t('Không tìm thấy bài viết', 'Post not found') : search ? t('Chưa có câu chuyện ở đây', 'No stories found') : mine ? t('Chuyến đi của bạn đang chờ được kể', 'Your adventures are waiting to be shared') : t('Bắt đầu một câu chuyện mới', 'Start a new story')}</h2><p>{postId ? t('Link có thể không đúng hoặc bài viết đã bị xóa.', 'The link may be incorrect or the post was deleted.') : t('Chia sẻ một điểm đến bạn yêu thích để mọi người cùng khám phá.', 'Share a place you love for others to discover.')}</p>{!postId && !composing && <button className="community-button community-primary" onClick={() => setComposing(true)}>{t('Viết bài đầu tiên', 'Write a post')}</button>}</div>}
-        {!loading && rows.map((row) => <PostCard key={row.id} post={row} detail={Boolean(postId)} onChanged={(updated) => setRows((old) => old.map((item) => item.id === updated.id ? updated : item))} onDeleted={deleted} onLogin={() => setAuthOpen(true)} />)}
-        {hasMore && !loading && <button className="community-button community-load-more" type="button" disabled={moreBusy} onClick={more}>{moreBusy ? t('Đang tải…', 'Loading…') : t('Xem thêm câu chuyện', 'More stories')}</button>}
-        {postId && !loading && rows.length === 1 && <CommentThread key={postId} postId={postId} onLogin={() => setAuthOpen(true)} />}
+        {!loading && (user ? rows : rows.slice(0, 3)).map((row) => <PostCard key={row.id} post={row} detail={Boolean(postId)} onChanged={(updated) => setRows((old) => old.map((item) => item.id === updated.id ? updated : item))} onDeleted={deleted} onLogin={() => setAuthOpen(true)} />)}
+        {!user && !authLoading && !loading && <GuestLoginWall title={t('Đăng nhập để xem thêm câu chuyện', 'Sign in to see more stories')} />}
+        {user && hasMore && !loading && <button className="community-button community-load-more" type="button" disabled={moreBusy} onClick={more}>{moreBusy ? t('Đang tải…', 'Loading…') : t('Xem thêm câu chuyện', 'More stories')}</button>}
+        {user && postId && !loading && rows.length === 1 && <CommentThread key={`${user.id}-${postId}`} postId={postId} onLogin={() => setAuthOpen(true)} />}
       </div>
     </div>
     {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}

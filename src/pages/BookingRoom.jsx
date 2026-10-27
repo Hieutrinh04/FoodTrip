@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useParams, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { MapPin, Star, Users, Bed, CheckCircle, Warning, ArrowLeft } from '@phosphor-icons/react'
 import { ACCENT_GRADIENT } from '../lib/visualTokens.js'
@@ -9,7 +9,7 @@ import { partnerHotel } from '../lib/partnerHotels.js'
 import { AMENITIES, CANCELLATION } from '../lib/partner.js'
 import { createBooking } from '../lib/bookings.js'
 import { inventoryError, quoteRooms } from '../lib/inventory.js'
-import { startVnpayPayment, confirmDemoPayment, getPaymentMode } from '../lib/vnpay.js'
+import { startVnpayPayment, getPaymentMode } from '../lib/vnpay.js'
 import { getSepayMode } from '../lib/sepay.js'
 import { hasSupabase } from '../lib/supabaseClient.js'
 import HotelExternalLinks from '../components/booking/HotelExternalLinks.jsx'
@@ -19,6 +19,7 @@ import { fetchHotelGallery } from '../lib/hotelPhotos.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import Spinner from '../components/ui/Spinner.jsx'
+import ReviewList from '../components/reviews/ReviewList.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { fadeUp, staggerContainer } from '../motion/variants.js'
 
@@ -36,8 +37,6 @@ const C = {
     total: 'Tổng tiền', confirm: 'Xác nhận & Thanh toán', confirming: 'Đang xử lý…',
     confirmTransfer: 'Đặt phòng & chuyển khoản', transferHint: 'Thanh toán bằng chuyển khoản ngân hàng (VietQR). Đơn được xác nhận tự động khi tiền về.',
     loginHint: 'Đăng nhập (góc trên) để đặt phòng.',
-    demoNoKey: 'Cổng thanh toán VNPay chưa được cấu hình, nên đơn được xác nhận ở chế độ demo — không có giao dịch tiền thật nào diễn ra.',
-    confirmDemo: 'Xác nhận (chế độ demo, bỏ qua thanh toán thật)',
     checkingPayment: 'Đang kiểm tra cổng thanh toán…',
     bookingError: 'Đặt phòng thất bại, thử lại nhé.',
     fillGuestInfo: 'Vui lòng nhập họ tên trước khi xác nhận.',
@@ -60,8 +59,6 @@ const C = {
     total: 'Total', confirm: 'Confirm & Pay', confirming: 'Processing…',
     confirmTransfer: 'Book & pay by transfer', transferHint: 'Pay by bank transfer (VietQR). The booking is confirmed automatically when the money arrives.',
     loginHint: 'Log in (top right) to book a room.',
-    demoNoKey: 'The VNPay gateway is not configured, so this booking is confirmed in demo mode — no real money changes hands.',
-    confirmDemo: 'Confirm (demo mode, skips real payment)',
     checkingPayment: 'Checking the payment gateway…',
     bookingError: 'Booking failed — please try again.',
     fillGuestInfo: 'Please enter a full name before confirming.',
@@ -95,6 +92,9 @@ function nightsBetween(checkIn, checkOut) {
 export default function BookingRoom() {
   const { placeId } = useParams()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
+  const sharedName = searchParams.get('name')?.trim().slice(0, 200) ?? ''
+  const sharedAddress = searchParams.get('address')?.trim().slice(0, 500) ?? ''
   const navigate = useNavigate()
   const { lang } = useLanguage()
   const c = C[lang]
@@ -145,16 +145,14 @@ export default function BookingRoom() {
     return () => { active = false }
   }, [quote.status, quote.managed, placeId])
 
-  // Whether the real VNPay gateway is configured. The page used to show the
-  // payment button and the demo button together, whatever the server had.
-  // Bank transfer through SePay comes first when it is configured, then
-  // VNPay, then the labelled demo.
-  const [paymentMode, setPaymentMode] = useState('checking') // checking | sepay | ready | no-key | unknown
+  // Explicit SePay mock mode comes first, then configured real gateways.
+  // An unavailable configuration never implies permission to skip payment.
+  const [paymentMode, setPaymentMode] = useState('checking') // checking | mock | sepay | ready | no-key | unknown
 
   useEffect(() => {
     let cancelled = false
     getSepayMode()
-      .then(async (sepay) => (sepay === 'ready' ? 'sepay' : getPaymentMode()))
+      .then(async (sepay) => (sepay === 'ready' ? 'sepay' : sepay === 'mock' ? 'mock' : getPaymentMode()))
       .then((mode) => { if (!cancelled) setPaymentMode(mode) })
     return () => { cancelled = true }
   }, [])
@@ -184,6 +182,11 @@ export default function BookingRoom() {
       .then(async (h) => h ?? (await partnerHotel(placeId)))
       .then((h) => {
         if (cancelled) return
+        // A search result lives only in the browser that found it. A link
+        // shared to another device (an owner's claim, the admin reviewing it)
+        // carries the hotel's name and address, which is enough for the
+        // reference page.
+        if (!h && sharedName) h = { id: placeId, name: sharedName, address: sharedAddress, photoUrl: null, rating: null }
         if (!h) {
           setStatus('not-found')
           return
@@ -197,7 +200,7 @@ export default function BookingRoom() {
     return () => {
       cancelled = true
     }
-  }, [placeId, hotel])
+  }, [placeId, hotel, sharedName, sharedAddress])
 
   // The cover photo leads the gallery so the hero matches the card the
   // traveller just clicked, and so it has something to show before the gallery
@@ -223,7 +226,7 @@ export default function BookingRoom() {
   const selectedRoom = rooms.find((r) => r.key === selectedRoomKey) ?? null
   const totalPrice = selectedRoom ? (selectedRoom.totalPrice ?? selectedRoom.pricePerNight * nights) : 0
 
-  // method: 'sepay' | 'vnpay' | 'demo'
+  // method: 'sepay' | 'vnpay' | 'mock'
   async function handleConfirm(method) {
     if (!user || !selectedRoom || !datesValid) return
     if (!guestName.trim()) {
@@ -247,17 +250,9 @@ export default function BookingRoom() {
         requestKey,
       })
 
-      if (method === 'sepay') {
+      if (method === 'sepay' || method === 'mock') {
         // The payment page shows the QR and waits for the SePay webhook.
         navigate(`/pay/${booking.id}`)
-        return
-      }
-
-      if (method === 'demo') {
-        // Confirmed by the server, labelled DEMO — the browser cannot mark a
-        // booking paid on its own any more.
-        await confirmDemoPayment(booking.id)
-        navigate(`/booking/return?bookingId=${booking.id}&status=paid&demo=1`)
         return
       }
 
@@ -493,16 +488,16 @@ export default function BookingRoom() {
             <p className="text-center text-sm text-ink-faint">{c.loginHint}</p>
           ) : (
             <>
-              {paymentMode === 'sepay' && (
+              {(paymentMode === 'sepay' || paymentMode === 'mock') && (
                 <>
                   <button
-                    onClick={() => handleConfirm('sepay')}
+                    onClick={() => handleConfirm(paymentMode === 'mock' ? 'mock' : 'sepay')}
                     disabled={bookStatus === 'booking'}
                     className="w-full inline-flex items-center justify-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-chili text-chili-ink shadow-soft hover:shadow-lifted transition-shadow disabled:opacity-60"
                   >
-                    {bookStatus === 'booking' ? c.confirming : c.confirmTransfer}
+                    {bookStatus === 'booking' ? c.confirming : paymentMode === 'mock' ? (lang === 'vi' ? 'Đặt phòng & thử thanh toán SePay' : 'Book & test SePay payment') : c.confirmTransfer}
                   </button>
-                  <p className="mt-2 text-center text-2xs text-ink-faint">{c.transferHint}</p>
+                  <p className="mt-2 text-center text-2xs text-ink-faint">{paymentMode === 'mock' ? (lang === 'vi' ? 'Chế độ mocktest: mô phỏng giao dịch, không chuyển tiền thật.' : 'Mock test mode: simulated transfers, no real money.') : c.transferHint}</p>
                 </>
               )}
               {paymentMode === 'ready' && (
@@ -515,18 +510,9 @@ export default function BookingRoom() {
                 </button>
               )}
               {(paymentMode === 'no-key' || paymentMode === 'unknown') && (
-                <>
-                  <p className="flex items-start gap-2 text-sm text-ink-faint">
-                    <Warning size={14} className="shrink-0 mt-0.5" /> {c.demoNoKey}
-                  </p>
-                  <button
-                    onClick={() => handleConfirm('demo')}
-                    disabled={bookStatus === 'booking'}
-                    className="w-full mt-3 inline-flex items-center justify-center gap-2 font-utility font-semibold text-md px-6 py-[14px] rounded-full bg-ink text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
-                  >
-                    {bookStatus === 'booking' ? c.confirming : c.confirmDemo}
-                  </button>
-                </>
+                <p role="status" className="flex items-start gap-2 text-sm text-ink-faint">
+                  <Warning size={14} className="shrink-0 mt-0.5" /> {lang === 'vi' ? 'Chưa xác minh được cấu hình thanh toán. Không thể xác nhận đã trả tiền; vui lòng thử lại sau.' : 'Payment configuration could not be verified. Payment cannot be confirmed; please try again later.'}
+                </p>
               )}
               {paymentMode === 'checking' && <p className="text-center text-sm text-ink-faint">{c.checkingPayment}</p>}
               {bookStatus === 'error' && <div role="alert" className="text-center text-sm text-chili mt-3"><p>{!guestName.trim() ? c.fillGuestInfo : bookingError || c.bookingError}</p><button className="underline" onClick={() => setQuoteRevision((n) => n + 1)}>{lang === 'vi' ? 'Tải lại giá và phòng trống' : 'Refresh availability'}</button></div>}
@@ -534,6 +520,9 @@ export default function BookingRoom() {
           )}
         </motion.div>
       )}
+
+      {/* A partner's guests can review it after their stay; their reviews show here. */}
+      {quote.status === 'ready' && quote.managed && <ReviewList kind="stay" target={placeId} lang={lang} className="mt-12" />}
     </div>
   )
 }

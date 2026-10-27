@@ -53,7 +53,8 @@ export function findPaymentCode(tx: { code?: string | null; content?: string | n
 }
 
 /** Compares without leaking, through timing, how much of a guessed key was right. */
-function safeEqual(a: string, b: string) {
+/** Constant-time string comparison, for shared secrets. */
+export function safeEqual(a: string, b: string) {
   if (a.length !== b.length) return false
   let diff = 0
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
@@ -70,5 +71,9 @@ export function isSepayRequest(authorization: string | null, webhookKey: string)
 export function sepayTime(value: unknown) {
   const text = String(value ?? '').trim()
   if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text)) return null
-  return new Date(`${text.replace(' ', 'T')}+07:00`).toISOString()
+  const date = new Date(`${text.replace(' ', 'T')}+07:00`)
+  if (!Number.isFinite(date.getTime())) return null
+  // Date can normalize an impossible date (e.g. February 30); reject it.
+  if (new Date(date.getTime()+7*3600000).toISOString().slice(0,19) !== text.replace(' ','T')) return null
+  return date.toISOString()
 }

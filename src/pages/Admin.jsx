@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowSquareOut, ArrowsClockwise, Bed, ChartBar, ChatCircleText, DownloadSimple, EnvelopeSimple,
-  Lock, MagnifyingGlass, Trash, UserCircle, Users, VideoCamera, WarningCircle, Check, ArrowCounterClockwise, Receipt, CaretDown, ClockCounterClockwise, ShieldCheck, Buildings,
+  Lock, MagnifyingGlass, Trash, UserCircle, Users, VideoCamera, WarningCircle, Check, ArrowCounterClockwise, Receipt, CaretDown, ClockCounterClockwise, ShieldCheck, Buildings, Wallet, Compass, Star,
 } from '@phosphor-icons/react'
 import * as admin from '../lib/admin.js'
 import EmptyState from '../components/ui/EmptyState.jsx'
@@ -13,13 +13,18 @@ import { FULFILLMENT, PROPERTY_TYPES } from '../lib/partner.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { TourOperatorReview } from './TourPartner.jsx'
+import AdminReviews from '../components/reviews/AdminReviews.jsx'
+import SystemReadiness from '../components/portal/SystemReadiness.jsx'
 
 const TABS = [
   { id: 'overview', icon: ChartBar, vi: 'Tổng quan', en: 'Overview' },
+  { id: 'system', icon: ShieldCheck, vi: 'Trạng thái hệ thống', en: 'System readiness' },
   { id: 'bookings', icon: Bed, vi: 'Đặt phòng', en: 'Bookings' },
   { id: 'payments', icon: Receipt, vi: 'Giao dịch', en: 'Payments' },
+  { id: 'settlements', icon: Wallet, vi: 'Đối soát & hoàn tiền', en: 'Payouts & refunds' },
   { id: 'partners', icon: Buildings, vi: 'Đối tác', en: 'Partners' },
-  { id: 'tour-partners', icon: Buildings, vi: 'Đối tác tour', en: 'Tour partners' },
+  { id: 'tour-partners', icon: Compass, vi: 'Tour & đối tác tour', en: 'Tours & operators' },
+  { id: 'reviews', icon: Star, vi: 'Đánh giá', en: 'Reviews' },
   { id: 'community', icon: ChatCircleText, vi: 'Cộng đồng', en: 'Community' },
   { id: 'videos', icon: VideoCamera, vi: 'Video review', en: 'Video reviews' },
   { id: 'messages', icon: EnvelopeSimple, vi: 'Liên hệ', en: 'Messages' },
@@ -116,10 +121,13 @@ export default function Admin() {
         </nav>
         <section className="min-w-0">
           {tab === 'overview' && <Overview t={t} onOpen={setTab} />}
+          {tab === 'system' && <SystemReadiness lang={lang} />}
           {tab === 'bookings' && <BookingsTab t={t} lang={lang} />}
           {tab === 'payments' && <PaymentsTab t={t} />}
           {tab === 'partners' && <PartnersTab t={t} />}
-          {tab === 'tour-partners' && <TourOperatorReview />}
+          {tab === 'settlements' && <SettlementsTab t={t} />}
+          {tab === 'tour-partners' && <div className="space-y-6"><TourOperatorReview /><AdminTours t={t} /></div>}
+          {tab === 'reviews' && <AdminReviews t={t} lang={lang} />}
           {tab === 'community' && <CommunityTab t={t} />}
           {tab === 'videos' && <VideosTab t={t} />}
           {tab === 'messages' && <MessagesTab t={t} />}
@@ -272,6 +280,8 @@ function Overview({ t, onOpen }) {
 
   return (
     <div className="space-y-6">
+      <PartnerOverview t={t} onOpen={onOpen} />
+      <h2 className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint">{t('Toàn hệ thống', 'Platform')}</h2>
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {cards.map((card) => (
           <button key={card.label} type="button" onClick={() => onOpen(card.tab)}
@@ -421,6 +431,7 @@ function BookingsTab({ t, lang }) {
                   <div className="flex items-center gap-3">
                     <span className="whitespace-nowrap font-utility font-semibold">{formatVnd(b.total_price)}</span>
                     <span className={`whitespace-nowrap rounded-full px-2.5 py-1 font-utility text-micro font-semibold ${s.style}`}>{s[lang]}</span>
+                    {b.payment_txn_ref === 'DEMO' && <span className="rounded-full bg-lantern/15 px-2 py-1 text-xs">Mocktest · DEMO</span>}
                     {b.payment_status === 'paid' && FULFILLMENT[b.fulfillment_status] && <span title={b.hotel_note ?? ''} className={`whitespace-nowrap rounded-full px-2.5 py-1 font-utility text-micro font-semibold ${FULFILLMENT[b.fulfillment_status].style}`}>{t('KS: ', 'Hotel: ')}{FULFILLMENT[b.fulfillment_status][lang]}</span>}
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -429,7 +440,7 @@ function BookingsTab({ t, lang }) {
                       <button type="button" disabled={busyId === b.id} className={DANGER}
                         onClick={() => run(b.id, t('Huỷ đặt phòng đang chờ thanh toán này?', 'Cancel this pending booking?'), () => admin.cancelPendingBooking(b.id))}>{t('Huỷ', 'Cancel')}</button>
                     </>}
-                    {b.payment_status === 'paid' && <button type="button" disabled={busyId === b.id} className={DANGER} onClick={() => markRefunded(b)}><ArrowCounterClockwise size={13} />{t('Đã hoàn tiền', 'Refunded')}</button>}
+                    {b.payment_status === 'paid' && b.payment_txn_ref !== 'DEMO' && <button type="button" disabled={busyId === b.id} className={DANGER} onClick={() => markRefunded(b)}><ArrowCounterClockwise size={13} />{t('Đã hoàn tiền', 'Refunded')}</button>}
                   </div>
                 </div>
                 {open && <div className="mt-3"><BookingDetail booking={b} t={t} lang={lang} /></div>}
@@ -444,6 +455,8 @@ function BookingsTab({ t, lang }) {
 }
 
 const PAYMENT_OUTCOME = {
+  'paid-partial': { vi:'Đã cộng vào đơn',en:'Credited to booking',style:'bg-herb text-herb-ink' },
+  'mock-booking': { vi:'Đơn thử — không khớp tiền thật',en:'Test order — real funds not matched',style:'bg-lantern/20 text-ink-muted' },
   paid: { vi: 'Đã khớp đơn', en: 'Paid a booking', style: 'bg-herb text-herb-ink' },
   underpaid: { vi: 'Chuyển thiếu', en: 'Underpaid', style: 'bg-chili/15 text-chili' },
   'no-booking': { vi: 'Không khớp đơn', en: 'No booking', style: 'bg-lantern/20 text-lantern' },
@@ -490,11 +503,11 @@ function PaymentsTab({ t }) {
             return (
               <tr key={p.id} className="align-top">
                 <td className="px-2 py-2.5 whitespace-nowrap text-ink-muted">{formatDate(p.transaction_date ?? p.created_at)}<div className="font-utility text-micro text-ink-faint">{p.gateway} · #{p.id}</div></td>
-                <td className="px-2 py-2.5 whitespace-nowrap font-utility font-semibold">{formatVnd(p.amount)}</td>
+                <td className="px-2 py-2.5 whitespace-nowrap font-utility font-semibold">{formatVnd(p.amount)}{p.provider==='sepay-mock' && <div className="text-micro text-ink-faint">Mocktest — DEMO</div>}</td>
                 <td className="px-2 py-2.5"><div className="line-clamp-2 text-sm">{p.content}</div>{p.reference_code && <div className="font-utility text-micro text-ink-faint">{p.reference_code}</div>}</td>
                 <td className="px-2 py-2.5"><span className={`whitespace-nowrap rounded-full px-2.5 py-1 font-utility text-micro font-semibold ${o.style}`}>{o[lang]}</span></td>
                 <td className="px-2 py-2.5 font-utility text-2xs text-ink-muted">{p.payment_code ?? '—'}{p.booking_id && <div className="text-ink-faint">{p.booking_id.slice(0, 8)}</div>}</td>
-                <td className="px-2 py-2.5 text-right">{(p.outcome === 'no-booking' || p.outcome === 'underpaid') && (
+                <td className="px-2 py-2.5 text-right">{p.provider === 'sepay' && (p.outcome === 'no-booking' || p.outcome === 'underpaid') && (
                   <button type="button" disabled={busyId === p.id} className={BUTTON} onClick={() => match(p)}>{t('Gán vào đơn', 'Attach')}</button>
                 )}</td>
               </tr>
@@ -839,7 +852,7 @@ function QuickApprove({ a, t, busy, properties, onApprove, onEdit }) {
       <button type="button" disabled={busy} className="inline-flex items-center gap-1.5 rounded-full bg-herb px-3 py-1.5 font-utility text-2xs font-semibold text-herb-ink disabled:opacity-50" onClick={() => onApprove(hotelId)}>
         <Check size={13} />{t(`Duyệt · ${hotelId}`, `Approve · ${hotelId}`)}
       </button>
-      <a href={`/booking/${encodeURIComponent(hotelId)}`} target="_blank" rel="noopener noreferrer" className="font-utility text-2xs font-semibold text-chili hover:underline">{t('Mở trang khách sạn', 'Open hotel page')} ↗</a>
+      <a href={`/booking/${encodeURIComponent(hotelId)}?${new URLSearchParams({ name: a.hotel_name ?? '', address: a.address ?? '' })}`} target="_blank" rel="noopener noreferrer" className="font-utility text-2xs font-semibold text-chili hover:underline">{t('Mở trang khách sạn', 'Open hotel page')} ↗</a>
       <button type="button" disabled={busy} className="font-utility text-2xs text-ink-faint hover:text-chili" onClick={onEdit}>{t('Sửa mã', 'Change id')}</button>
     </div>
   )
@@ -879,6 +892,10 @@ function PartnersTab({ t }) {
     if (hotelId == null) return
     const name = await ask({ title: t('Tên khách sạn', 'Hotel name'), label: t('Tên', 'Name'), confirmLabel: t('Thêm', 'Add'), minLength: 2 })
     if (name != null) propAction.run('new', null, () => admin.createProperty(hotelId, name))
+  }
+  async function suspend(p) {
+    const note = await ask({ title: t(`Khoá ${p.name}`, `Suspend ${p.name}`), body: t('Cơ sở ngừng nhận đơn mới ngay; các đơn đã có vẫn phải được phục vụ. Đối tác sẽ thấy lý do này.', 'The property stops taking new bookings now; existing bookings must still be honoured. The partner will see this reason.'), label: t('Lý do', 'Reason'), confirmLabel: t('Khoá cơ sở', 'Suspend'), minLength: 3, danger: true })
+    if (note != null) propAction.run(p.id, null, () => admin.setPropertyActive(p.id, false, note))
   }
   async function addManager(p) {
     const email = await ask({ title: t(`Thêm người quản lý cho ${p.name}`, `Add a manager to ${p.name}`), body: t('Người này phải đã có tài khoản FoodTrip. Họ sẽ thấy mọi đơn của khách sạn này, gồm tên và số điện thoại khách.', "They need a FoodTrip account. They will see every booking for this hotel, including guests' names and phones."), label: 'Email', placeholder: 'chu.khachsan@gmail.com', confirmLabel: t('Thêm làm chủ', 'Add as owner'), minLength: 5 })
@@ -945,6 +962,14 @@ function PartnersTab({ t }) {
                 <div className="min-w-0 text-sm">
                   <div className="font-semibold">{p.name}{p.awaiting > 0 && <span className="ml-2 rounded-full bg-lantern/20 px-2 py-0.5 font-utility text-micro font-semibold text-lantern">{t(`${p.awaiting} chờ xác nhận`, `${p.awaiting} to confirm`)}</span>}</div>
                   <div className="font-utility text-micro text-ink-faint">{p.hotel_place_id} · {t(`${p.bookings} đơn`, `${p.bookings} bookings`)}</div>
+                  <div className="mt-1 flex flex-wrap gap-1.5 font-utility text-micro font-semibold">
+                    {!p.active ? <span className="rounded-full bg-chili/15 px-2 py-0.5 text-chili">{t('Bị khoá', 'Suspended')}</span>
+                      : p.inventory_enabled ? <span className="rounded-full bg-herb/15 px-2 py-0.5 text-herb">{t('Đang bán', 'Live')}</span>
+                      : <span className="rounded-full bg-lantern/20 px-2 py-0.5 text-lantern">{t('Đang hoàn thiện', 'Setting up')} {p.readiness ? `${Object.values(p.readiness).filter(Boolean).length}/6` : ''}</span>}
+                    {p.self_listed && <span className="rounded-full bg-paper-2 px-2 py-0.5 text-ink-muted">{t('Tự khai báo', 'Self-listed')}</span>}
+                    {!p.has_payout && <span className="rounded-full bg-paper-2 px-2 py-0.5 text-ink-muted">{t('Chưa có TK nhận tiền', 'No payout account')}</span>}
+                  </div>
+                  {!p.active && p.suspension_note && <div className="text-2xs text-chili">{t('Lý do khoá', 'Reason')}: {p.suspension_note}</div>}
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
                     {p.managers.length === 0 && <span className="text-2xs text-chili">{t('Chưa có người quản lý', 'No manager yet')}</span>}
                     {p.managers.map((m) => (
@@ -956,7 +981,12 @@ function PartnersTab({ t }) {
                     ))}
                   </div>
                 </div>
-                <button type="button" disabled={propAction.busyId === p.id} className={`${BUTTON} shrink-0 self-start`} onClick={() => addManager(p)}>+ {t('Người quản lý', 'Manager')}</button>
+                <div className="flex shrink-0 flex-wrap gap-2 self-start">
+                  <button type="button" disabled={propAction.busyId === p.id} className={BUTTON} onClick={() => addManager(p)}>+ {t('Người quản lý', 'Manager')}</button>
+                  {p.active
+                    ? <button type="button" disabled={propAction.busyId === p.id} className={DANGER} onClick={() => suspend(p)}>{t('Khoá', 'Suspend')}</button>
+                    : <button type="button" disabled={propAction.busyId === p.id} className={BUTTON} onClick={() => propAction.run(p.id, t(`Mở lại ${p.name}?`, `Restore ${p.name}?`), () => admin.setPropertyActive(p.id, true))}>{t('Mở lại', 'Restore')}</button>}
+                </div>
               </li>
             ))}
           </ul>
@@ -964,5 +994,205 @@ function PartnersTab({ t }) {
       </Panel>
       {dialog}
     </div>
+  )
+}
+
+/** The partner side of the overview: who is live, what is waiting, what is owed. */
+function PartnerOverview({ t, onOpen }) {
+  const [d, setD] = useState(null)
+  useEffect(() => { admin.getPartnerOverview().then(setD).catch(() => setD(false)) }, [])
+  if (d === null) return <Spinner label={t('Đang tải số liệu đối tác…', 'Loading partner figures…')} />
+  if (d === false) return null
+  const cards = [
+    { label: t('Cơ sở đang bán', 'Properties live'), value: d.properties_live, note: t(`${d.properties_setup} đang hoàn thiện · ${d.properties_suspended} bị khoá`, `${d.properties_setup} setting up · ${d.properties_suspended} suspended`), tab: 'partners' },
+    { label: t('Đơn đã trả chờ khách sạn xác nhận', 'Paid, awaiting hotel'), value: d.stays_to_confirm, tab: 'bookings', alert: d.stays_to_confirm > 0 },
+    { label: t('Phải trả đối tác (chưa đối soát)', 'Owed to partners (unsettled)'), value: formatVnd(d.payout_due), tab: 'settlements', alert: d.payout_due > 0 },
+    { label: t('Hoa hồng tour chưa thu', 'Tour commission due'), value: formatVnd(d.commission_due), note: t(`${d.settlements_pending} kỳ đối soát đang chờ`, `${d.settlements_pending} settlements pending`), tab: 'settlements' },
+    { label: t('Đơn vị tour', 'Tour operators'), value: d.operators, note: t(`${d.operators_pending} chờ duyệt`, `${d.operators_pending} pending`), tab: 'tour-partners', alert: d.operators_pending > 0 },
+    { label: t('Tour đang mở bán', 'Tours published'), value: d.tours_published, note: t(`${d.tour_requests} yêu cầu giữ chỗ chờ xác nhận`, `${d.tour_requests} seat requests waiting`), tab: 'tour-partners' },
+  ]
+  return (
+    <div>
+      <h2 className="mb-3 font-utility text-xs font-bold uppercase tracking-wide text-ink-faint">{t('Đối tác', 'Partners')}</h2>
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
+        {cards.map((card) => (
+          <button key={card.label} type="button" onClick={() => onOpen(card.tab)}
+            className={`min-w-0 rounded-2xl border bg-surface p-4 text-left transition-colors hover:border-chili ${card.alert ? 'border-chili/50' : 'border-line'}`}>
+            <div className="font-utility text-micro uppercase tracking-wide text-ink-faint">{card.label}</div>
+            <div className={`mt-1.5 truncate font-utility text-xl font-bold sm:text-2xl ${card.alert ? 'text-chili' : ''}`}>{typeof card.value === 'number' ? card.value.toLocaleString('vi-VN') : card.value}</div>
+            {card.note && <div className="mt-1 truncate text-2xs text-ink-muted">{card.note}</div>}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const todayVn = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
+
+/**
+ * Settlements: what FoodTrip owes each property for finished stays (less
+ * commission) and what each tour operator owes in commission — settled to
+ * today in one click, then marked paid with the bank reference.
+ */
+function SettlementsTab({ t }) {
+  const [candidates, setCandidates] = useState(null)
+  const loadCandidates = useCallback(() => { admin.getSettlementCandidates().then(setCandidates).catch(() => setCandidates(false)) }, [])
+  useEffect(loadCandidates, [loadCandidates])
+  const loadSettlements = useCallback(() => admin.listSettlements(), [])
+  const settlements = usePagedList(loadSettlements)
+  const action = useAction(settlements, t)
+  const [dialog, ask] = useInputDialog(t)
+
+  async function settle(kind, id, name) {
+    const ok = await action.run(id, t(`Lập đối soát cho ${name} đến hôm nay?`, `Settle ${name} up to today?`), () => admin.createSettlement(kind, id, todayVn()))
+    if (ok) loadCandidates()
+  }
+  async function markPaid(s) {
+    const reference = await ask({
+      title: s.kind === 'stay' ? t('Đã chuyển tiền cho đối tác', 'Paid the partner') : t('Đã nhận hoa hồng', 'Commission received'),
+      body: t('Nhập mã giao dịch ngân hàng để đối chiếu sau này.', 'Enter the bank transaction reference for later reconciliation.'),
+      label: t('Mã giao dịch', 'Reference'), placeholder: 'VCB FT2610…', confirmLabel: t('Xác nhận', 'Confirm'), minLength: 3,
+    })
+    if (reference != null) action.run(s.id, null, () => admin.markSettlementPaid(s.id, reference))
+  }
+  const exportCsv = () => admin.downloadCsv(`doi-soat-${todayVn()}.csv`,
+    settlements.rows.map((s) => ({ ...s, partner: s.property?.name ?? s.operator?.name ?? '' })),
+    ['kind', 'partner', 'period_end', 'item_count', 'gross', 'commission_pct', 'commission', 'net', 'status', 'reference', 'paid_at', 'created_at'])
+
+  return (
+    <div className="space-y-4">
+      <RefundsPanel t={t} />
+      <Panel title={t('Chờ đối soát — trả cho cơ sở lưu trú', 'To settle — owed to properties')}>
+        <ActionError error={action.error} />
+        {candidates === null ? <Spinner label="…" /> : !candidates?.stays?.length ? <p className="text-sm text-ink-muted">{t('Không có đơn nào đã trả phòng mà chưa đối soát.', 'No finished stays waiting to be settled.')}</p> : (
+          <ul className="divide-y divide-line">
+            {candidates.stays.map((c) => (
+              <li key={c.property_id} className="flex flex-col gap-2 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0 text-sm">
+                  <div className="font-semibold">{c.name}</div>
+                  <div className="text-2xs text-ink-muted">{t(`${c.count} đơn · tiền phòng ${formatVnd(c.gross)} · hoa hồng ${Number(c.pct)}% = ${formatVnd(c.commission)}`, `${c.count} stays · ${formatVnd(c.gross)} · ${Number(c.pct)}% = ${formatVnd(c.commission)}`)}</div>
+                  <div className={`text-2xs ${c.bank ? 'text-ink-muted' : 'text-chili'}`}>{c.bank ? `${c.bank.bank_name} · ${c.bank.account_number} · ${c.bank.account_holder}` : t('Chưa có tài khoản nhận tiền — nhắc đối tác khai trong hồ sơ.', 'No payout account — ask the partner to add one.')}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-3"><span className="font-utility text-md font-bold">{formatVnd(c.net)}</span>
+                  <button type="button" disabled={action.busyId === c.property_id} onClick={() => settle('stay', c.property_id, c.name)} className={BUTTON}>{t('Lập đối soát', 'Settle')}</button></div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <Panel title={t('Chờ đối soát — hoa hồng đơn vị tour', 'To settle — tour commission')}>
+        {candidates === null ? <Spinner label="…" /> : !candidates?.tours?.length ? <p className="text-sm text-ink-muted">{t('Không có đơn tour hoàn thành nào chưa đối soát.', 'No finished tour bookings waiting to be settled.')}</p> : (
+          <ul className="divide-y divide-line">
+            {candidates.tours.map((c) => (
+              <li key={c.operator_id} className="flex flex-col gap-2 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0 text-sm"><div className="font-semibold">{c.name}</div><div className="text-2xs text-ink-muted">{t(`${c.count} đơn · doanh thu ${formatVnd(c.gross)} · hoa hồng ${Number(c.pct)}%`, `${c.count} bookings · ${formatVnd(c.gross)} · ${Number(c.pct)}%`)}</div></div>
+                <div className="flex shrink-0 items-center gap-3"><span className="font-utility text-md font-bold">{formatVnd(c.commission)}</span>
+                  <button type="button" disabled={action.busyId === c.operator_id} onClick={() => settle('tour', c.operator_id, c.name)} className={BUTTON}>{t('Lập đối soát', 'Settle')}</button></div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Panel>
+      <Panel title={t('Các kỳ đối soát', 'Settlements')} count={settlements.count}
+        actions={settlements.rows.length > 0 && <button type="button" onClick={exportCsv} className={BUTTON}><DownloadSimple size={13} />CSV</button>}>
+        <ListState list={settlements} t={t} empty={t('Chưa có kỳ đối soát nào.', 'No settlements yet.')}>
+          <ul className="divide-y divide-line">
+            {settlements.rows.map((s) => (
+              <li key={s.id} className="flex flex-col gap-2 py-3 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0 text-sm">
+                  <div className="font-semibold">{s.property?.name ?? s.operator?.name} <span className="font-normal text-ink-faint">· {s.kind === 'stay' ? t('lưu trú', 'stay') : 'tour'}</span></div>
+                  <div className="text-2xs text-ink-muted">{t(`Đến ${formatDate(s.period_end, false)} · ${s.item_count} đơn · ${formatVnd(s.gross)} · ${Number(s.commission_pct)}%`, `Up to ${formatDate(s.period_end, false)} · ${s.item_count} items · ${formatVnd(s.gross)} · ${Number(s.commission_pct)}%`)}</div>
+                  {s.reference && <div className="font-utility text-2xs text-ink-faint">{s.reference} · {formatDate(s.paid_at)}</div>}
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="text-right"><span className="block font-utility text-md font-bold">{formatVnd(s.kind === 'stay' ? s.net : s.commission)}</span><span className="block text-2xs text-ink-faint">{s.kind === 'stay' ? t('trả đối tác', 'to partner') : t('đối tác trả', 'from partner')}</span></span>
+                  {s.status === 'pending'
+                    ? <button type="button" disabled={action.busyId === s.id} onClick={() => markPaid(s)} className={BUTTON}><Check size={13} />{s.kind === 'stay' ? t('Đã chuyển', 'Paid') : t('Đã nhận', 'Received')}</button>
+                    : <span className="rounded-full bg-herb/15 px-2.5 py-0.5 font-utility text-2xs font-semibold text-herb">{t('Hoàn tất', 'Done')}</span>}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </ListState>
+      </Panel>
+      {dialog}
+    </div>
+  )
+}
+
+/** Every tour on FoodTrip: who runs it, how it is doing; a published one can be hidden with a reason. */
+function AdminTours({ t }) {
+  const loadTours = useCallback(() => admin.listAllTours(), [])
+  const tours = usePagedList(loadTours)
+  const action = useAction(tours, t)
+  const [dialog, ask] = useInputDialog(t)
+  async function hide(tour) {
+    const note = await ask({ title: t(`Ẩn tour "${tour.title}"`, `Hide "${tour.title}"`), body: t('Tour không nhận yêu cầu mới; các đơn đã có vẫn giữ nguyên. Lý do được ghi vào nhật ký.', 'The tour takes no new requests; existing bookings stay. The reason goes to the activity log.'), label: t('Lý do', 'Reason'), confirmLabel: t('Ẩn tour', 'Hide tour'), minLength: 3, danger: true })
+    if (note != null) action.run(tour.id, null, () => admin.hideTour(tour.id, note))
+  }
+  return (
+    <Panel title={t('Tất cả tour', 'All tours')} count={tours.count}>
+      <ActionError error={action.error} />
+      <ListState list={tours} t={t} empty={t('Chưa có tour nào.', 'No tours yet.')}>
+        <ul className="divide-y divide-line">
+          {tours.rows.map((tour) => (
+            <li key={tour.id} className="flex flex-col gap-2 py-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex min-w-0 items-center gap-3 text-sm">
+                {tour.cover_url ? <img src={tour.cover_url} alt="" referrerPolicy="no-referrer" className="h-12 w-16 shrink-0 rounded-lg object-cover" /> : <span className="h-12 w-16 shrink-0 rounded-lg bg-paper-2" />}
+                <div className="min-w-0">
+                  <div className="truncate font-semibold">{tour.title}</div>
+                  <div className="text-2xs text-ink-muted">{tour.operator} · {tour.destination} · {t(`${tour.departures} chuyến sắp tới · ${tour.seats} khách · ${tour.requests} yêu cầu chờ`, `${tour.departures} upcoming · ${tour.seats} guests · ${tour.requests} waiting`)}</div>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className={`rounded-full px-2.5 py-0.5 font-utility text-2xs font-semibold ${tour.published ? 'bg-herb/15 text-herb' : 'bg-paper-2 text-ink-muted'}`}>{tour.published ? t('Đang bán', 'Published') : t('Nháp / đã ẩn', 'Draft / hidden')}</span>
+                {tour.published && <button type="button" disabled={action.busyId === tour.id} onClick={() => hide(tour)} className={DANGER}>{t('Ẩn tour', 'Hide')}</button>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </ListState>
+      {dialog}
+    </Panel>
+  )
+}
+
+/**
+ * Refunds owed to guests — a hotel rejected a paid booking, or the guest
+ * cancelled within the policy — oldest first, with where to send the money.
+ * Marking one done records the bank reference and tells the guest.
+ */
+function RefundsPanel({ t }) {
+  const loadRefunds = useCallback(() => admin.listRefunds(), [])
+  const refunds = usePagedList(loadRefunds)
+  const action = useAction(refunds, t)
+  const [dialog, ask] = useInputDialog(t)
+  async function complete(b) {
+    const reference = await ask({ title: t(`Đã hoàn ${formatVnd(b.refund_amount)} cho ${b.guest_name}`, `Refunded ${formatVnd(b.refund_amount)} to ${b.guest_name}`), body: t('Nhập mã giao dịch chuyển khoản hoàn tiền.', 'Enter the refund transfer reference.'), label: t('Mã giao dịch', 'Reference'), placeholder: 'VCB HT…', confirmLabel: t('Xác nhận đã hoàn', 'Confirm refund'), minLength: 3 })
+    if (reference != null) action.run(b.id, null, () => admin.completeRefund(b.id, reference))
+  }
+  return (
+    <Panel title={t('Cần hoàn tiền cho khách', 'Refunds owed to guests')} count={refunds.count}>
+      <ActionError error={action.error} />
+      <ListState list={refunds} t={t} empty={t('Không có khoản hoàn tiền nào đang chờ.', 'No refunds waiting.')}>
+        <ul className="divide-y divide-line">
+          {refunds.rows.map((b) => (
+            <li key={b.id} className="flex flex-col gap-2 py-3 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0 text-sm">
+                <div className="font-semibold">{b.guest_name} <span className="font-normal text-ink-faint">· {b.hotel_name} · {b.payment_code}</span></div>
+                <div className="text-2xs text-ink-muted">{b.fulfillment_status === 'rejected' ? t('Khách sạn từ chối', 'Hotel rejected') + (b.hotel_note ? `: ${b.hotel_note}` : '') : t('Khách huỷ', 'Guest cancelled') + (b.cancel_reason ? `: ${b.cancel_reason}` : '')} · {formatDate(b.cancelled_at)}</div>
+                <div className={`text-2xs ${b.refund_account ? 'text-ink-muted' : 'text-chili'}`}>{b.refund_account ? `${b.refund_bank} · ${b.refund_account} · ${b.refund_holder}` : t(`Khách chưa nhập tài khoản — liên hệ ${b.guest_phone ?? b.guest_email ?? 'khách'}`, `No account yet — contact ${b.guest_phone ?? b.guest_email ?? 'the guest'}`)}</div>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="text-right"><span className="block font-utility text-md font-bold">{formatVnd(b.refund_amount)}</span><span className="block text-2xs text-ink-faint">{t(`/ ${formatVnd(b.total_price)} đã trả`, `of ${formatVnd(b.total_price)} paid`)}</span></span>
+                <button type="button" disabled={action.busyId === b.id || !b.refund_account} onClick={() => complete(b)} className={BUTTON}><Check size={13} />{t('Đã hoàn', 'Refunded')}</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </ListState>
+      {dialog}
+    </Panel>
   )
 }

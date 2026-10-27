@@ -1,11 +1,12 @@
 import { supabase, hasSupabase } from './supabaseClient.js'
 
-/** Whether bank-transfer payment through SePay is configured: 'ready' | 'no-key' | 'unknown'. */
+/** Explicit test mode or bank transfer configuration: 'mock' | 'ready' | 'no-key' | 'unknown'. */
 export async function getSepayMode() {
   if (!hasSupabase) return 'no-key'
   try {
     const { data, error } = await supabase.functions.invoke('sepay-create-payment', { body: { check: true } })
     if (error) return 'unknown'
+    if (data?.status === 'mock') return 'mock'
     return data?.status === 'ready' ? 'ready' : 'no-key'
   } catch {
     return 'unknown'
@@ -27,7 +28,13 @@ export async function getSepayPayment(bookingId) {
 
 /** The booking's payment status as the database has it — the webhook's word, not the browser's. */
 export async function getBookingPaymentStatus(bookingId) {
-  const { data, error } = await supabase.from('bookings').select('payment_status, paid_at').eq('id', bookingId).maybeSingle()
+  const { data, error } = await supabase.from('bookings').select('payment_status, paid_at, payment_txn_ref').eq('id', bookingId).maybeSingle()
+  if (error) throw error
+  return data
+}
+
+export async function mockSepayTransfer(bookingId, key, scenario) {
+  const { data,error } = await supabase.rpc('mock_sepay_transfer',{p_booking:bookingId,p_key:key,p_scenario:scenario})
   if (error) throw error
   return data
 }

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import {
-  ArrowLeft, CaretDown, CaretLeft, CaretRight, CheckCircle, Compass, XCircle, MapPin, Clock, CalendarBlank, Bus, Flag, Users, Check,
+  ArrowLeft, ArrowSquareOut, CaretDown, CaretLeft, CaretRight, CheckCircle, Compass, XCircle, MapPin, Clock, CalendarBlank, Bus, Flag, Users, Check,
 } from '@phosphor-icons/react'
 import { tourMoney, tourDurationLabel, vnDate, vnTime } from '../../lib/tours.js'
+import ReviewList from '../reviews/ReviewList.jsx'
+import { Stars } from '../reviews/Stars.jsx'
 
 const C = {
   vi: {
@@ -18,6 +20,7 @@ const C = {
     choose: 'Chọn tour này', chosen: 'Đã chọn cho lịch trình', unchoose: 'Bỏ chọn',
     chooseDeparture: 'Chọn', chosenDeparture: 'Đã chọn',
     notEnough: 'Không đủ chỗ cho nhóm bạn', highlights: 'Điểm nổi bật chương trình',
+    page: 'Trang riêng của tour', reviews: 'Đánh giá', reviewCount: (n) => `${n} đánh giá`,
     onThisPage: 'Trên trang này', photo: (i, n) => `Ảnh ${i} / ${n}`, prev: 'Ảnh trước', next: 'Ảnh sau',
   },
   en: {
@@ -33,6 +36,7 @@ const C = {
     choose: 'Choose this tour', chosen: 'Chosen for your trip', unchoose: 'Remove',
     chooseDeparture: 'Choose', chosenDeparture: 'Chosen',
     notEnough: 'Not enough seats for your group', highlights: 'Highlights',
+    page: 'Tour page', reviews: 'Reviews', reviewCount: (n) => (n === 1 ? '1 review' : `${n} reviews`),
     onThisPage: 'On this page', photo: (i, n) => `Photo ${i} of ${n}`, prev: 'Previous photo', next: 'Next photo',
   },
 }
@@ -44,10 +48,13 @@ const C = {
  *
  * `fits(departure)` says whether a departure falls in the traveller's trip;
  * others are listed but cannot be chosen. Without `onChoose` (the partner
- * portal's preview) nothing can be chosen.
+ * portal's preview) nothing can be chosen. `pageLink` adds a link to the
+ * tour's own shareable page (/tour/:id), opened in a new tab so a plan in
+ * progress is not lost.
  */
-export default function TourDetail({ tour, lang, people = 1, fits = () => true, chosenId = null, onChoose, onBack }) {
-  const c = C[lang]
+export default function TourDetail({ tour, lang, people = 1, fits = () => true, chosenId = null, onChoose, onBack, pageLink = false, labels }) {
+  // `labels` overrides the choose-button wording (the tour page chooses a departure, not a tour for a trip).
+  const c = { ...C[lang], ...labels }
   const departures = tour.departures ?? []
   const bookable = departures.filter((d) => fits(d) && d.available >= people)
   const chosen = departures.find((d) => d.id === chosenId) ?? null
@@ -65,6 +72,7 @@ export default function TourDetail({ tour, lang, people = 1, fits = () => true, 
     ['tour-schedule', c.schedule],
     ...((tour.includes?.length || tour.excludes?.length) ? [['tour-includes', `${c.includes} / ${c.excludes.toLowerCase()}`]] : []),
     ...((tour.child_policy || tour.cancel_policy || tour.notes) ? [['tour-policies', c.cancel]] : []),
+    ['tour-reviews', c.reviews],
   ]
   const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 
@@ -99,9 +107,17 @@ export default function TourDetail({ tour, lang, people = 1, fits = () => true, 
       )}
       <nav aria-label="breadcrumb" className="mb-2 flex flex-wrap items-center gap-1.5 text-sm text-ink-faint">
         <span>{c.crumbs}</span><CaretRight size={11} /><span>{tour.destination}</span><CaretRight size={11} /><span className="text-ink-muted">{tour.title}</span>
+        {pageLink && <a href={`/tour/${tour.id}`} target="_blank" rel="noopener" className="ml-auto inline-flex items-center gap-1 font-utility text-xs font-semibold text-chili hover:underline">{c.page}<ArrowSquareOut size={12} /></a>}
       </nav>
       <h2 className="text-2xl font-bold leading-tight md:text-3xl">{tour.title}</h2>
-      <p className="mt-1 text-sm text-ink-muted">{tour.operator_name}{shown && ` · ${tourDurationLabel(shown, lang)}`}</p>
+      <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-ink-muted">
+        <span>{tour.operator_name}{shown && ` · ${tourDurationLabel(shown, lang)}`}</span>
+        {Number(tour.review_count) > 0 && (
+          <button type="button" onClick={() => jump('tour-reviews')} className="inline-flex items-center gap-1.5 hover:text-chili">
+            <Stars value={tour.rating} size={12} /><b className="text-ink">{Number(tour.rating).toFixed(1)}</b>{c.reviewCount(Number(tour.review_count))}
+          </button>
+        )}
+      </p>
 
       <div className="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="flex min-w-0 flex-col gap-8">
@@ -188,6 +204,8 @@ export default function TourDetail({ tour, lang, people = 1, fits = () => true, 
               ))}
             </section>
           )}
+
+          <div id="tour-reviews" className="scroll-mt-24"><ReviewList kind="tour" target={tour.id} lang={lang} /></div>
         </div>
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">

@@ -2,6 +2,7 @@ import { supabase, hasSupabase } from './supabaseClient.js'
 import { normalizeVi } from './text.js'
 import { resolveDestination, tripRequestCandidates } from './knowledgeBase.js'
 import { parseTripRequestLocally } from './tripRequestLocal.js'
+import { askAssistant, planFields } from './assistant.js'
 
 // Re-exported for the callers that imported it from here before text.js existed.
 export { normalizeVi }
@@ -53,6 +54,15 @@ export async function parseTripRequestText(text) {
   // the request is read with patterns instead, so the button still fills the
   // form rather than only reporting that AI is not configured.
   if (!hasSupabase) return parseTripRequestLocally(text)
+  // FoodTrip's own assistant model (when deployed) adds what the patterns miss.
+  const readLocally = async () => {
+    try {
+      const reading = await askAssistant(text)
+      return { ...planFields(text, reading.slots), source: reading.source === 'model' ? 'assistant' : 'local' }
+    } catch {
+      return parseTripRequestLocally(text)
+    }
+  }
 
   const cacheKey = normalizeVi(text)
   const cached = readCache(cacheKey)
@@ -64,12 +74,12 @@ export async function parseTripRequestText(text) {
     const response = await supabase.functions.invoke('parse-trip-request', {
       body: { text, cityCandidates, placeCandidates },
     })
-    if (response.error) return parseTripRequestLocally(text)
+    if (response.error) return readLocally()
     data = response.data
   } catch {
-    return parseTripRequestLocally(text)
+    return readLocally()
   }
-  if (data?.error) return parseTripRequestLocally(text)
+  if (data?.error) return readLocally()
 
   // A grounded cityId is authoritative; otherwise fall back to resolving the
   // model's free-text destinationQuery through the same retrieval layer.

@@ -1,0 +1,25 @@
+# Lint, tests (including the PostgreSQL/WASM migration and permission tests)
+# and a production build, on every push and pull request.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      # The build needs no real keys: without them the app builds and falls
+      # back to its no-key states.
+      - run: npm run build

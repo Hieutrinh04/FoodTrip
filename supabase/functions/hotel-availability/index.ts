@@ -1,5 +1,6 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
 import { callSerperMaps, shapePlace } from '../_shared/serperPlace.ts'
+import { hasSerperKey } from '../_shared/serper.ts'
 import { findGoogleTwin } from '../_shared/hotelMatch.ts'
 import { cityGeo, eurToVnd, fetchCityAvailability, fetchHotelPhotos, hasHotelbedsKeys, shapeHotel } from '../_shared/hotelbeds.ts'
 
@@ -56,13 +57,12 @@ function dedupe(places: ReturnType<typeof shapePlace>[]) {
 const ACCOMMODATION_QUERIES = ['khách sạn ở', 'homestay ở']
 
 async function googleHotels(cityName: string) {
-  const apiKey = Deno.env.get('SERPER_API_KEY')
-  if (!apiKey) return []
+  if (!hasSerperKey()) return []
   const base = { gl: 'vn', hl: 'vi', page: SERPER_PAGE, num: SERPER_RESULTS }
 
   const responses = await Promise.all(
     ACCOMMODATION_QUERIES.map((prefix) =>
-      callSerperMaps(apiKey, { q: `${prefix} ${cityName}`, ...base }).catch(() => ({ places: [] })),
+      callSerperMaps({ q: `${prefix} ${cityName}`, ...base }).catch(() => ({ places: [] })),
     ),
   )
   const places = dedupe(responses.flatMap((response) => response.places ?? []).map(shapePlace))
@@ -76,7 +76,7 @@ async function googleHotels(cityName: string) {
   // text query for whole cities.
   const geo = cityGeo(cityName)
   if (!geo) return places
-  const retry = await callSerperMaps(apiKey, {
+  const retry = await callSerperMaps({
     q: 'khách sạn homestay',
     ll: `@${geo.lat},${geo.lng},13z`,
     ...base,
@@ -109,7 +109,7 @@ Deno.serve(async (request) => {
   const maxPricePerNight = Number(body.maxPricePerNight) > 0 ? Number(body.maxPricePerNight) : null
 
   const wantsHotelbeds = hasHotelbedsKeys()
-  if (!wantsHotelbeds && !Deno.env.get('SERPER_API_KEY')) {
+  if (!wantsHotelbeds && !hasSerperKey()) {
     return jsonResponse({ status: 'no-key', hotels: [] })
   }
 
