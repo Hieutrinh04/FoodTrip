@@ -4,6 +4,7 @@ import { searchCityPlaces } from './citySearch.js'
 import { optimiseDayRouteByRoad } from './routeOptimizer.js'
 import { scorePlace as scoreByModel } from './placeScore.js'
 import { fetchRouteDetails } from './trackAsia.js'
+import { loadPlannerCatalog, plannerPool } from './plannerCatalog.js'
 
 // Generic day structure — the engine fills each slot with the best-scoring
 // place of the right category for that city, rather than a fixed template.
@@ -38,6 +39,7 @@ const NOTE_LABEL = {
 const TRANSPORT_SPEED_KMH = { walk: 4.5, bike: 25, car: 28, taxi: 28 }
 
 function isOpenAt(hours, time) {
+  if (!hours?.open || !hours?.close) return false
   const [h, m] = time.split(':').map(Number)
   const [oh, om] = hours.open.split(':').map(Number)
   const [ch, cm] = hours.close.split(':').map(Number)
@@ -142,10 +144,17 @@ function scorePlace(place, enrichment, prefs, budgetPerPersonPerDay, prevLocatio
 // `people` is deliberately not read: the budget is already per person, and the
 // scoring model compares it against per-person place prices, so party size does
 // not enter the calculation. Callers still pass it; it is ignored here.
-export async function generateItinerary({ cityId, places, duration, budget, prefs, transport, startLocation = null, endLocation = null }) {
+export async function generateItinerary({ cityId, places, duration, budget, prefs, transport, startLocation = null, endLocation = null, onCandidates, onCatalog }, { loadCatalog = loadPlannerCatalog, expand = expandCandidates, enrich = fetchPlaceEnrichment, route = fetchRouteDetails } = {}) {
   // A caller-supplied pool (custom destination) is already a full live search
   // result; only the curated per-city pools need topping up.
-  const cityPlaces = places ?? (await expandCandidates(cityId, getPlacesByCity(cityId)))
+  const stored = await loadCatalog({ cityId })
+  onCatalog?.(stored)
+  // Explicit pools (custom destination) already include the DB choices selected
+  // by the traveller; do not re-add venues they unchecked in the picker.
+  const merged = plannerPool(places ?? getPlacesByCity(cityId), places ? [] : stored.places)
+  const cityPlaces = places ? merged : await expand(cityId, merged)
+  registerCustomPlaces(cityPlaces.filter((p) => p.source || p.googlePlaceId))
+  onCandidates?.(cityPlaces)
 
   const enrichmentPairs = await Promise.all(
     cityPlaces.map(async (p) => {
@@ -155,7 +164,7 @@ export async function generateItinerary({ cityId, places, duration, budget, pref
         return [p.id, { placeId: p.googlePlaceId, rating: p.liveRating, userRatingCount: p.liveReviewCount, location: p.location }]
       }
       try {
-        const enrichment = await fetchPlaceEnrichment({ name: p.name.vi, address: p.address.vi, city: cityId })
+        const enrichment = await enrich({ name: p.name.vi, address: p.address.vi, city: cityId })
         return [p.id, enrichment]
       } catch {
         return [p.id, null]
@@ -187,7 +196,9 @@ export async function generateItinerary({ cityId, places, duration, budget, pref
     // closed ones if nothing in the city is open then (keeps a slot filled
     // rather than leaving it empty).
     const openAtTime = categoryMatches.filter((p) => isOpenAt(p.hours, slot.time))
-    let candidates = openAtTime.length ? openAtTime : (slot.strict ? [] : categoryMatches)
+    const unknownHours = categoryMatches.filter((p) => !p.hours?.open || !p.hours?.close)
+    let candidates = [...openAtTime, ...(slot.strict ? [] : unknownHours)]
+    if (!candidates.length && !slot.strict) candidates = categoryMatches
     if (!candidates.length) return null
 
     // Never send the traveller to the same place twice in one day. When nothing
@@ -242,7 +253,7 @@ export async function generateItinerary({ cityId, places, duration, budget, pref
       startLocation,
       endLocation,
       candidateLimit: routeCandidateLimit,
-      fetchRouteDetails: (points) => fetchRouteDetails(points, transport, { geometry: false }),
+      fetchRouteDetails: (points) => route(points, transport, { geometry: false }),
     })
     const optimised = routeResult.entries
 
@@ -270,6 +281,7 @@ export async function generateItinerary({ cityId, places, duration, budget, pref
         liveReviewCount: enrichment?.userRatingCount ?? null,
         location,
         googlePlaceId: enrichment?.placeId ?? null,
+        ...(place.source || place.googlePlaceId ? { placeSnapshot: place } : {}),
       })
       if (location) previous = location
     }

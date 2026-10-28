@@ -304,3 +304,57 @@ export async function completeRefund(id, reference) {
   const { error } = await supabase.rpc('admin_complete_refund', { p_booking: id, p_reference: reference })
   if (error) throw error
 }
+
+/** What people asked the assistant: `show` — 'wrong' (👎), 'unsure' (out of scope or low confidence), 'unreviewed', 'all'. */
+export async function listAssistantMessages({ show = 'wrong', pageIndex = 0 } = {}) {
+  let query = supabase.from('assistant_messages').select('*', { count: 'exact' }).order('created_at', { ascending: false })
+  if (show === 'wrong') query = query.eq('helpful', false)
+  if (show === 'unsure') query = query.or('intent.eq.out_of_scope,confidence.lt.0.6')
+  if (show === 'unreviewed') query = query.is('reviewed_at', null)
+  const { data, error, count } = await page(query, pageIndex)
+  if (error) throw error
+  return { rows: data, count: count ?? 0 }
+}
+
+/** How the assistant is doing: messages, ratings and readers. */
+export async function assistantStats() {
+  const count = async (build) => {
+    const { count: n, error } = await build(supabase.from('assistant_messages').select('id', { count: 'exact', head: true }))
+    if (error) throw error
+    return n ?? 0
+  }
+  const [total, helpful, wrong, model, reviewed] = await Promise.all([
+    count((q) => q), count((q) => q.eq('helpful', true)), count((q) => q.eq('helpful', false)),
+    count((q) => q.eq('source', 'model')), count((q) => q.not('reviewed_at', 'is', null)),
+  ])
+  return { total, helpful, wrong, model, reviewed }
+}
+
+/** The intent a message really had (null clears the correction). */
+export async function reviewAssistantMessage(id, intent) {
+  const { error } = await supabase.from('assistant_messages')
+    .update({ reviewed_intent: intent, reviewed_at: intent ? new Date().toISOString() : null }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteAssistantMessage(id) {
+  const { error } = await supabase.from('assistant_messages').delete().eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * Reviewed messages as JSON lines for the next training round: the text and
+ * the intent a person settled. Slots are not reviewed here, so none are given;
+ * the labelling round tags them (ml/assistant/README.md).
+ */
+export async function reviewedAssistantJsonl() {
+  const rows = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from('assistant_messages').select('id,text,lang,intent,reviewed_intent,helpful')
+      .not('reviewed_at', 'is', null).order('created_at').range(from, from + 999)
+    if (error) throw error
+    rows.push(...data)
+    if (data.length < 1000) break
+  }
+  return rows.map((r) => JSON.stringify({ id: r.id, text: r.text, lang: r.lang, intent: r.reviewed_intent, predicted: r.intent, helpful: r.helpful })).join('\n')
+}

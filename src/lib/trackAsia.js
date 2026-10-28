@@ -15,7 +15,7 @@
 // over for the rest of the session once the main one is rejected or out of
 // quota. Track-Asia answers 401 for a bad key; 403/429 cover a revoked or
 // exhausted one.
-const apiKeys = [import.meta.env.VITE_TRACK_ASIA_API_KEY, import.meta.env.VITE_TRACK_ASIA_API_KEY_BACKUP].filter(Boolean)
+const apiKeys = [import.meta.env?.VITE_TRACK_ASIA_API_KEY, import.meta.env?.VITE_TRACK_ASIA_API_KEY_BACKUP].filter(Boolean)
 let keyIndex = 0
 const currentKey = () => apiKeys[keyIndex] ?? ''
 const KEY_REJECTED = new Set([401, 402, 403, 429])

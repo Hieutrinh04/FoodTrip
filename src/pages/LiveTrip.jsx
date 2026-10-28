@@ -83,6 +83,7 @@ function tripCity(trip) {
 }
 
 async function hydrateCustomPlaces(days) {
+  registerCustomPlaces(days.flat().map((stop) => stop.placeSnapshot).filter((p) => p?.id && p.name && p.address))
   const missingIds = new Set()
   for (const day of days ?? []) {
     for (const stop of day) if (!getPlace(stop.placeId)) missingIds.add(stop.placeId)

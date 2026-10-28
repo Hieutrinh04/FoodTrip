@@ -31,6 +31,7 @@ const MAX_SEARCHES_LIST = 8
 type Mention = { said: string; placeId: string | null; address: string | null }
 type Answer = {
   places: Candidate[]; source: string; requiresConfirmation: true; signals: { names: string[]; cities: string[]; hasVenue: boolean }
+  catalogueSaved?: boolean
   mentions: Mention[]; plan: ReturnType<typeof readPlan>
 }
 
@@ -62,7 +63,10 @@ Deno.serve(async (request) => {
     const shared = video ? await sharedBefore(video) : []
     if (cacheKey) {
       const hit = await readSearchCache<Answer>(cacheKey)
-      if (hit && hit.expiresAt > Date.now()) return jsonResponse(withShared({ ...hit.payload }, shared, 'cache'))
+      if (hit && hit.expiresAt > Date.now()) {
+        const catalogueSaved = await saveFound(hit.payload.places.filter((p) => !p.known) as FoundPlace[])
+        return jsonResponse(withShared({ ...hit.payload, catalogueSaved }, shared, 'cache'))
+      }
     }
 
     // Search text is untrusted data: it is only ever used as a search query.
@@ -140,10 +144,8 @@ Deno.serve(async (request) => {
       mentions, plan,
     }
     // Venues a search found become FoodTrip's own venue data (details included).
-    await Promise.all([
-      saveFound([...tagged, ...searched] as FoundPlace[]),
-      cacheKey ? writeSearchCache(cacheKey, answer, Date.now() + (answer.places.length ? 7 * DAY : DAY)) : null,
-    ])
+    answer.catalogueSaved = await saveFound([...tagged, ...searched] as FoundPlace[])
+    if (cacheKey) await writeSearchCache(cacheKey, answer, Date.now() + (answer.places.length ? 7 * DAY : DAY))
     return jsonResponse(withShared(answer, shared))
   } catch {
     return jsonResponse({ error: 'search-unavailable' }, { status: 502 })

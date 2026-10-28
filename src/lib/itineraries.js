@@ -1,5 +1,6 @@
 import { supabase, hasSupabase } from './supabaseClient.js'
 import { isUuid } from './communityValidation.js'
+import { getPlace, registerCustomPlaces } from '../data/destinations.js'
 
 function daysWithStartDate(days, startDate) {
   if (!startDate || !days?.[0]?.[0]) return days
@@ -8,8 +9,9 @@ function daysWithStartDate(days, startDate) {
   )))
 }
 
-function normalizeItinerary(row) {
+export function normalizeItinerary(row) {
   if (!row) return row
+  registerCustomPlaces((row.days ?? []).flat().map((s) => s.placeSnapshot).filter((p) => p?.id && p.name && p.address))
   return { ...row, start_date: row.start_date ?? row.days?.[0]?.[0]?._tripStartDate ?? null }
 }
 
@@ -27,7 +29,10 @@ export async function saveItinerary({ userId, cityId, customCityName, duration, 
     prefs,
     // The embedded copy keeps the date available during the rollout window in
     // which the remote database may not have applied start_date yet.
-    days: daysWithStartDate(days, startDate),
+    days: daysWithStartDate(days.map((day) => day.map((stop) => {
+      const place = getPlace(stop.placeId) ?? stop.placeSnapshot
+      return place?.source || place?.googlePlaceId ? { ...stop, placeSnapshot: place } : stop
+    })), startDate),
     hotels: hotels ?? [],
     is_public: isPublic,
   }

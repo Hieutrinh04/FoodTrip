@@ -134,12 +134,12 @@ export default function ShareVideo() {
       setError(t('Không thể hoàn tất. Kiểm tra kết nối và thử lại; nội dung của bạn vẫn được giữ.', 'Could not complete this action. Check your connection and retry; your draft is preserved.'))
     }
   }
-  function present(rows) {
+  function present(rows, catalogueSaved = null) {
     const unique = [...new Map((rows || []).filter((p) => p.placeId && p.name && p.location).map((p) => [p.placeId, p])).values()].slice(0, 16)
     setCandidates(unique)
     setSelected([])
     setNotice(unique.length
-      ? t(`Tìm thấy ${unique.length} địa điểm gợi ý. Kiểm tra tên, địa chỉ và chọn đúng quán ở mục 2 bên dưới.`, `Found ${unique.length} suggested places. Check each name and address and select the right ones in step 2 below.`)
+      ? t(`Tìm thấy ${unique.length} địa điểm gợi ý. Kiểm tra tên, địa chỉ và chọn đúng quán ở mục 2 bên dưới.${catalogueSaved === true ? ' Địa điểm đã được lưu vào danh sách Khám phá, không cần đăng bài mới lưu quán.' : catalogueSaved === false ? ' Chưa lưu được đầy đủ vào danh sách quán; bạn có thể tìm lại để thử lưu.' : ''}`, `Found ${unique.length} suggested places. Check each name and address and select the right ones in step 2 below.${catalogueSaved === true ? ' Places are saved in Explore without publishing a post.' : catalogueSaved === false ? ' Some places could not be saved to the catalogue; search again to retry.' : ''}`)
       : t('Chưa tìm thấy địa điểm phù hợp. Thêm tên quán, quận/thành phố rồi tìm lại, hoặc đăng thông tin tự nhập.', 'No suitable place found. Add a name and district/city and retry, or publish your manually entered details.'))
   }
   async function analyze() {
@@ -175,7 +175,7 @@ export default function ShareVideo() {
         setNotice(meta.isPhoto
           ? t('Đây là bài ảnh: tên quán thường chỉ nằm trên ảnh nên FoodTrip chưa đọc được. Bấm một từ khóa gợi ý bên dưới, hoặc nhập tên quán rồi bấm “Tìm địa điểm trên bản đồ”.', 'This is a photo post: place names are usually only on the photos, which FoodTrip cannot read. Try a suggested search below, or enter the place name and search the map.')
           : t('Caption không nêu tên quán cụ thể nên FoodTrip không đoán bừa. Nhập tên quán và khu vực bên dưới rồi bấm “Tìm địa điểm trên bản đồ”.', 'The caption names no specific place, so FoodTrip will not guess. Enter the place name and area below, then search the map.'))
-      } else present(result.places)
+      } else present(result.places, result.catalogueSaved)
     } catch {
       if (token === requestRef.current) setNotice(t('Chưa đọc được nội dung video. Bạn vẫn có thể nhập tên quán và tìm địa chỉ bên dưới.', 'Could not read this video. You can still enter the place name and search below.'))
     } finally { setStep(null); finish() }
@@ -190,7 +190,7 @@ export default function ShareVideo() {
     setCandidates([]); setSelected([])
     try {
       const result = await verifyPlaceQuery([wanted, draft.address.trim()].filter(Boolean).join(', '))
-      if (token === requestRef.current) present(result.places || (result.status === 'matched' ? [result] : []))
+      if (token === requestRef.current) present(result.places || (result.status === 'matched' ? [result] : []), result.catalogueSaved)
     } catch (err) { if (token === requestRef.current) showError(err) }
     finally { finish() }
   }

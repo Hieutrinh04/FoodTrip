@@ -12,6 +12,7 @@ import { searchPlaces } from './trackAsia.js'
 import { planFields } from './assistant.js'
 import { datePhrases, parseTripDate } from './tripDates.js'
 import { normalizeVi } from './text.js'
+import { searchMapArea } from './mapAreaSearch.js'
 
 
 const vnd = (n) => `${Math.round(n / 1000) * 1000 >= 1e6 ? (Math.round(n / 1e5) / 10).toLocaleString('vi-VN') + ' triệu' : Math.round(n / 1000).toLocaleString('vi-VN') + 'k'}`
@@ -73,7 +74,11 @@ const MEAL = { 0: [0, 0], 1: [20000, 60000], 2: [100000, 300000] }
 export async function estimateCost(trip, lang = 'vi') {
   const vi = lang === 'vi'
   const where = placeName(trip, lang)
-  if (!where) return { text: vi ? 'Bạn định đi đâu, mấy ngày, mấy người? Ví dụ “Đà Lạt 3 ngày 2 người hết bao nhiêu?”.' : 'Where, how many days and people? E.g. “how much for 3 days in Da Lat for 2?”.' }
+  if (!where) {
+    // Only what is still missing is asked: "3 ngày 2 người hết bao nhiêu?" needs just the place.
+    const known = trip.duration || trip.people
+    return { text: vi ? (known ? 'Bạn định đi đâu?' : 'Bạn định đi đâu, mấy ngày, mấy người? Ví dụ “Đà Lạt 3 ngày 2 người hết bao nhiêu?”.') : (known ? 'Where are you going?' : 'Where, how many days and people? E.g. “how much for 3 days in Da Lat for 2?”.'), need: 'dest' }
+  }
   const assumed = []
   const days = trip.duration ?? (assumed.push(vi ? '2 ngày' : '2 days'), 2)
   const people = trip.people ?? (assumed.push(vi ? '2 người' : '2 people'), 2)
@@ -119,7 +124,7 @@ export async function estimateCost(trip, lang = 'vi') {
 export async function weatherAnswer(trip, lang = 'vi') {
   const vi = lang === 'vi'
   const where = placeName(trip, lang)
-  if (!where) return { text: vi ? 'Bạn muốn xem thời tiết ở đâu, khi nào? Ví dụ “thời tiết Đà Lạt cuối tuần này”.' : 'Where and when? E.g. “weather in Da Lat this weekend”.' }
+  if (!where) return { text: vi ? 'Bạn muốn xem thời tiết ở đâu, khi nào? Ví dụ “thời tiết Đà Lạt cuối tuần này”.' : 'Where and when? E.g. “weather in Da Lat this weekend”.', need: 'dest' }
   let location = destinationWeatherLocation(trip.cityId)
   if (!location) location = (await searchPlaces(where, { limit: 1 }).catch(() => null))?.[0]?.location ?? null
   if (!location) return { text: vi ? `Mình chưa xác định được vị trí của ${where} để xem thời tiết.` : `I could not locate ${where} for the weather.` }
@@ -148,7 +153,7 @@ export async function weatherAnswer(trip, lang = 'vi') {
 /** A named place's hours, address and rating (place-details: stored places answer for free). */
 export async function placeInfoAnswer(name, trip, lang = 'vi') {
   const vi = lang === 'vi'
-  if (!name) return { text: vi ? 'Bạn hỏi quán nào? Ví dụ “Phở Thìn Lò Đúc mấy giờ mở cửa?”.' : 'Which place? E.g. “when does Phở Thìn Lò Đúc open?”.' }
+  if (!name) return { text: vi ? 'Bạn hỏi quán nào? Ví dụ “Phở Thìn Lò Đúc mấy giờ mở cửa?”.' : 'Which place? E.g. “when does Phở Thìn Lò Đúc open?”.', need: 'place' }
   const area = placeName(trip, lang) ?? ''
   const details = await fetchPlaceDetails({ name, address: area }).catch(() => null)
   const p = details?.status === 'ok' ? details.place : null
@@ -172,4 +177,77 @@ export function askedPlace(message, slots) {
   const m = cleaned.match(/^(?:địa chỉ|giờ mở cửa của|số điện thoại|thông tin quán|review)\s+(.+?)(?:\s+(?:ở đâu|có ngon không|vậy|nhé))?$/i)
     ?? cleaned.match(/^(.+?)\s+(?:mấy giờ mở cửa|mở cửa lúc mấy giờ|ở đâu|có ngon không|được mấy sao|có đông không|còn mở không)/i)
   return m?.[1]?.trim() || null
+}
+
+// Words that are not a dish ("ăn gì ngon", "quán nào").
+const NOT_DISH = new Set(['gi', 'cai gi', 'mon gi', 'dau', 'nao', 'ngon', 'quan', 'mon', 'an', 'uong', 'an uong', 'am thuc'])
+const DISH_END = /(?=\s+(?:ngon|nào|ở|tại|gần|quanh|đâu|giá|rẻ|cho|không|với|mở)(?:\s|$)|[?,.!]|$)/i
+
+/** The dish a "find food" message asks for: the model's FOOD slot, else the words after "quán / món / ăn". */
+export function askedDish(message, slots) {
+  const slot = slots?.find((s) => s.type === 'FOOD')?.text
+  if (slot) return slot
+  const m = message.match(new RegExp(`(?:^|\\s)(?:quán|món|ăn|tìm|chỗ)\\s+(.+?)${DISH_END.source}`, 'i'))
+  // "phở ngon ở Hà Nội": the dish opens the message.
+  let dish = (m?.[1] ?? message.match(/^(.{2,30}?)\s+ngon(?:\s|$)/i)?.[1] ?? '').trim()
+  while (/^(quán|món|ăn|chỗ|bán)\s+/i.test(dish)) dish = dish.replace(/^(quán|món|ăn|chỗ|bán)\s+/i, '')
+  const generic = normalizeVi(dish)
+  return dish && !NOT_DISH.has(generic)
+    && !/^(ngon|gi|nao|uong)(?:\s|$)/.test(generic)
+    && !/\b(dia chi|dia diem|am thuc|cho an)\b/.test(generic)
+    && dish.split(/\s+/).length <= 4 ? dish : null
+}
+
+/** The centre of the trip's area: FoodTrip's own city centre, else the map provider's geocode. */
+async function locateArea(trip, where) {
+  return destinationWeatherLocation(trip.cityId) ?? (await searchPlaces(where, { limit: 1 }).catch(() => null))?.[0]?.location ?? null
+}
+
+// Google's rating, weighted by how many people gave it (4.9★ from 3 reviews ranks below 4.6★ from 900).
+const trusted = (p) => (p.googleRating ?? 0) * ((p.googleRatingCount ?? 0) / ((p.googleRatingCount ?? 0) + 20))
+
+/** A few real places for a dish in the trip's area, best rated first (one page of Google results, cached). */
+export async function findFoodAnswer(message, slots, trip, lang = 'vi', { search = searchMapArea, locate = locateArea } = {}) {
+  const vi = lang === 'vi'
+  const dish = askedDish(message, slots)
+  const where = placeName(trip, 'vi')
+  if (!where) return { text: vi ? `Bạn muốn tìm ${dish ? `${dish} ` : 'quán '}ở thành phố nào?` : `Which city should I look for ${dish ?? 'food'} in?`, need: 'dest', links: [{ to: '/nearby', label: vi ? 'Tìm quanh vị trí của tôi' : 'Search near me' }] }
+  // Google Maps answers a dish around a point; a city's name alone returns nothing.
+  const origin = await locate(trip, where)
+  if (!origin) return { text: vi ? `Mình chưa xác định được vị trí của ${where}.` : `I could not locate ${where}.`, links: [{ to: '/explore', label: vi ? 'Khám phá' : 'Explore' }] }
+  const found = await search({ keyword: dish ?? 'quán ăn ngon', origin, area: where, radiusKm: 5, cityId: trip.cityId ?? null, pages: 1 })
+  const places = (found?.places ?? []).filter((p) => p.googleRating != null).sort((a, b) => trusted(b) - trusted(a)).slice(0, 3)
+  if (!places.length) return { text: vi ? `Mình chưa tìm thấy quán ${dish ?? 'ăn'} nào có đánh giá ở ${where}. Thử tìm trong Khám phá.` : `I found no rated ${dish ?? 'food'} places in ${where}. Try Explore.`, links: [{ to: '/explore', label: vi ? 'Khám phá' : 'Explore' }] }
+  const lines = places.map((p, i) => `${i + 1}. ${p.name.vi} — ${p.googleRating}★ (${(p.googleRatingCount ?? 0).toLocaleString('vi-VN')})${p.address.vi ? ` · ${p.address.vi}` : ''}`)
+  return {
+    text: [vi ? `Quán ${dish ?? 'ăn'} được đánh giá tốt ở ${where} (theo Google):` : `Well-rated ${dish ?? 'food'} places in ${where} (Google ratings):`, ...lines].join('\n'),
+    places,
+    links: [{ to: '/explore', label: vi ? 'Xem thêm trong Khám phá' : 'More in Explore' }],
+  }
+}
+
+/**
+ * Whether a message answers the question the assistant just asked back
+ * (`pending.need`: 'dest' — "Bạn đi đâu?", 'place' — "Quán nào?") rather than
+ * asking something new: "Đà Lạt" after "chi phí bao nhiêu?" is the destination,
+ * "huỷ phòng có hoàn tiền không" is a new question.
+ */
+export function answersPending(pending, message, reading) {
+  if (!pending) return false
+  if (['greeting', 'thanks'].includes(reading.intent) || reading.faq) return false
+  // A new, understood question wins over an outstanding clarification.
+  // Naming a city in a food/weather question is not an answer to a planner prompt.
+  if (reading.intent !== 'out_of_scope' && reading.intent !== pending.intent) return false
+  const words = message.trim().split(/\s+/).length
+  if (pending.intent === 'plan_trip' && ['duration', 'people'].includes(pending.need)) {
+    if (/^\d{1,2}$/.test(message.trim())) return true
+    const fields = planFields(message, reading.slots ?? [])
+    return words <= 12 && Boolean(pending.need === 'duration' ? fields.duration : fields.people)
+  }
+  if (pending.need === 'dest') {
+    const fields = planFields(message, reading.slots ?? [])
+    return Boolean((fields.cityId || fields.destinationQuery) && namesPlace(message, fields)) && words <= 12
+  }
+  if (pending.need === 'place') return words <= 10 && !/[?]$/.test(message.trim())
+  return false
 }

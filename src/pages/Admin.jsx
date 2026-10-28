@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowSquareOut, ArrowsClockwise, Bed, ChartBar, ChatCircleText, DownloadSimple, EnvelopeSimple,
-  Lock, MagnifyingGlass, Trash, UserCircle, Users, VideoCamera, WarningCircle, Check, ArrowCounterClockwise, Receipt, CaretDown, ClockCounterClockwise, ShieldCheck, Buildings, Wallet, Compass, Star,
+  Lock, MagnifyingGlass, Trash, UserCircle, Users, VideoCamera, WarningCircle, Check, ArrowCounterClockwise, Receipt, CaretDown, ClockCounterClockwise, ShieldCheck, Buildings, Wallet, Compass, Star, Robot,
 } from '@phosphor-icons/react'
 import * as admin from '../lib/admin.js'
 import EmptyState from '../components/ui/EmptyState.jsx'
@@ -15,6 +15,7 @@ import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { TourOperatorReview } from './TourPartner.jsx'
 import AdminReviews from '../components/reviews/AdminReviews.jsx'
 import SystemReadiness from '../components/portal/SystemReadiness.jsx'
+import AdminAssistant from '../components/admin/AdminAssistant.jsx'
 
 const TABS = [
   { id: 'overview', icon: ChartBar, vi: 'Tổng quan', en: 'Overview' },
@@ -28,6 +29,7 @@ const TABS = [
   { id: 'community', icon: ChatCircleText, vi: 'Cộng đồng', en: 'Community' },
   { id: 'videos', icon: VideoCamera, vi: 'Video review', en: 'Video reviews' },
   { id: 'messages', icon: EnvelopeSimple, vi: 'Liên hệ', en: 'Messages' },
+  { id: 'assistant', icon: Robot, vi: 'Trợ lý', en: 'Assistant' },
   { id: 'subscribers', icon: Users, vi: 'Bản tin', en: 'Newsletter' },
   { id: 'users', icon: UserCircle, vi: 'Người dùng', en: 'Users' },
   { id: 'audit', icon: ClockCounterClockwise, vi: 'Nhật ký', en: 'Activity log' },
@@ -131,6 +133,7 @@ export default function Admin() {
           {tab === 'community' && <CommunityTab t={t} />}
           {tab === 'videos' && <VideosTab t={t} />}
           {tab === 'messages' && <MessagesTab t={t} />}
+          {tab === 'assistant' && <AdminAssistant t={t} lang={lang} />}
           {tab === 'subscribers' && <SubscribersTab t={t} />}
           {tab === 'users' && <UsersTab t={t} currentUserId={user.id} />}
           {tab === 'audit' && <AuditTab t={t} />}
@@ -638,10 +641,16 @@ function MessagesTab({ t }) {
           {list.rows.map((m) => (
             <li key={m.id} className={`py-3 ${m.handled_at ? 'opacity-60' : ''}`}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <div className="text-sm"><span className="font-semibold">{m.name}</span> <a href={`mailto:${m.email}`} className="text-chili hover:underline">{m.email}</a></div>
+                <div className="text-sm"><span className="font-semibold">{m.name}</span> <a href={`mailto:${m.email}`} className="text-chili hover:underline">{m.email}</a>
+                  {m.source === 'assistant' && <span className="ml-2 rounded-full bg-herb/15 px-2 py-0.5 font-utility text-micro font-bold text-herb">{t('Từ trợ lý', 'From the assistant')}{m.page ? ` · ${m.page}` : ''}</span>}
+                  {m.user_id && <span className="ml-1 font-utility text-micro text-ink-faint">{t('có tài khoản', 'signed in')}</span>}</div>
                 <span className="font-utility text-micro text-ink-faint">{formatDate(m.created_at)}{m.handled_at && ` · ${t('đã xử lý', 'handled')}`}</span>
               </div>
               <p className="mt-1 whitespace-pre-line text-sm text-ink-muted">{m.message}</p>
+              {m.transcript?.length > 0 && <details className="mt-2 rounded-lg bg-paper-2 px-3 py-2 text-xs">
+                <summary className="cursor-pointer font-semibold">{t(`Cuộc trò chuyện với trợ lý (${m.transcript.length} tin)`, `Assistant conversation (${m.transcript.length} messages)`)}</summary>
+                <ol className="mt-2 space-y-1.5">{m.transcript.map((x, i) => <li key={i} className={x.from === 'user' ? 'font-semibold text-ink' : 'text-ink-muted'}>{x.from === 'user' ? t('Khách: ', 'Guest: ') : t('Trợ lý: ', 'Assistant: ')}<span className="whitespace-pre-line">{x.text}</span>{x.intent ? <span className="ml-1 text-ink-faint">[{x.intent}]</span> : null}</li>)}</ol>
+              </details>}
               <div className="mt-2 flex flex-wrap gap-2">
                 <a href={`mailto:${m.email}?subject=${encodeURIComponent('FoodTrip — phản hồi liên hệ')}`} className={BUTTON}><EnvelopeSimple size={13} />{t('Trả lời qua email', 'Reply by email')}</a>
                 <button type="button" disabled={busyId === m.id} className={BUTTON} onClick={() => run(m.id, null, () => admin.setMessageHandled(m.id, !m.handled_at))}>

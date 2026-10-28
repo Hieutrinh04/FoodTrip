@@ -1,6 +1,6 @@
 // The FoodTrip assistant: what a message asks for, and FoodTrip's answer.
 //
-// POST { message, lang? }            → { id, intent, confidence, source, slots, reply: { text, links }, faq, related, action, answeredBy }
+// POST { message, lang?, history? }  → { id, intent, confidence, source, slots, reply: { text, links }, faq, related, action, answeredBy }
 // POST { feedback: { id, helpful } } → { ok }
 //
 // The message is read by the trained model (ml/assistant, on a Hugging Face
@@ -9,6 +9,8 @@
 // is FoodTrip's own text: the closest FAQ entry when the trained retriever (the
 // Space's /answer) or word matching is sure enough (_shared/assistant/reply.js),
 // else the intent's answer; a trip request is handed to the planner.
+// Optional ANTHROPIC_API_KEY + ASSISTANT_CHAT_MODEL enable grounded prose for
+// non-computed replies. Failures preserve the deterministic answer and links.
 // Messages are kept anonymously (no user, phone numbers and emails removed) to
 // label the next training round.
 
@@ -16,6 +18,9 @@ import { jsonResponse, handleOptions } from '../_shared/cors.ts'
 import { INTENT_IDS, SLOTS } from '../_shared/assistant/intents.js'
 import { ruleIntent } from '../_shared/assistant/rules.js'
 import { composeReply, FAQ_IDS } from '../_shared/assistant/reply.js'
+import { contextualQuestion, conversationHistory, redact } from '../_shared/assistant/conversation.js'
+import { generateReply } from '../_shared/assistant/generate.js'
+import { assessPlaceData, generatePlaceAssessment, placeEvidence } from '../_shared/assistant/placeAssessment.js'
 
 const MODEL_TIMEOUT_MS = 6000
 // Below this the model's guess is not trusted over the rules'.
@@ -50,16 +55,13 @@ async function modelReading(message: string): Promise<Reading | null> {
   }
 }
 
-/** What is stored: no phone numbers or email addresses. */
-const redact = (text: string) => text.replace(/[\w.+-]+@[\w-]+\.[\w.]+/g, '[email]').replace(/(?:\+?84|0)(?:[\s.-]?\d){8,10}/g, '[phone]')
-
 async function remember(message: string, lang: string, reading: Reading) {
   const api = db()
   if (!api) return null
   try {
     const res = await fetch(api.url, {
       method: 'POST', headers: { ...api.headers, prefer: 'return=representation' }, signal: AbortSignal.timeout(3000),
-      body: JSON.stringify({ text: redact(message).slice(0, 600), lang, intent: reading.intent, confidence: Math.round(reading.confidence * 1000) / 1000, source: reading.source, slots: reading.slots }),
+      body: JSON.stringify({ text: redact(message).slice(0, 600), lang, intent: reading.intent, confidence: Math.round(reading.confidence * 1000) / 1000, source: reading.source, slots: reading.slots.map((s) => ({ ...s, text: redact(s.text) })) }),
     })
     return res.ok ? (await res.json())?.[0]?.id ?? null : null
   } catch {
@@ -73,6 +75,18 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return jsonResponse({ error: 'method-not-allowed' }, { status: 405 })
   let body: Record<string, unknown>
   try { body = await request.json() } catch { return jsonResponse({ error: 'invalid-json' }, { status: 400 }) }
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return jsonResponse({ error: 'invalid-body' }, { status: 400 })
+
+  if (body.placeAssessment != null) {
+    const evidence = placeEvidence(body.placeAssessment)
+    if (!evidence) return jsonResponse({ error: 'invalid-place' }, { status: 400 })
+    const lang = body.lang === 'en' ? 'en' : 'vi'
+    const assessment = assessPlaceData(evidence, lang)
+    const generated = await generatePlaceAssessment(evidence, lang, {
+      apiKey: Deno.env.get('ANTHROPIC_API_KEY'), model: Deno.env.get('ASSISTANT_CHAT_MODEL'),
+    })
+    return jsonResponse({ assessment: { ...assessment, ...(generated ? { text: generated, source: 'model' } : {}) } })
+  }
 
   // 👍 / 👎 on an answer: the label the next training round starts from.
   const feedback = body.feedback as { id?: unknown; helpful?: unknown } | undefined
@@ -87,14 +101,22 @@ Deno.serve(async (request) => {
   if (!message || message.length > 600) return jsonResponse({ error: 'invalid-message' }, { status: 400 })
   const lang = body.lang === 'en' ? 'en' : 'vi'
 
-  const [modelRead, retrieved] = await Promise.all([modelReading(message), retrieverHits(message)])
-  const reading: Reading = modelRead ?? { ...ruleIntent(message), slots: [] } as Reading
-  const composed = composeReply(message, reading, lang, retrieved ? { hits: retrieved.hits, threshold: retrieved.threshold } : {})
+  const history = conversationHistory(body.history)
+  const question = contextualQuestion(message, history)
+  const [modelRead, retrieved] = await Promise.all([modelReading(question), retrieverHits(question)])
+  const reading: Reading = modelRead ?? { ...ruleIntent(question), slots: [] } as Reading
+  const composed = composeReply(question, reading, lang, retrieved ? { hits: retrieved.hits, threshold: retrieved.threshold } : {})
+  const [id, generated] = await Promise.all([
+    remember(message, lang, { ...reading, intent: composed.intent }),
+    generateReply({ message, lang, history, composed }, {
+      apiKey: Deno.env.get('ANTHROPIC_API_KEY'), model: Deno.env.get('ASSISTANT_CHAT_MODEL'),
+    }),
+  ])
   // What is stored is what was answered: a sure FAQ match may settle the intent.
-  const id = await remember(message, lang, { ...reading, intent: composed.intent })
   return jsonResponse({
     id, ...composed, confidence: reading.confidence, source: reading.source, slots: reading.slots,
-    answeredBy: composed.faq ? (retrieved ? 'retriever' : 'words') : 'intent',
+    reply: { ...composed.reply, text: generated ?? composed.reply.text },
+    answeredBy: generated ? 'generative' : composed.faq ? (retrieved ? 'retriever' : 'words') : 'intent',
   })
 })
 

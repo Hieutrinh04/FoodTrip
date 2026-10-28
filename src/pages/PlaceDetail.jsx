@@ -19,6 +19,7 @@ import { useLoginPrompt } from '../auth/LoginPromptContext.jsx'
 import { getSavedPlaceIds, setPlaceSaved } from '../lib/savedPlaces.js'
 import { fadeUp, staggerContainer, viewportOnce } from '../motion/variants.js'
 import NotFound from './NotFound.jsx'
+import PlaceAssessment from '../components/assistant/PlaceAssessment.jsx'
 
 const C = {
   vi: {
@@ -164,6 +165,7 @@ export default function PlaceDetail() {
           </motion.div>
 
           <motion.p variants={fadeUp} className="text-base text-ink-muted">{place.longDesc[lang]}</motion.p>
+          <PlaceAssessment key={`${place.id}:${lang}`} place={place} lang={lang} />
 
           <motion.div variants={fadeUp} className="flex flex-col gap-3 bg-paper-2 rounded-xl p-4">
             <div className="flex items-center gap-2 text-md">

@@ -11,7 +11,7 @@ import { FAQ, faqById, faqRetrieve } from './faq.js'
 export const WORDS_DIRECT = 0.5
 export const RELATED_MIN = 0.2
 // Intents answered by the planner or by computing, not from the FAQ.
-const NOT_FAQ = new Set(['plan_trip', 'estimate_cost', 'ask_weather', 'place_info', 'greeting', 'thanks'])
+const NOT_FAQ = new Set(['plan_trip', 'estimate_cost', 'ask_weather', 'place_info', 'find_food', 'greeting', 'thanks'])
 
 const linksOf = (list, lang) => (list ?? []).map((l) => ({ to: l.to, label: l[lang] }))
 

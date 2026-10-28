@@ -16,6 +16,7 @@ import RemoteImage from '../ui/RemoteImage.jsx'
 import VideoEmbed from '../video/VideoEmbed.jsx'
 import { isEmbeddable } from '../../lib/videoEmbed.js'
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
+import PlaceAssessment from '../assistant/PlaceAssessment.jsx'
 
 // Auto-discovered content is only shown if it comes from a source we recognise
 // — otherwise a relaxed Google query leaks unrelated help-centre pages in.
@@ -218,6 +219,7 @@ export default function MapPlacePreview({ place, criterion, onClose, route = nul
     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h2 className="truncate text-lg font-bold">{place.name[lang]}</h2><p className="mt-1 line-clamp-2 flex items-start gap-1.5 text-xs text-ink-muted"><MapPin size={13} className="mt-0.5 shrink-0 text-chili" />{place.address?.[lang]}</p></div><button type="button" onClick={onClose} aria-label="Đóng" className="shrink-0 rounded-full border border-line p-1.5 text-ink-muted hover:border-chili hover:text-chili"><X size={15} /></button></div>
     {showRoute && <RouteBar route={route} status={routeStatus} hasOrigin={hasRouteOrigin} transport={transport} onTransportChange={onTransportChange} onStartNavigation={onStartNavigation} copy={copy} />}
     <PlaceFacts details={details} copy={copy} lang={lang} place={place} />
+    <PlaceAssessment key={`${place.id}:${place.name.vi}:${lang}`} place={place} details={details} lang={lang} />
     {/* Google's pin for the venue is more precise than the map provider's, so
         prefer it when the listing resolved — the panorama snaps to whichever
         captured street is nearest the point it is given. */}

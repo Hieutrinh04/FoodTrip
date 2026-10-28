@@ -20,11 +20,11 @@ Deno.serve(async (request) => {
     } catch (err) {
       if (!matched.length) throw err
     }
-    await saveFound(searched as FoundPlace[])
+    const catalogueSaved = await saveFound(searched as FoundPlace[])
     const seen = new Set<string>()
     const places = [...matched, ...searched].filter((p) => p.location && !seen.has(p.placeId) && seen.add(p.placeId)).slice(0, 8)
     // A search result is a candidate, never an automatic address verification.
-    return jsonResponse({ status: 'ok', places, source: matched.length ? 'known' : 'map-search' })
+    return jsonResponse({ status: 'ok', places, source: matched.length ? 'known' : 'map-search', catalogueSaved })
   } catch {
     return jsonResponse({ error: 'search-unavailable' }, { status: 502 })
   }

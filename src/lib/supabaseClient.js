@@ -1,7 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-const url = import.meta.env.VITE_SUPABASE_URL || ''
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+// No Vite env under Node (tests import modules that import this one): no backend there.
+const env = import.meta.env ?? {}
+const url = env.VITE_SUPABASE_URL || ''
+const anonKey = env.VITE_SUPABASE_ANON_KEY || ''
 
 export const hasSupabase = Boolean(url && anonKey)
 

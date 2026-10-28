@@ -214,3 +214,18 @@ standard migration history.
   - `composeReply` answers outright when a FAQ entry matches surely: the trained retriever's threshold, or score ≥ 0.5 for word matching, which is 86% right at that score. Otherwise it gives the intent's answer and offers up to 2 "Có thể bạn muốn hỏi" questions, whose own answer shows on tap.
   - Data: `node scripts/generate-faq-dataset.js` (366 training questions, 49 validation, 85 test including 37 hand-written). Word-matching baseline: top-1 54.1%, top-3 84.7%.
   - Retriever: `ml/assistant/train_retriever.py` fine-tunes `bkai-foundation-models/vietnamese-bi-encoder` with in-batch negatives. Its answer-outright threshold is chosen on validation for 90% precision. It is exported to ONNX, served as `POST /answer` on the same Space and used by the Edge Function when present.
+- **Support round (2026-10-28).** Migration `20261028090000_assistant_handoff_review.sql`.
+  - **The person's own bookings.** When signed in, `booking_status`, `booking_payment`, `booking_cancel_refund` and `tour_info` also answer from their own data (`src/lib/assistantAccount.js`, read under RLS). Each booking shows where it stands: minutes left of the 30-minute hold, paid / confirmed / declined by the hotel, refund under way. Pending bookings get a "Thanh toán" link to `/pay/:id`, and paid ones show what cancelling now refunds (`booking_refund_quote`). Guests are offered sign-in instead.
+  - **Asking back.** When a computed answer lacks the destination or the place, the assistant asks only for what is missing ("Bạn định đi đâu?"). The next message is read as the answer if it names a place (`answersPending`); a new question, a sure FAQ match or a thank-you is not.
+  - **Finding food.** "Quán phở ngon ở Hà Nội" (`find_food` with a dish, `askedDish`) returns 3 real places, ranked by Google rating weighted by review count, each with a details drawer. It makes one page of Google Maps search around the city's centre; a city name without a point returns nothing from Serper.
+  - **Hand-off to a person.** "Gặp nhân viên hỗ trợ" (always in the footer; offered after 👎, a `contact_support` question or two out-of-scope answers in a row) sends a contact message with `source = 'assistant'`, the page and the conversation (≤ 30 turns, 500 characters each). Admin → Liên hệ shows it with the transcript. A sender can attach only their own account (insert policy).
+  - **Page-aware suggestions** (`src/lib/assistantSuggestions.js`). Each one is read as the intended intent by the rules alone (tested). The conversation is kept per tab (`sessionStorage`) and can be restarted.
+  - **Admin → Trợ lý.** Messages that got 👎, were out of scope or below 60% confidence, or are not reviewed yet. Shows the share rated helpful, the share read by the model, and how many are reviewed. The admin sets the correct intent ("Đúng rồi" or a choice) or deletes the message. "Xuất JSONL đã duyệt" exports `{text, intent, predicted, helpful}` for the next labelling round. Only admins can read; authenticated users may update only `reviewed_intent` and `reviewed_at`.
+  - **Rules:** "quán X ngon", "X ngon ở", "được duyệt" and paying for a tour (→ `tour_info`) were added; the baseline is unchanged at 76.8% / 76.4%.
+  - **Verified in the browser (guest):**
+    - `/bookings` suggestions; a status question gets a sign-in offer.
+    - "3 ngày 2 người hết bao nhiêu tiền?" → "Đà Lạt" → estimate for 2 people, 3 days.
+    - Phở in Hà Nội → Phở Gà Huyền Hương 4.7★ (5,345), with a working drawer.
+    - The conversation survives navigation.
+    - The hand-off form is prefilled.
+  - **Verified in the database:** insert and read rights. Test messages were deleted afterwards.

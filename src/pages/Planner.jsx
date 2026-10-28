@@ -14,9 +14,10 @@ import TripWeatherAdvice from '../components/planner/TripWeatherAdvice.jsx'
 import TourPicker from '../components/planner/TourPicker.jsx'
 import TourReservePanel from '../components/planner/TourReservePanel.jsx'
 import AuthModal from '../components/auth/AuthModal.jsx'
-import { CITIES, TAGS, TRANSPORT, CATEGORY_LABEL, getCity, getPlacesByCity, registerCustomPlaces } from '../data/destinations.js'
+import { CITIES, TAGS, TRANSPORT, CATEGORY_LABEL, getCity, registerCustomPlaces } from '../data/destinations.js'
 import { generateItinerary } from '../lib/itineraryEngine.js'
 import { searchCityPlaces } from '../lib/citySearch.js'
+import { loadPlannerCatalog, plannerPool } from '../lib/plannerCatalog.js'
 import { searchHotelsForCity, groupHotelsByBudgetTier, nightlyRoomBudget, LODGING_SHARE } from '../lib/hotelSearch.js'
 import { withStopIds } from '../lib/itineraryEdit.js'
 import { budgetAfterTours, clearTourHours, destinationNames, toursForTrip } from '../lib/tours.js'
@@ -209,6 +210,8 @@ export default function Planner() {
   const [itineraryTours, setItineraryTours] = useState([])
   const [authOpen, setAuthOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [itineraryCandidates, setItineraryCandidates] = useState([])
+  const [catalogResult, setCatalogResult] = useState(null)
   const [showMap, setShowMap] = useState(false)
   const [activeMapDay, setActiveMapDay] = useState(0)
 
@@ -320,7 +323,11 @@ export default function Planner() {
     if (!name) return
     setCitySearchStatus('searching')
     try {
-      const results = await searchCityPlaces(name)
+      const [live, stored] = await Promise.all([
+        searchCityPlaces(name).catch(() => null),
+        loadPlannerCatalog({ destinationName: name }),
+      ])
+      const results = live === null && !stored.places.length ? null : plannerPool(live ?? [], stored.places)
       if (results === null) {
         setCitySearchStatus('no-key')
         return
@@ -477,6 +484,7 @@ export default function Planner() {
     if (!user) { openLogin(lang === 'vi' ? 'Đăng nhập để tạo lịch trình của bạn. Các lựa chọn đang điền được giữ lại.' : 'Sign in to generate your trip. Your selections will be preserved.'); return }
     setStep(5)
     setGenerating(true)
+    setCatalogResult(null)
     setShowMap(false)
     setActiveMapDay(0)
     setSaveTripStatus('idle')
@@ -486,31 +494,37 @@ export default function Planner() {
     // the user opens the map, the style is normally already in memory.
     void loadMapStyle({ lightweight: true }).catch(() => null)
     const selectedHotel = hotels.find((hotel) => hotel.id === selectedHotelId) ?? null
-    const generatedDays = await generateItinerary({
-      cityId: destMode === 'curated' ? cityId : undefined,
-      places: destMode === 'custom' ? confirmedCustomPlaces : undefined,
-      duration,
-      startDate,
-      budget,
-      people,
-      prefs,
-      transport,
-      startLocation: selectedHotel?.location ?? null,
-      endLocation: selectedHotel?.location ?? null,
-    })
-    setItineraryTours(tripTours)
-    setDays(withStopIds(clearTourHours(generatedDays, tripTours, startDate)))
-    const firstDayRoutePoints = [
-      ...(selectedHotel?.location ? [selectedHotel.location] : []),
-      ...(generatedDays[0] ?? []).map((stop) => stop.location).filter(Boolean),
-      ...(selectedHotel?.location ? [selectedHotel.location] : []),
-    ]
-    if (firstDayRoutePoints.length >= 2) {
-      // Cache the most likely first map view, including geometry. This request
-      // is deliberately non-blocking: itinerary results remain instant.
-      void fetchRouteDetails(firstDayRoutePoints, transport).catch(() => null)
-    }
-    setGenerating(false)
+    try {
+      const generatedDays = await generateItinerary({
+        cityId: destMode === 'curated' ? cityId : undefined,
+        places: destMode === 'custom' ? confirmedCustomPlaces : undefined,
+        onCandidates: setItineraryCandidates,
+        onCatalog: setCatalogResult,
+        duration,
+        startDate,
+        budget,
+        people,
+        prefs,
+        transport,
+        startLocation: selectedHotel?.location ?? null,
+        endLocation: selectedHotel?.location ?? null,
+      })
+      setItineraryTours(tripTours)
+      setDays(withStopIds(clearTourHours(generatedDays, tripTours, startDate)))
+      const firstDayRoutePoints = [
+        ...(selectedHotel?.location ? [selectedHotel.location] : []),
+        ...(generatedDays[0] ?? []).map((stop) => stop.location).filter(Boolean),
+        ...(selectedHotel?.location ? [selectedHotel.location] : []),
+      ]
+      if (firstDayRoutePoints.length >= 2) {
+        // Cache the most likely first map view, including geometry. This request
+        // is deliberately non-blocking: itinerary results remain instant.
+        void fetchRouteDetails(firstDayRoutePoints, transport).catch(() => null)
+      }
+    } catch {
+      setCatalogResult({ status: 'generation-error', places: [] })
+      setStep(4)
+    } finally { setGenerating(false) }
   }
 
   async function handleExportExcel() {
@@ -873,6 +887,7 @@ export default function Planner() {
         {step === 4 && (
           <>
             <h2 className="text-xl font-bold mb-2">{c.stepPref}</h2>
+            {catalogResult?.status === 'generation-error' && <p role="alert" className="mb-3 text-sm text-chili">{lang === 'vi' ? 'Chưa xếp được lịch trình. Các lựa chọn của bạn vẫn được giữ; bạn thử tạo lại nhé.' : 'Could not build the itinerary. Your selections are preserved; please retry.'}</p>}
             <p className="text-md text-ink-muted mb-5 max-w-[52ch]">{c.prefHint}</p>
             <div className="flex flex-wrap gap-2 mb-8">
               {PREFERENCE_TAGS.map((tag) => (
@@ -917,6 +932,9 @@ export default function Planner() {
                 <div className="no-print text-center mb-8">
                   <h2 className="text-2xl font-bold mb-2">{c.resultTitle(city.name[lang])}</h2>
                   <p className="text-ink-muted">{c.resultSub}</p>
+                  {catalogResult && <p className="mt-2 text-sm text-ink-muted">{catalogResult.status === 'error'
+                    ? (lang === 'vi' ? 'Chưa tải được quán đã lưu. Lịch trình lần này dùng dữ liệu mẫu và tìm kiếm hiện có; bạn có thể tạo lại để thử tải danh sách đã lưu.' : 'Saved places could not be loaded. This itinerary uses available sample and search data; regenerate to retry.')
+                    : (lang === 'vi' ? `Đã xét ${itineraryCandidates.filter((p) => p.inCatalog).length} địa điểm đã lưu trong danh sách gợi ý cho điểm đến này, cùng các địa điểm có sẵn khác.` : `Considered ${itineraryCandidates.filter((p) => p.inCatalog).length} saved places for this destination alongside the other available candidates.`)}</p>}
                 </div>
                 <ItineraryTicket
                   city={city}
@@ -932,7 +950,7 @@ export default function Planner() {
                   animate="mount"
                   editable
                   onDaysChange={setDays}
-                  candidatePlaces={destMode === 'curated' ? getPlacesByCity(cityId) : (confirmedCustomPlaces ?? [])}
+                  candidatePlaces={itineraryCandidates}
                   cityId={destMode === 'curated' ? cityId : null}
                 />
                 <div className="no-print flex justify-center gap-3 mt-8 flex-wrap">

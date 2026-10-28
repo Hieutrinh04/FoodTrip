@@ -74,15 +74,11 @@ export async function asCandidate(place: KnownPlace): Promise<Candidate | null> 
       .find((p: ReturnType<typeof shapePlace>) => p.location && (p.placeId === place.place_id || sameVenue(place.name, p.name ?? '')))
     if (!found?.location) return null
     place.lat = found.location.lat; place.lng = found.location.lng
-    const a = api()
-    if (a) {
-      fetch(`${a.url}/known_places?place_id=eq.${encodeURIComponent(place.place_id)}`, {
-        method: 'PATCH', headers: { ...a.headers, prefer: 'return=minimal' },
-        body: JSON.stringify({ lat: place.lat, lng: place.lng, address: place.address ?? found.address, updated_at: new Date().toISOString() }),
-        signal: AbortSignal.timeout(4000),
-      }).catch(() => {})
-    }
-    return { placeId: place.place_id, name: place.name, address: place.address ?? found.address ?? '', location: found.location, known: true }
+    // Wait for persistence before treating this newly located seed as known.
+    // Keep all listing facts, rather than storing coordinates alone.
+    const saved = await saveFound([{ ...found, placeId: place.place_id, name: place.name, address: place.address ?? found.address }])
+    if (!saved) return null
+    return { ...found, placeId: place.place_id, name: place.name, address: place.address ?? found.address ?? '', location: found.location, known: true }
   } catch {
     return null
   }
@@ -110,8 +106,9 @@ const link = (value: unknown, max: number, scheme = /^https:\/\//i) => {
  */
 export async function saveFound(found: FoundPlace[]) {
   const a = api()
-  const rows = found
-    .filter((p) => p.placeId && !p.placeId.startsWith('map:') && cut(p.name, 200) && p.location && Number.isFinite(p.location.lat) && Number.isFinite(p.location.lng))
+  const unique = [...new Map(found.map((p) => [p.placeId, p])).values()]
+  const rows = unique
+    .filter((p) => p.placeId && !p.placeId.startsWith('map:') && cut(p.name, 200) && p.location && Number.isFinite(p.location.lat) && Number.isFinite(p.location.lng) && Math.abs(p.location.lat) <= 90 && Math.abs(p.location.lng) <= 180)
     .slice(0, 20)
     .map((p) => {
       const rating = typeof p.rating === 'number' && p.rating >= 0 && p.rating <= 5 ? Math.round(p.rating * 10) / 10 : null
@@ -127,18 +124,21 @@ export async function saveFound(found: FoundPlace[]) {
       }
     })
     .filter((r) => r.core)
-  if (!a || !rows.length) return
+  if (!a) return false
+  if (!rows.length) return found.length === 0
   try {
-    await fetch(`${a.url}/known_places?on_conflict=place_id`, {
+    const response = await fetch(`${a.url}/known_places?on_conflict=place_id`, {
       method: 'POST', headers: { ...a.headers, prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(rows), signal: AbortSignal.timeout(4000),
     })
+    if (!response.ok) return false
     // This instance knows them at once; others on their next 10-minute reload.
     if (memory) {
       const ids = new Set(memory.places.map((p) => p.place_id))
       for (const r of rows) if (!ids.has(r.place_id)) memory.places.push({ ...r, name: r.name!, confirmations: 0 })
     }
-  } catch { /* storing is optional */ }
+    return rows.length === unique.length
+  } catch { return false }
 }
 
 export type StoredPlace = KnownPlace & {
