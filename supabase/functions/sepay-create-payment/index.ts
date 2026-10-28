@@ -29,13 +29,14 @@ Deno.serve(async (req) => {
   }
 
   const config = sepayConfig(Deno.env)
-  if (body.check) return jsonResponse({ status: config ? 'ready' : 'no-key' })
-  if (!config) return jsonResponse({ status: 'no-key' })
-
   const supabaseUrl = Deno.env.get('SUPABASE_URL')
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
   if (!supabaseUrl || !serviceKey) return jsonResponse({ error: 'server-misconfigured' }, { status: 500 })
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
+  const {data:mock,error:modeError} = await admin.rpc('sepay_mock_enabled')
+  if (modeError) return jsonResponse({error:'payment-mode-unavailable'},{status:503})
+  if (body.check) return jsonResponse({ status: mock ? 'mock' : config ? 'ready' : 'no-key' })
+  if (!mock && !config) return jsonResponse({ status: 'no-key' })
 
   const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? ''
   const { data: userData } = await admin.auth.getUser(token)
@@ -47,7 +48,7 @@ Deno.serve(async (req) => {
 
   const { data: booking, error } = await admin
     .from('bookings')
-    .select('id, user_id, total_price, payment_status, payment_code, paid_at, hotel_name, room_name, check_in, check_out, nights, guests, created_at')
+    .select('id, user_id, total_price, payment_status, payment_code, payment_txn_ref, paid_at, hotel_name, room_name, check_in, check_out, nights, guests, created_at, cancel_reason')
     .eq('id', bookingId)
     .maybeSingle()
   if (error || !booking) return jsonResponse({ error: 'booking-not-found' }, { status: 404 })
@@ -62,18 +63,24 @@ Deno.serve(async (req) => {
     nights: booking.nights,
     guests: booking.guests,
     paidAt: booking.paid_at,
+    // An unpaid booking holds its room for 30 minutes (expire_unpaid_bookings).
+    holdUntil: new Date(Date.parse(booking.created_at) + 30 * 60 * 1000).toISOString(),
+    cancelReason: booking.cancel_reason,
+    mock: booking.payment_txn_ref === 'DEMO',
   }
   if (booking.payment_status !== 'pending') return jsonResponse({ status: booking.payment_status, booking: summary })
 
   const amount = Number(booking.total_price)
+  // Explicit mock mode never returns real bank details or a scannable QR.
+  if (mock) return jsonResponse({status:'ok',mock:true,amount,content:booking.payment_code,booking:summary})
   return jsonResponse({
     status: 'ok',
     amount,
     content: booking.payment_code,
-    bank: config.bank,
-    accountNumber: config.accountNumber,
-    accountName: config.accountName,
-    qrUrl: sepayQrUrl({ bank: config.bank, accountNumber: config.accountNumber, amount, content: booking.payment_code }),
+    bank: config!.bank,
+    accountNumber: config!.accountNumber,
+    accountName: config!.accountName,
+    qrUrl: sepayQrUrl({ bank: config!.bank, accountNumber: config!.accountNumber, amount, content: booking.payment_code }),
     booking: summary,
   })
 })

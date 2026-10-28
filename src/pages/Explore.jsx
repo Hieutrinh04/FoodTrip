@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   MagnifyingGlass, SmileySad, MapTrifold, ListBullets,
-  Clock, Star, SlidersHorizontal, X, NavigationArrow, SpinnerGap, MapPin,
+  Clock, Star, SlidersHorizontal, X, NavigationArrow, SpinnerGap, MapPin, ArrowClockwise,
 } from '@phosphor-icons/react'
 import ExploreMap from '../components/map/ExploreMap.jsx'
 import MapPlacePreview from '../components/map/MapPlacePreview.jsx'
@@ -16,6 +16,7 @@ import { FOODTRIP_CRITERIA, getFoodTripScore, scoreForCriterion, criteriaWithDat
 import { fetchRouteDetails, haversineKm } from '../lib/trackAsia.js'
 import { scorePlaceDetailed, toTenPointScale } from '../lib/placeScore.js'
 import { searchExplorePlaces } from '../lib/explorePlaceSearch.js'
+import { fetchPlaceCatalog, matchesCatalogQuery, mergePlaceCatalog } from '../lib/placeCatalog.js'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import './Explore.css'
 
@@ -164,6 +165,23 @@ export default function Explore() {
   const [routeStatus, setRouteStatus] = useState('idle') // idle | loading | ready | error
   const [livePlaces, setLivePlaces] = useState([])
   const [liveStatus, setLiveStatus] = useState('idle')
+  const [storedPlaces, setStoredPlaces] = useState([])
+  const [catalogStatus, setCatalogStatus] = useState('loading')
+  const [catalogRevision, setCatalogRevision] = useState(0)
+  const catalog = useMemo(() => mergePlaceCatalog(PLACES, storedPlaces), [storedPlaces])
+  useEffect(() => {
+    let active = true
+    setCatalogStatus('loading')
+    fetchPlaceCatalog().then((places) => {
+      if (active) { setStoredPlaces(places); setCatalogStatus('ready') }
+    }).catch(() => { if (active) setCatalogStatus('error') })
+    return () => { active = false }
+  }, [catalogRevision])
+  useEffect(() => {
+    const refresh = () => setCatalogRevision((n) => n + 1)
+    window.addEventListener('focus', refresh)
+    return () => window.removeEventListener('focus', refresh)
+  }, [])
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [mapSearchOrigin, setMapSearchOrigin] = useState(null)
   const locationWatchRef = useRef(null)
@@ -326,23 +344,23 @@ export default function Explore() {
     const proximityOrigin = mapSearchOrigin ?? userLocation
     const effectiveRadiusKm = mapSearchOrigin ? Math.max(radiusKm, 20) : radiusKm
     const isLive = liveStatus !== 'idle' && liveStatus !== 'error'
-    const sourcePlaces = isLive ? livePlaces : PLACES
+    const sourcePlaces = isLive ? mergePlaceCatalog(catalog, livePlaces) : catalog
+    const remoteIds = new Set(isLive ? livePlaces.map((p) => p.id) : [])
     const result = sourcePlaces.filter((place) => {
+      const fromSearch = remoteIds.has(place.id)
       // Live results were already fetched for this city/area and matched the
       // typed phrase server-side, so re-applying the local text and city
       // filters would only throw away real matches.
-      if (!isLive && cityFilter !== 'all' && place.city !== cityFilter) return false
+      if (!fromSearch && cityFilter !== 'all' && place.city !== cityFilter) return false
       if (category !== 'all' && place.category !== category) return false
-      if (!isLive && !placeMatchesFoodType(place, foodType)) return false
+      if (!fromSearch && !placeMatchesFoodType(place, foodType)) return false
       if (price !== 'all' && place.price !== Number(price)) return false
       if (openOnly && !isOpenNow(place.hours)) return false
       const location = place.location ?? resolvedLocations[place.id]
       const distanceKm = proximityOrigin && location ? haversineKm(proximityOrigin, location) : null
       if (proximityOrigin && distanceKm != null && distanceKm > effectiveRadiusKm) return false
-      if (!isLive && query.trim()) {
-        const needle = query.trim().toLocaleLowerCase(lang === 'vi' ? 'vi' : 'en')
-        const haystack = `${place.name.vi} ${place.name.en} ${place.address.vi} ${place.address.en} ${place.shortDesc.vi} ${place.shortDesc.en}`.toLocaleLowerCase(lang === 'vi' ? 'vi' : 'en')
-        if (!haystack.includes(needle)) return false
+      if (!fromSearch && query.trim()) {
+        if (!matchesCatalogQuery(place, query)) return false
       }
       return true
     })
@@ -390,7 +408,7 @@ export default function Explore() {
     if (sort === 'relevant' && proximityOrigin) enriched.sort((a, b) => b.matchScore - a.matchScore)
     if (sort === 'low-price') enriched.sort((a, b) => (a.price ?? 99) - (b.price ?? 99))
     return enriched
-  }, [cityFilter, category, foodType, price, openOnly, criterion, minScore, query, sort, lang, userLocation, mapSearchOrigin, radiusKm, resolvedLocations, livePlaces, liveStatus])
+  }, [catalog, cityFilter, category, foodType, price, openOnly, criterion, minScore, query, sort, userLocation, mapSearchOrigin, radiusKm, resolvedLocations, livePlaces, liveStatus])
 
   const activeFilterCount = [cityFilter !== 'all', Boolean(query.trim()), category !== 'all', foodType !== 'all', price !== 'all', openOnly, minScore > 0, criterion !== 'overall', Boolean(userLocation || mapSearchOrigin)].filter(Boolean).length
   const selectedPlace = filtered.find((place) => place.id === selectedId) ?? null
@@ -398,8 +416,8 @@ export default function Explore() {
   // The dataset has none today, so this is just "overall" and the selector is
   // hidden; it grows on its own once such data exists.
   const criterionKeys = useMemo(
-    () => ['overall', ...criteriaWithData(liveStatus === 'ready' ? livePlaces : PLACES)],
-    [liveStatus, livePlaces],
+    () => ['overall', ...criteriaWithData(mergePlaceCatalog(catalog, liveStatus === 'ready' ? livePlaces : []))],
+    [catalog, liveStatus, livePlaces],
   )
   useEffect(() => {
     if (!criterionKeys.includes(criterion)) setCriterion('overall')
@@ -522,7 +540,16 @@ export default function Explore() {
 
       <div className="explore-panels" data-view={mobileView}>
         <section className="explore-results" aria-label={copy.list}>
+          <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-2 text-xs text-ink-muted">
+            <span>{catalogStatus === 'loading' ? (lang === 'vi' ? 'Đang tải quán đã lưu…' : 'Loading saved places…') : catalogStatus === 'error' ? (lang === 'vi' ? 'Chưa tải được danh sách quán đã lưu.' : 'Could not load the saved catalogue.') : (lang === 'vi' ? `${storedPlaces.length} địa điểm đã lưu · ${PLACES.length} địa điểm mẫu` : `${storedPlaces.length} saved places · ${PLACES.length} sample places`)}</span>
+            <button type="button" disabled={catalogStatus === 'loading'} onClick={() => setCatalogRevision((n) => n + 1)} aria-label={lang === 'vi' ? 'Tải lại quán đã lưu' : 'Reload saved places'} className="shrink-0 rounded-full border border-line p-1.5 disabled:opacity-40"><ArrowClockwise size={14} /></button>
+          </div>
           <div className="explore-results-toolbar"><span role="status" className="font-utility text-xs font-semibold text-ink-muted">{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang tìm địa điểm…' : 'Finding places…') : copy.results(filtered.length)}</span><select value={sort} onChange={(event) => setSort(event.target.value)} aria-label={copy.sort} className="shrink-0 rounded-full border border-line-strong bg-surface px-3 py-2 font-utility text-xs text-ink-muted"><option value="relevant">{copy.relevant}</option><option value="highest">{copy.highest}</option><option value="low-price">{copy.lowPrice}</option></select></div>
+          {/* Google's map data (photos, ratings) comes through Serper; without it
+              the basemap provider stands in, and says so rather than looking broken. */}
+          {liveStatus !== 'loading' && filtered.length > 0 && filtered.every((place) => place.source === 'track-asia') && (
+            <p role="note" className="sticky top-[57px] z-[2] mx-4 mb-2 rounded-lg bg-paper-2 px-3 py-2 text-2xs text-ink-muted">{lang === 'vi' ? 'Ảnh và đánh giá từ Google Maps tạm thời không có — đang hiển thị dữ liệu bản đồ cơ bản.' : 'Google Maps photos and ratings are unavailable right now — showing basic map data.'}</p>
+          )}
           {(foodType !== 'all' || category !== 'all') && !userLocation && !mapSearchOrigin && cityFilter === 'all' && <div className="mb-3 rounded-xl border border-lantern/30 bg-lantern/10 px-4 py-3 text-xs text-ink-muted">{lang === 'vi' ? 'Chọn thành phố, dùng “Gần tôi” hoặc bấm trực tiếp lên bản đồ.' : 'Choose a city, use “Near me”, or click the map.'}</div>}
           {livePlaces.length > 0 && <p className="explore-result-note">{lang === 'vi' ? 'Điểm phù hợp /10 do FoodTrip tính, không phải điểm đánh giá /5.' : 'FoodTrip suitability /10 is distinct from user ratings /5.'}</p>}
           {liveStatus === 'error' && <p role="alert" className="explore-result-note">{lang === 'vi' ? 'Chưa tải được kết quả trực tuyến. Đang hiển thị địa điểm có sẵn phù hợp bộ lọc.' : 'Live search is unavailable. Showing matching saved catalogue places.'}</p>}

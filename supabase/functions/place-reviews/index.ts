@@ -1,4 +1,5 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
+import { hasSerperKey, serperFetch } from '../_shared/serper.ts'
 
 /**
  * Google Maps reviews for one place, via Serper's reviews endpoint.
@@ -13,7 +14,6 @@ import { jsonResponse, handleOptions } from '../_shared/cors.ts'
  * to the full list there.
  */
 
-const REVIEWS_URL = 'https://google.serper.dev/reviews'
 const MAX_REVIEWS = 10
 const SORTS = new Set(['mostRelevant', 'newest', 'highestRating', 'lowestRating'])
 
@@ -64,8 +64,7 @@ Deno.serve(async (request) => {
   const sortBy = SORTS.has(params.get('sortBy') ?? '') ? params.get('sortBy')! : 'mostRelevant'
   if (!cid && !placeId) return jsonResponse({ error: 'missing-place' }, { status: 400 })
 
-  const apiKey = Deno.env.get('SERPER_API_KEY')
-  if (!apiKey) return jsonResponse({ status: 'no-key', reviews: [] })
+  if (!hasSerperKey()) return jsonResponse({ status: 'no-key', reviews: [] })
 
   // cid is the id in a Maps link and the one Serper resolves most reliably;
   // a ChIJ… placeId is the fallback.
@@ -74,12 +73,7 @@ Deno.serve(async (request) => {
   else if (placeId) body.placeId = placeId
 
   try {
-    const response = await fetch(REVIEWS_URL, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'X-API-KEY': apiKey },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15000),
-    })
+    const response = await serperFetch('reviews', body)
     if (!response.ok) {
       const message = (await response.text()).slice(0, 180)
       console.error('place-reviews: Serper', response.status, message)

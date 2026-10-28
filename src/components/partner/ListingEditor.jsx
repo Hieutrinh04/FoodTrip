@@ -24,7 +24,7 @@ const draftOf = (p) => ({
  * facilities, policies, rooms & rates, where to be paid, the signed terms.
  * The database refuses to switch room inventory on until all six are done.
  */
-export default function ListingEditor({ property, t, lang, explain, onSaved }) {
+export default function ListingEditor({ property, t, lang, explain, onSaved, onOpenRooms }) {
   const [draft, setDraft] = useState(() => draftOf(property))
   const [ready, setReady] = useState(null)
   const [terms, setTerms] = useState(null)
@@ -69,7 +69,7 @@ export default function ListingEditor({ property, t, lang, explain, onSaved }) {
     { key: 'listing', title: t('Ảnh & giới thiệu', 'Photos & description'), hint: t('Tối thiểu 3 ảnh, giới thiệu từ 30 ký tự, có vị trí trên bản đồ.', 'At least 3 photos, a 30+ character description, a map pin.') },
     { key: 'amenities', title: t('Tiện nghi', 'Facilities'), hint: t('Chọn ít nhất một tiện nghi.', 'Tick at least one facility.') },
     { key: 'policies', title: t('Chính sách', 'Policies'), hint: t('Giờ nhận / trả phòng và chính sách huỷ.', 'Check-in / check-out times and the cancellation policy.') },
-    { key: 'rooms', title: t('Loại phòng & giá', 'Rooms & rates'), hint: t('Tạo ít nhất một loại phòng ở mục "Kho phòng & giá theo ngày" bên dưới.', 'Add at least one room type under "Rooms & daily rates" below.') },
+    { key: 'rooms', title: t('Loại phòng & giá', 'Rooms & rates'), hint: t('Tạo ít nhất một loại phòng ở mục "Phòng & giá".', 'Add at least one room type under "Rooms & daily rates" below.') },
     { key: 'payout', title: t('Tài khoản nhận tiền', 'Payout account'), hint: t('Nơi FoodTrip chuyển tiền phòng sau khi khách trả phòng.', 'Where FoodTrip pays you after guests check out.') },
     { key: 'terms', title: t('Điều khoản đối tác', 'Partner terms'), hint: t('Hoa hồng và lịch thanh toán đã đồng ý.', 'The commission and payout schedule you accepted.') },
   ]
@@ -191,7 +191,7 @@ export default function ListingEditor({ property, t, lang, explain, onSaved }) {
                   {item.key === 'rooms' && (
                     <div className="flex flex-wrap items-center gap-3 text-sm text-ink-muted">
                       {ok ? t('Đã có loại phòng đang bán.', 'You have room types on sale.') : t('Chưa có loại phòng nào.', 'No room types yet.')}
-                      <button type="button" className={BUTTON} onClick={() => document.getElementById('room-inventory')?.scrollIntoView({ behavior: 'smooth' })}>{t('Đến mục Kho phòng & giá ↓', 'Go to Rooms & rates ↓')}</button>
+                      <button type="button" className={BUTTON} onClick={() => (onOpenRooms ? onOpenRooms() : document.getElementById('room-inventory')?.scrollIntoView({ behavior: 'smooth' }))}>{t('Đến mục Phòng & giá →', 'Go to Rooms & rates →')}</button>
                     </div>
                   )}
 

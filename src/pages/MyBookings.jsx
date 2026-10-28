@@ -8,6 +8,9 @@ import EmptyState from '../components/ui/EmptyState.jsx'
 import Spinner from '../components/ui/Spinner.jsx'
 import AuthModal from '../components/auth/AuthModal.jsx'
 import MyTourReservations from '../components/booking/MyTourReservations.jsx'
+import BookingRefund from '../components/booking/BookingRefund.jsx'
+import ReviewForm from '../components/reviews/ReviewForm.jsx'
+import { myReviews, stayReviewable } from '../lib/reviews.js'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { fadeUp, staggerContainer } from '../motion/variants.js'
@@ -22,7 +25,7 @@ const C = {
     empty: 'Tìm khách sạn từ một lịch trình ở trang "Lịch trình AI" để bắt đầu.',
     emptyCta: 'Tạo lịch trình',
     loading: 'Đang tải đặt phòng…', cancel: 'Huỷ đặt phòng', pay: 'Thanh toán',
-    hotelSays: 'Khách sạn:', rejectedNote: 'Khách sạn đã từ chối đơn này. Vui lòng liên hệ hỗ trợ để đối soát thanh toán và yêu cầu hoàn tiền.',
+    hotelSays: 'Khách sạn:', rejectedNote: 'Khách sạn đã từ chối đơn này — FoodTrip hoàn lại toàn bộ tiền cho bạn.',
     loadError: 'Chưa tải được đặt phòng. Kiểm tra kết nối rồi thử lại.', retry: 'Thử lại', cancelError: 'Chưa hủy được đơn; đơn có thể vừa đổi trạng thái. Hãy kiểm tra lại trước khi thử tiếp.',
     confirmCancel: 'Huỷ đặt phòng này?',
     status: { pending: 'Chờ thanh toán', paid: 'Đã thanh toán', failed: 'Thanh toán thất bại', cancelled: 'Đã huỷ', refunded: 'Đã hoàn tiền' },
@@ -37,7 +40,7 @@ const C = {
     empty: 'Find a hotel from a trip on the "AI Itinerary" page to get started.',
     emptyCta: 'Plan a trip',
     loading: 'Loading your bookings…', cancel: 'Cancel booking', pay: 'Pay now',
-    hotelSays: 'Hotel:', rejectedNote: 'The hotel declined this booking. Contact support for payment reconciliation and a refund request.',
+    hotelSays: 'Hotel:', rejectedNote: 'The hotel declined this booking — FoodTrip refunds you in full.',
     loadError: 'Could not load bookings. Check your connection and retry.', retry: 'Retry', cancelError: 'Could not cancel; the booking may have changed. Check its latest status before retrying.',
     confirmCancel: 'Cancel this booking?',
     status: { pending: 'Payment pending', paid: 'Paid', failed: 'Payment failed', cancelled: 'Cancelled', refunded: 'Refunded' },
@@ -72,6 +75,16 @@ function BookingsForAccount() {
   const [revision, setRevision] = useState(0)
   const [cancelError, setCancelError] = useState(false)
   const [cancelling, setCancelling] = useState(null)
+  // The traveller's reviews, by booking / reservation id (shared with the tour list below).
+  const [reviews, setReviews] = useState(() => new Map())
+  const [reviewTick, setReviewTick] = useState(0)
+
+  useEffect(() => {
+    if (!user) return undefined
+    let active = true
+    myReviews().then((map) => { if (active) setReviews(map) }).catch(() => { /* reviews are optional on this page */ })
+    return () => { active = false }
+  }, [user, reviewTick])
 
   useEffect(() => {
     if (!user) {
@@ -161,6 +174,7 @@ function BookingsForAccount() {
                   </span>
                 </div>
                 {/* The hotel's answer, once the booking is paid: confirmed, in house… */}
+                {b.payment_txn_ref === 'DEMO' && <p className="rounded-lg bg-lantern/10 px-3 py-2 text-xs text-ink-muted">{lang === 'vi' ? 'SePay mocktest · Không có tiền thật. Đơn thử không được đối soát hoặc hoàn tiền thật.' : 'SePay mock test · No real funds. Test orders cannot receive real payouts or refunds.'}</p>}
                 {b.payment_status === 'paid' && FULFILLMENT[b.fulfillment_status] && (
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="text-ink-faint">{c.hotelSays}</span>
@@ -177,6 +191,10 @@ function BookingsForAccount() {
                 <div className="font-bold text-lg text-chili tabular">{formatVnd(b.total_price)}</div>
                 {/* Only a pending booking can be cancelled here — the database
                     refuses it for a paid one, which needs a refund instead. */}
+                <BookingRefund booking={b} lang={lang} onChanged={() => setRevision((n) => n + 1)} />
+                {(reviews.has(b.id) || stayReviewable(b)) && (
+                  <ReviewForm kind="stay" refId={b.id} review={reviews.get(b.id)} lang={lang} onSaved={() => setReviewTick((n) => n + 1)} />
+                )}
                 {b.payment_status === 'pending' && (
                   <div className="mt-auto flex flex-wrap gap-2">
                     <Link
@@ -200,7 +218,7 @@ function BookingsForAccount() {
         )
       )}
 
-      {user && <MyTourReservations lang={lang} />}
+      {user && <MyTourReservations lang={lang} reviews={reviews} onReviewed={() => setReviewTick((n) => n + 1)} />}
 
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </div>

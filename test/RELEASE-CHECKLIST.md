@@ -1,5 +1,10 @@
 # FoodTrip — completion audit, 2026-09-30
 
+Historical audit. For the current 13 October implementation/deployment and
+remaining release gates, see [COMPLETION-20261013.md](COMPLETION-20261013.md).
+In particular, unpaid expiry jobs are now active, non-managed hotels are
+discovery-only, and live GPS no longer uses public Presence.
+
 This is an implementation and verification record, not a claim that the entire
 ecosystem is production-ready. Existing dirty-tree work was preserved.
 

@@ -1,7 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
 import { VNPAY_SANDBOX_URL, signParams, vnpayKeys } from '../_shared/vnpay.ts'
-import { sepayConfig } from '../_shared/sepay.ts'
 
 function pad(n: number) {
   return n.toString().padStart(2, '0')
@@ -16,21 +15,17 @@ function vnpDate(d: Date) {
 /**
  * Starts payment for a booking.
  *
- *   { check: true }                 → { status: 'ready' | 'no-key' } — lets the
- *                                     booking page show the real button or the
- *                                     demo one, instead of both.
+ *   { check: true }                 → { status: 'ready' | 'no-key' }
  *   { bookingId }                   → { status: 'ok', paymentUrl } for VNPay's
  *                                     sandbox, or { status: 'no-key' }.
- *   { bookingId, demo: true }       → marks the booking paid with reference
- *                                     "DEMO", only while VNPay is not configured.
+ *   { bookingId, demo: true }       → rejected; explicit SePay mock mode replaces it.
  *
  * Everything that decides money happens here, not in the browser:
  * - The amount is read from the booking row. It used to be taken from the
  *   request body, so editing one request paid 1.000đ for a 5.000.000đ room.
  * - The caller must own the booking and it must still be pending.
- * - The demo confirmation is written by this function with the service role.
- *   The client used to update payment_status itself, which the row policy
- *   allowed for any value — including "paid". A trigger now rejects that.
+ * - Missing keys never authorize settlement. Test money uses the explicitly
+ *   enabled, ownership-checked SePay mock RPC and the atomic receipt ledger.
  *
  * Deployed with --no-verify-jwt so the CORS preflight (which carries no token)
  * is answered; the caller's identity is checked below instead.
@@ -73,17 +68,9 @@ Deno.serve(async (req) => {
   if (booking.user_id !== user.id) return jsonResponse({ error: 'not-your-booking' }, { status: 403 })
   if (booking.payment_status !== 'pending') return jsonResponse({ error: 'not-pending', status: booking.payment_status }, { status: 409 })
 
-  if (body.demo) {
-    // A demo confirmation is only offered while there is no real gateway —
-    // otherwise it would be a way to skip paying.
-    if (keys || sepayConfig(Deno.env)) return jsonResponse({ error: 'demo-disabled' }, { status: 403 })
-    const { error: updateError } = await admin
-      .from('bookings')
-      .update({ payment_status: 'paid', payment_txn_ref: 'DEMO' })
-      .eq('id', booking.id)
-    if (updateError) return jsonResponse({ error: 'demo-failed' }, { status: 500 })
-    return jsonResponse({ status: 'demo-confirmed' })
-  }
+  // Missing gateway credentials must never authorize a free payment. Test
+  // settlement is available only through the explicitly enabled SePay mock RPC.
+  if (body.demo) return jsonResponse({ error: 'demo-disabled' }, { status: 403 })
 
   if (!keys) return jsonResponse({ status: 'no-key' })
 

@@ -239,3 +239,122 @@ export function hotelIdFromLink(text) {
   const match = String(text ?? '').match(/\/booking\/([^/?#\s]+)/)
   return match ? decodeURIComponent(match[1]) : ''
 }
+
+/** The partner side of the business: live properties, tours, what is owed. */
+export async function getPartnerOverview() {
+  const { data, error } = await supabase.rpc('admin_partner_overview')
+  if (error) throw error
+  return data
+}
+
+/** Partners with finished bookings not yet settled: { stays: [...], tours: [...] }. */
+export async function getSettlementCandidates() {
+  const { data, error } = await supabase.rpc('admin_settlement_candidates')
+  if (error) throw error
+  return data
+}
+
+export async function listSettlements() {
+  const { data, error } = await supabase.from('settlements')
+    .select('*, property:properties(name), operator:tour_operators(name)').order('created_at', { ascending: false }).limit(200)
+  if (error) throw error
+  return { rows: data, count: data.length }
+}
+
+/** Settles one partner's finished bookings up to a date ('stay' | 'tour'). */
+export async function createSettlement(kind, targetId, until) {
+  const { data, error } = await supabase.rpc('admin_create_settlement', { p_kind: kind, p_target: targetId, p_until: until })
+  if (error) throw error
+  return data
+}
+
+export async function markSettlementPaid(id, reference) {
+  const { error } = await supabase.rpc('admin_mark_settlement_paid', { p_settlement: id, p_reference: reference })
+  if (error) throw error
+}
+
+/** Suspends (with a reason) or restores a property; a suspended one takes no new bookings. */
+export async function setPropertyActive(id, active, note = '') {
+  const { error } = await supabase.rpc('admin_set_property_active', { p_property: id, p_active: active, p_note: note })
+  if (error) throw error
+}
+
+export async function listAllTours() {
+  const { data, error } = await supabase.rpc('admin_list_tours')
+  if (error) throw error
+  return { rows: data ?? [], count: (data ?? []).length }
+}
+
+/** Hides a published tour, with a reason kept in the activity log. */
+export async function hideTour(id, note) {
+  const { error } = await supabase.rpc('admin_hide_tour', { p_tour: id, p_note: note })
+  if (error) throw error
+}
+
+/** Bookings owed a refund (guest cancelled under the policy, or hotel rejected), oldest first. */
+export async function listRefunds() {
+  const { data, error } = await supabase.from('bookings')
+    .select('id, hotel_name, guest_name, guest_phone, guest_email, total_price, refund_amount, refund_bank, refund_account, refund_holder, fulfillment_status, cancel_reason, hotel_note, cancelled_at, payment_code')
+    .eq('refund_status', 'pending').order('cancelled_at', { ascending: true }).limit(200)
+  if (error) throw error
+  return { rows: data, count: data.length }
+}
+
+export async function completeRefund(id, reference) {
+  const { error } = await supabase.rpc('admin_complete_refund', { p_booking: id, p_reference: reference })
+  if (error) throw error
+}
+
+/** What people asked the assistant: `show` — 'wrong' (👎), 'unsure' (out of scope or low confidence), 'unreviewed', 'all'. */
+export async function listAssistantMessages({ show = 'wrong', pageIndex = 0 } = {}) {
+  let query = supabase.from('assistant_messages').select('*', { count: 'exact' }).order('created_at', { ascending: false })
+  if (show === 'wrong') query = query.eq('helpful', false)
+  if (show === 'unsure') query = query.or('intent.eq.out_of_scope,confidence.lt.0.6')
+  if (show === 'unreviewed') query = query.is('reviewed_at', null)
+  const { data, error, count } = await page(query, pageIndex)
+  if (error) throw error
+  return { rows: data, count: count ?? 0 }
+}
+
+/** How the assistant is doing: messages, ratings and readers. */
+export async function assistantStats() {
+  const count = async (build) => {
+    const { count: n, error } = await build(supabase.from('assistant_messages').select('id', { count: 'exact', head: true }))
+    if (error) throw error
+    return n ?? 0
+  }
+  const [total, helpful, wrong, model, reviewed] = await Promise.all([
+    count((q) => q), count((q) => q.eq('helpful', true)), count((q) => q.eq('helpful', false)),
+    count((q) => q.eq('source', 'model')), count((q) => q.not('reviewed_at', 'is', null)),
+  ])
+  return { total, helpful, wrong, model, reviewed }
+}
+
+/** The intent a message really had (null clears the correction). */
+export async function reviewAssistantMessage(id, intent) {
+  const { error } = await supabase.from('assistant_messages')
+    .update({ reviewed_intent: intent, reviewed_at: intent ? new Date().toISOString() : null }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteAssistantMessage(id) {
+  const { error } = await supabase.from('assistant_messages').delete().eq('id', id)
+  if (error) throw error
+}
+
+/**
+ * Reviewed messages as JSON lines for the next training round: the text and
+ * the intent a person settled. Slots are not reviewed here, so none are given;
+ * the labelling round tags them (ml/assistant/README.md).
+ */
+export async function reviewedAssistantJsonl() {
+  const rows = []
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from('assistant_messages').select('id,text,lang,intent,reviewed_intent,helpful')
+      .not('reviewed_at', 'is', null).order('created_at').range(from, from + 999)
+    if (error) throw error
+    rows.push(...data)
+    if (data.length < 1000) break
+  }
+  return rows.map((r) => JSON.stringify({ id: r.id, text: r.text, lang: r.lang, intent: r.reviewed_intent, predicted: r.intent, helpful: r.helpful })).join('\n')
+}

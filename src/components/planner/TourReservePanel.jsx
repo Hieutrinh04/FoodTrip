@@ -31,7 +31,7 @@ const C = {
  * departure; each keeps its own retry key so a double click or a network
  * retry never books twice.
  */
-export default function TourReservePanel({ tours, people, user, onLogin, lang }) {
+export default function TourReservePanel({ tours, people, user, onLogin, lang, title }) {
   const c = C[lang]
   const [form, setForm] = useState({ name: user?.user_metadata?.full_name ?? '', phone: '', seats: people })
   const [keys, setKeys] = useState(() => Object.fromEntries(tours.map((tour) => [tour.id, crypto.randomUUID()])))
@@ -58,7 +58,7 @@ export default function TourReservePanel({ tours, people, user, onLogin, lang })
         })
         setResults((old) => ({ ...old, [tour.id]: 'done' }))
       } catch (e) {
-        setResults((old) => ({ ...old, [tour.id]: tourError(e) }))
+        setResults((old) => ({ ...old, [tour.id]: tourError(e, lang) }))
       }
     }
     setBusy(false)
@@ -66,7 +66,7 @@ export default function TourReservePanel({ tours, people, user, onLogin, lang })
 
   return (
     <section className="no-print mx-auto mt-8 max-w-[880px] rounded-[16px] border border-line-strong bg-surface p-5 shadow-soft">
-      <h3 className="flex items-center gap-2 text-lg font-bold"><Compass size={20} className="text-herb" />{c.title}</h3>
+      <h3 className="flex items-center gap-2 text-lg font-bold"><Compass size={20} className="text-herb" />{title ?? c.title}</h3>
       <p className="mt-1 text-sm text-ink-muted">{c.hint}</p>
 
       <ul className="mt-4 flex flex-col gap-2">

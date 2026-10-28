@@ -63,11 +63,13 @@ function todayWindow(hours) {
   return { open: today.open, close: today.close }
 }
 
-function normalise(place, { keyword, category, cityId }) {
+/** A Google Maps result (shapePlace) as a place the map, cards and detail panel show. */
+export function normalise(place, { keyword = '', category = 'all', cityId = null } = {}) {
   const rawId = place.placeId ?? `${place.name}-${place.location.lat}`
   return {
     id: `gmaps-${String(rawId).replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 90)}`,
     source: 'google-maps',
+    googlePlaceId: place.placeId ?? null,
     city: cityId || null,
     category: categoryOf(place, keyword, category),
     name: { vi: place.name, en: place.name },

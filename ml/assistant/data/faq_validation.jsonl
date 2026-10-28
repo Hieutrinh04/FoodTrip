@@ -1,0 +1,49 @@
+{"question":"muốn book phòng thì làm gì","id":"book-how"}
+{"question":"tại sao không có nút đặt phòng","id":"book-reference-label"}
+{"question":"khách sạn trong ngân sách là gì","id":"book-hotel-budget"}
+{"question":"thanh toán qua đâu","id":"pay-methods"}
+{"question":"đơn hết hạn thanh toán là sao","id":"pay-hold-30"}
+{"question":"quên ghi nội dung chuyển khoản","id":"pay-transfer-note"}
+{"question":"bao giờ đơn chuyển sang đã thanh toán","id":"pay-confirm-time"}
+{"question":"trả tiền muộn thì có mất tiền không","id":"pay-late-transfer"}
+{"question":"sepay mocktest là gì","id":"pay-demo"}
+{"question":"huỷ trước mấy ngày thì được hoàn","id":"refund-policy"}
+{"question":"cách huỷ booking","id":"refund-how-cancel"}
+{"question":"đơn bị từ chối có được hoàn tiền không","id":"refund-hotel-rejects"}
+{"question":"đã huỷ mà chưa thấy tiền hoàn","id":"refund-when"}
+{"question":"không đi tour nữa thì làm sao","id":"refund-tour"}
+{"question":"xem lại tour đã đặt","id":"status-where"}
+{"question":"cái chuông để làm gì","id":"status-notifications"}
+{"question":"đi tour hay tự túc","id":"tour-in-plan"}
+{"question":"tour chưa xác nhận thì sao","id":"tour-confirm-48h"}
+{"question":"tour trả tiền ở đâu","id":"tour-price-payment"}
+{"question":"trang tour có những gì","id":"tour-page-share"}
+{"question":"lịch trình có phải AI tạo không","id":"plan-how"}
+{"question":"ngân sách gồm những gì","id":"plan-budget-meaning"}
+{"question":"sao không có thành phố của mình","id":"plan-custom-city"}
+{"question":"thay điểm dừng","id":"plan-edit-stops"}
+{"question":"dự báo thời tiết trong chuyến đi ở đâu","id":"plan-weather"}
+{"question":"sao không lưu được lịch trình","id":"trips-save"}
+{"question":"người khác xem lịch trình của mình được không","id":"trips-share"}
+{"question":"lưu lịch trình thành pdf","id":"trips-export"}
+{"question":"chuyến đi trực tiếp","id":"trips-live"}
+{"question":"sao quán này không có điểm","id":"explore-score"}
+{"question":"không biết ăn gì","id":"explore-nearby"}
+{"question":"không đăng nhập có lưu quán được không","id":"saved-places"}
+{"question":"web bị lỗi không load bản đồ","id":"map-not-showing"}
+{"question":"tìm quán từ video","id":"share-how"}
+{"question":"bài ảnh tiktok không ra quán","id":"share-not-found"}
+{"question":"instagram reel có được không","id":"share-links"}
+{"question":"tạo lịch trình từ video","id":"share-multi-plan"}
+{"question":"đăng nhầm quán","id":"share-edit-delete"}
+{"question":"đánh giá tour sau khi đi","id":"review-when"}
+{"question":"chủ khách sạn trả lời đánh giá được không","id":"review-name-hidden"}
+{"question":"đổi mật khẩu","id":"account-signin"}
+{"question":"tại sao phải đăng nhập","id":"account-needed"}
+{"question":"làm sao để khách sạn mình đặt được trên web","id":"partner-stay-signup"}
+{"question":"cần gì để mở bán phòng","id":"partner-checklist"}
+{"question":"giấy phép kinh doanh có bắt buộc không","id":"partner-papers"}
+{"question":"bao lâu thì đối tác nhận được tiền","id":"partner-commission"}
+{"question":"đăng tour thế nào","id":"partner-tour-signup"}
+{"question":"góp ý cho web","id":"contact"}
+{"question":"trợ lý này là gì","id":"assistant-privacy"}

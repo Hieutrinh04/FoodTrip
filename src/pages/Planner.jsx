@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
@@ -9,30 +9,34 @@ import CityPattern from '../components/CityPattern.jsx'
 import CategoryIcon from '../components/ui/CategoryIcon.jsx'
 import Chip from '../components/ui/Chip.jsx'
 import ItineraryTicket from '../components/ticket/ItineraryTicket.jsx'
-import LiveTripMap from '../components/map/LiveTripMap.jsx'
 import HotelCard from '../components/booking/HotelCard.jsx'
 import TripWeatherAdvice from '../components/planner/TripWeatherAdvice.jsx'
 import TourPicker from '../components/planner/TourPicker.jsx'
 import TourReservePanel from '../components/planner/TourReservePanel.jsx'
 import AuthModal from '../components/auth/AuthModal.jsx'
-import { CITIES, TAGS, TRANSPORT, CATEGORY_LABEL, getCity, getPlacesByCity, registerCustomPlaces } from '../data/destinations.js'
+import { CITIES, TAGS, TRANSPORT, CATEGORY_LABEL, getCity, registerCustomPlaces } from '../data/destinations.js'
 import { generateItinerary } from '../lib/itineraryEngine.js'
 import { searchCityPlaces } from '../lib/citySearch.js'
+import { loadPlannerCatalog, plannerPool } from '../lib/plannerCatalog.js'
 import { searchHotelsForCity, groupHotelsByBudgetTier, nightlyRoomBudget, LODGING_SHARE } from '../lib/hotelSearch.js'
 import { withStopIds } from '../lib/itineraryEdit.js'
 import { budgetAfterTours, clearTourHours, destinationNames, toursForTrip } from '../lib/tours.js'
 import { partnerHotelsNear, withBookable } from '../lib/partnerHotels.js'
-import { exportItineraryToExcel } from '../lib/exportItinerary.js'
 import { parseTripRequestText, resolveDestinationQuery } from '../lib/tripRequest.js'
 import { cacheCustomPlaces } from '../lib/customPlacesCache.js'
 import { saveItinerary, setItineraryPublic } from '../lib/itineraries.js'
 import { shareOrCopyLink } from '../lib/shareLink.js'
-import { createLiveRoomToken } from '../lib/liveTripRoom.js'
+import { createLiveTrip } from '../lib/liveTrips.js'
 import { destinationWeatherLocation } from '../lib/tripWeather.js'
 import { fetchRouteDetails, hasMapsKey, haversineKm, loadMapStyle } from '../lib/trackAsia.js'
 import { useAuth } from '../auth/AuthContext.jsx'
+import { useLoginPrompt } from '../auth/LoginPromptContext.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { fadeUp, staggerContainer, easeOut } from '../motion/variants.js'
+
+// Loaded on demand: the map library only when the map is opened, the
+// spreadsheet library only when exporting — both are larger than the page.
+const LiveTripMap = lazy(() => import('../components/map/LiveTripMap.jsx'))
 
 const TRANSPORT_ICON = { bike: Motorcycle, car: Car, walk: PersonSimpleWalk, taxi: Taxi }
 const PREFERENCE_TAGS = ['seafood', 'vegetarian', 'coffee', 'oldtown', 'nightlife', 'nature']
@@ -185,6 +189,7 @@ export default function Planner() {
   const { lang } = useLanguage()
   const c = C[lang]
   const { user } = useAuth()
+  const openLogin = useLoginPrompt()
   const [step, setStep] = useState(0)
   const [cityId, setCityId] = useState('hoian')
   const [destMode, setDestMode] = useState('curated') // 'curated' | 'custom'
@@ -205,6 +210,8 @@ export default function Planner() {
   const [itineraryTours, setItineraryTours] = useState([])
   const [authOpen, setAuthOpen] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [itineraryCandidates, setItineraryCandidates] = useState([])
+  const [catalogResult, setCatalogResult] = useState(null)
   const [showMap, setShowMap] = useState(false)
   const [activeMapDay, setActiveMapDay] = useState(0)
 
@@ -260,6 +267,36 @@ export default function Planner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startOverToken])
 
+  // Arriving from a tour's own page (/tour/:id): the destination, the dates and
+  // the tour are already chosen, so the planner opens on "dates & budget" for
+  // the traveller to check them and carries on from there.
+  // Arriving from the assistant's chat with a trip request: the request is
+  // written into "Điền tự động" and read straight away.
+  const assistantRequest = location.state?.assistantRequest
+  // Each request is read once, even when an effect runs twice (React's development mode).
+  const readAssistantRequest = useRef(null)
+  useEffect(() => {
+    if (!assistantRequest?.text || readAssistantRequest.current === assistantRequest.at) return
+    readAssistantRequest.current = assistantRequest.at
+    startOver()
+    setQuickText(assistantRequest.text)
+    runQuickFill(assistantRequest.text)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assistantRequest])
+
+  const planTour = location.state?.planTour
+  useEffect(() => {
+    if (!planTour) return
+    setDestMode('curated')
+    setCityId(planTour.cityId)
+    setStartDate(planTour.startDate)
+    setDuration(Math.min(14, Math.max(1, planTour.duration)))
+    setTripStyle('tour')
+    setSelectedTours([planTour.tour])
+    setDays(null)
+    setStep(1)
+  }, [planTour])
+
   const city = destMode === 'custom' ? customCity : getCity(cityId)
   const tripTours = city && tripStyle === 'tour'
     ? toursForTrip(selectedTours, { names: destinationNames(city, destMode === 'curated' ? cityId : null), startDate, duration }).onTrip
@@ -286,7 +323,11 @@ export default function Planner() {
     if (!name) return
     setCitySearchStatus('searching')
     try {
-      const results = await searchCityPlaces(name)
+      const [live, stored] = await Promise.all([
+        searchCityPlaces(name).catch(() => null),
+        loadPlannerCatalog({ destinationName: name }),
+      ])
+      const results = live === null && !stored.places.length ? null : plannerPool(live ?? [], stored.places)
       if (results === null) {
         setCitySearchStatus('no-key')
         return
@@ -311,11 +352,15 @@ export default function Planner() {
 
   async function handleQuickFill(e) {
     e.preventDefault()
-    if (!quickText.trim()) return
+    runQuickFill(quickText.trim())
+  }
+
+  async function runQuickFill(text) {
+    if (!text) return
     setQuickStatus('parsing')
     setQuickNotice(null)
     try {
-      const parsed = await parseTripRequestText(quickText.trim())
+      const parsed = await parseTripRequestText(text)
       if (parsed.error === 'missing-api-key') {
         setQuickStatus('no-key')
         return
@@ -436,8 +481,10 @@ export default function Planner() {
   }
 
   async function handleGenerate() {
+    if (!user) { openLogin(lang === 'vi' ? 'Đăng nhập để tạo lịch trình của bạn. Các lựa chọn đang điền được giữ lại.' : 'Sign in to generate your trip. Your selections will be preserved.'); return }
     setStep(5)
     setGenerating(true)
+    setCatalogResult(null)
     setShowMap(false)
     setActiveMapDay(0)
     setSaveTripStatus('idle')
@@ -447,38 +494,47 @@ export default function Planner() {
     // the user opens the map, the style is normally already in memory.
     void loadMapStyle({ lightweight: true }).catch(() => null)
     const selectedHotel = hotels.find((hotel) => hotel.id === selectedHotelId) ?? null
-    const generatedDays = await generateItinerary({
-      cityId: destMode === 'curated' ? cityId : undefined,
-      places: destMode === 'custom' ? confirmedCustomPlaces : undefined,
-      duration,
-      startDate,
-      budget,
-      people,
-      prefs,
-      transport,
-      startLocation: selectedHotel?.location ?? null,
-      endLocation: selectedHotel?.location ?? null,
-    })
-    setItineraryTours(tripTours)
-    setDays(withStopIds(clearTourHours(generatedDays, tripTours, startDate)))
-    const firstDayRoutePoints = [
-      ...(selectedHotel?.location ? [selectedHotel.location] : []),
-      ...(generatedDays[0] ?? []).map((stop) => stop.location).filter(Boolean),
-      ...(selectedHotel?.location ? [selectedHotel.location] : []),
-    ]
-    if (firstDayRoutePoints.length >= 2) {
-      // Cache the most likely first map view, including geometry. This request
-      // is deliberately non-blocking: itinerary results remain instant.
-      void fetchRouteDetails(firstDayRoutePoints, transport).catch(() => null)
-    }
-    setGenerating(false)
+    try {
+      const generatedDays = await generateItinerary({
+        cityId: destMode === 'curated' ? cityId : undefined,
+        places: destMode === 'custom' ? confirmedCustomPlaces : undefined,
+        onCandidates: setItineraryCandidates,
+        onCatalog: setCatalogResult,
+        duration,
+        startDate,
+        budget,
+        people,
+        prefs,
+        transport,
+        startLocation: selectedHotel?.location ?? null,
+        endLocation: selectedHotel?.location ?? null,
+      })
+      setItineraryTours(tripTours)
+      setDays(withStopIds(clearTourHours(generatedDays, tripTours, startDate)))
+      const firstDayRoutePoints = [
+        ...(selectedHotel?.location ? [selectedHotel.location] : []),
+        ...(generatedDays[0] ?? []).map((stop) => stop.location).filter(Boolean),
+        ...(selectedHotel?.location ? [selectedHotel.location] : []),
+      ]
+      if (firstDayRoutePoints.length >= 2) {
+        // Cache the most likely first map view, including geometry. This request
+        // is deliberately non-blocking: itinerary results remain instant.
+        void fetchRouteDetails(firstDayRoutePoints, transport).catch(() => null)
+      }
+    } catch {
+      setCatalogResult({ status: 'generation-error', places: [] })
+      setStep(4)
+    } finally { setGenerating(false) }
   }
 
-  function handleExportExcel() {
+  async function handleExportExcel() {
+    if (!user) { openLogin(lang === 'vi' ? 'Đăng nhập để xuất lịch trình' : 'Sign in to export your itinerary'); return }
+    const { exportItineraryToExcel } = await import('../lib/exportItinerary.js')
     exportItineraryToExcel({ city, days, hotels, tours: itineraryTours, startDate, people, budget, transport, lang })
   }
 
   function handleExportPdf() {
+    if (!user) { openLogin(lang === 'vi' ? 'Đăng nhập để xuất lịch trình' : 'Sign in to export your itinerary'); return }
     window.print()
   }
 
@@ -535,10 +591,10 @@ export default function Planner() {
     if (!user) return
     setLiveTripStatus('starting')
     try {
-      const id = savedTripId ?? (await persistTrip(true))
-      if (savedTripId) await setItineraryPublic(id, true)
+      const id = savedTripId ?? (await persistTrip(false))
+      const room = await createLiveTrip(id)
       setSaveTripStatus('saved')
-      navigate(`/live/${id}?room=${encodeURIComponent(createLiveRoomToken())}`)
+      navigate(`/live/${id}?room=${encodeURIComponent(room.token)}`)
     } catch {
       setLiveTripStatus('error')
     }
@@ -831,6 +887,7 @@ export default function Planner() {
         {step === 4 && (
           <>
             <h2 className="text-xl font-bold mb-2">{c.stepPref}</h2>
+            {catalogResult?.status === 'generation-error' && <p role="alert" className="mb-3 text-sm text-chili">{lang === 'vi' ? 'Chưa xếp được lịch trình. Các lựa chọn của bạn vẫn được giữ; bạn thử tạo lại nhé.' : 'Could not build the itinerary. Your selections are preserved; please retry.'}</p>}
             <p className="text-md text-ink-muted mb-5 max-w-[52ch]">{c.prefHint}</p>
             <div className="flex flex-wrap gap-2 mb-8">
               {PREFERENCE_TAGS.map((tag) => (
@@ -875,6 +932,9 @@ export default function Planner() {
                 <div className="no-print text-center mb-8">
                   <h2 className="text-2xl font-bold mb-2">{c.resultTitle(city.name[lang])}</h2>
                   <p className="text-ink-muted">{c.resultSub}</p>
+                  {catalogResult && <p className="mt-2 text-sm text-ink-muted">{catalogResult.status === 'error'
+                    ? (lang === 'vi' ? 'Chưa tải được quán đã lưu. Lịch trình lần này dùng dữ liệu mẫu và tìm kiếm hiện có; bạn có thể tạo lại để thử tải danh sách đã lưu.' : 'Saved places could not be loaded. This itinerary uses available sample and search data; regenerate to retry.')
+                    : (lang === 'vi' ? `Đã xét ${itineraryCandidates.filter((p) => p.inCatalog).length} địa điểm đã lưu trong danh sách gợi ý cho điểm đến này, cùng các địa điểm có sẵn khác.` : `Considered ${itineraryCandidates.filter((p) => p.inCatalog).length} saved places for this destination alongside the other available candidates.`)}</p>}
                 </div>
                 <ItineraryTicket
                   city={city}
@@ -890,7 +950,7 @@ export default function Planner() {
                   animate="mount"
                   editable
                   onDaysChange={setDays}
-                  candidatePlaces={destMode === 'curated' ? getPlacesByCity(cityId) : (confirmedCustomPlaces ?? [])}
+                  candidatePlaces={itineraryCandidates}
                   cityId={destMode === 'curated' ? cityId : null}
                 />
                 <div className="no-print flex justify-center gap-3 mt-8 flex-wrap">
@@ -1132,6 +1192,7 @@ function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveD
         )}
       </div>
 
+      <Suspense fallback={<div className="flex h-[360px] items-center justify-center text-sm text-ink-muted">{lang === 'vi' ? 'Đang tải bản đồ…' : 'Loading map…'}</div>}>
       <LiveTripMap
         key={`${activeDay}-${selectedHotelId ?? 'no-hotel'}`}
         stops={mappedStops}
@@ -1141,6 +1202,7 @@ function DailyItineraryMap({ days, hotels, selectedHotelId, activeDay, onActiveD
         onRouteMetrics={setLiveRouteMetrics}
         className={`${expanded ? 'min-h-0 flex-1 [&>div:first-child]:h-full [&>div:first-child>div:first-child]:h-full' : ''} [&>div:first-child]:rounded-none [&>div:first-child]:border-0`}
       />
+      </Suspense>
     </section>
   )
 }

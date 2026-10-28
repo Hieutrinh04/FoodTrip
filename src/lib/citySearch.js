@@ -102,9 +102,11 @@ async function searchCategory(city, category) {
     tags: deriveTags(place.types),
     // Track-Asia exposes no rating or price level. 4 is a neutral placeholder
     // so scorePlace() ranks purely on preference match and distance instead of
-    // inventing a quality signal that doesn't exist.
+    // inventing a quality signal that doesn't exist (and is never shown: see
+    // isCuratedPlace). No price either: the budget criterion is skipped rather
+    // than every venue being called "giá bình dân".
     rating: 4,
-    price: 1,
+    price: null,
     // No opening hours either — treat these as always open rather than
     // guessing, and let the time-slot filter pass them through.
     hours: { open: '00:00', close: '24:00' },

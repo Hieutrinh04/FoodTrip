@@ -43,4 +43,6 @@ test('the QR carries the account, the exact amount and the code', () => {
 test('SePay times are Vietnam local time', () => {
   assert.equal(sepayTime('2026-09-25 14:02:37'), '2026-09-25T07:02:37.000Z')
   assert.equal(sepayTime('yesterday'), null)
+  assert.equal(sepayTime('2026-13-25 14:02:37'), null)
+  assert.equal(sepayTime('2026-02-30 14:02:37'), null)
 })

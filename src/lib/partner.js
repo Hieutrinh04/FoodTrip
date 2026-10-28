@@ -12,7 +12,9 @@ export async function getMyProperties(userId) {
     .select('role, property:properties(*)')
     .eq('user_id', userId)
   if (error) throw error
-  return (data ?? []).filter((row) => row.property?.active).map((row) => ({ ...row.property, role: row.role }))
+  // Suspended properties stay listed: their portal explains the suspension
+  // instead of sending the owner back to the sign-up form.
+  return (data ?? []).filter((row) => row.property).map((row) => ({ ...row.property, role: row.role }))
 }
 
 /** Whether the user runs any property — for showing the partner link. */
@@ -26,7 +28,7 @@ export async function isPartner(userId) {
 export async function getPropertyBookings(hotelPlaceId) {
   const { data, error } = await supabase
     .from('bookings')
-    .select('id, hotel_place_id, room_name, check_in, check_out, nights, guests, total_price, guest_name, guest_phone, guest_email, payment_status, payment_code, paid_at, fulfillment_status, hotel_note, fulfillment_updated_at, created_at')
+    .select('id, hotel_place_id, room_name, check_in, check_out, nights, guests, total_price, guest_name, guest_phone, guest_email, payment_status, payment_code, payment_txn_ref, paid_at, refund_amount, cancel_reason, fulfillment_status, hotel_note, fulfillment_updated_at, created_at')
     .eq('hotel_place_id', hotelPlaceId)
     .order('check_in', { ascending: true })
     .limit(1000)
@@ -125,6 +127,7 @@ export const FULFILLMENT = {
   checked_in: { vi: 'Đang ở', en: 'In house', style: 'bg-[#2583d8]/15 text-[#2583d8]' },
   completed: { vi: 'Đã trả phòng', en: 'Checked out', style: 'bg-paper-2 text-ink-muted' },
   no_show: { vi: 'Khách không đến', en: 'No-show', style: 'bg-paper-2 text-ink-muted' },
+  guest_cancelled: { vi: 'Khách đã huỷ', en: 'Guest cancelled', style: 'bg-paper-2 text-ink-muted' },
 }
 
 /** The partner terms currently offered to places to stay ('stay') or tour operators ('tour'): the highest version of that kind. */
@@ -184,4 +187,24 @@ export const CANCELLATION = {
   moderate: { vi: 'Vừa phải — huỷ miễn phí đến 5 ngày trước ngày nhận phòng', en: 'Moderate — free cancellation up to 5 days before check-in' },
   strict: { vi: 'Nghiêm ngặt — hoàn 50% nếu huỷ trước 7 ngày', en: 'Strict — 50% refund if cancelled 7+ days before' },
   non_refundable: { vi: 'Không hoàn tiền', en: 'Non-refundable' },
+}
+
+/** The property's money: unsettled (owed to it), upcoming (paid, stay not over), monthly totals, past settlements. Owners only. */
+export async function getStatement(propertyId) {
+  const { data, error } = await supabase.rpc('property_statement', { p_property: propertyId })
+  if (error) throw error
+  return data
+}
+
+/** Everyone who runs the property: [{ user_id, email, role }]. */
+export async function getTeam(propertyId) {
+  const { data, error } = await supabase.rpc('property_team', { p_property: propertyId })
+  if (error) throw error
+  return data ?? []
+}
+
+/** The owner adds (or removes) a staff member by their FoodTrip account email. */
+export async function setStaff(propertyId, email, add) {
+  const { error } = await supabase.rpc('owner_set_property_staff', { p_property: propertyId, p_email: email, p_add: add })
+  if (error) throw error
 }

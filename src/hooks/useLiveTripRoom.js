@@ -1,142 +1,122 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { hasSupabase, supabase } from '../lib/supabaseClient.js'
-import {
-  cleanMemberName,
-  createLiveMemberIdentity,
-  flattenPresenceState,
-  liveRoomChannelName,
-  normalizeLiveRoomToken,
-  rememberLiveMemberName,
-} from '../lib/liveTripRoom.js'
+import { cleanMemberName, createLiveMemberIdentity, freshLiveLocation, normalizeLiveRoomToken, normalizePresenceMember, rememberLiveMemberName } from '../lib/liveTripRoom.js'
+import { getLiveTripState, joinLiveTrip, leaveLiveTrip, publishLiveLocation } from '../lib/liveTrips.js'
 
-const BROADCAST_INTERVAL_MS = 2000
+const POLL_MS = 3000
+const PUBLISH_MS = 2000
 
-function mergeLatestMembers(remoteMembers, localMember) {
-  const merged = new Map(remoteMembers.map((member) => [member.id, member]))
-  const remoteLocal = merged.get(localMember.id)
-  if (!remoteLocal || localMember.updatedAt >= remoteLocal.updatedAt) merged.set(localMember.id, localMember)
-  return [...merged.values()].sort((a, b) => a.name.localeCompare(b.name))
-}
-
-export function useLiveTripRoom({ roomToken, suggestedName }) {
-  const normalizedRoom = normalizeLiveRoomToken(roomToken)
-  const identityRef = useRef(null)
-  if (!identityRef.current && normalizedRoom) identityRef.current = createLiveMemberIdentity(normalizedRoom, suggestedName)
-
-  const initialIdentity = identityRef.current ?? { id: 'offline', name: cleanMemberName(suggestedName), color: '#2f5d4e' }
-  const channelRef = useRef(null)
-  const watchIdRef = useRef(null)
-  const lastBroadcastRef = useRef(0)
-  const payloadRef = useRef({ ...initialIdentity, sharing: false, location: null, updatedAt: Date.now() })
-  const [connectionStatus, setConnectionStatus] = useState(() => (!hasSupabase ? 'unavailable' : normalizedRoom ? 'connecting' : 'invalid'))
+/** Server-checked membership on every read/write. No public GPS channel. */
+export function useLiveTripRoom({ roomToken, itineraryId, userId, suggestedName }) {
+  const token = normalizeLiveRoomToken(roomToken)
+  const [identity] = useState(() => ({ ...createLiveMemberIdentity(token ?? 'offline', suggestedName), id: userId, name: cleanMemberName(suggestedName) }))
+  const payload = useRef({ ...identity, sharing: false, location: null, updatedAt: Date.now() })
+  const roomRef = useRef(null)
+  const watchRef = useRef(null)
+  const pendingWrite = useRef(Promise.resolve())
+  const lastPublish = useRef(0)
+  const alive = useRef(false)
+  const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [sharingStatus, setSharingStatus] = useState('off')
   const [locationError, setLocationError] = useState(null)
-  const [members, setMembers] = useState([payloadRef.current])
+  const [error, setError] = useState(null)
+  const [state, setState] = useState(null)
+  const [revision, setRevision] = useState(0)
 
-  const publish = useCallback((patch, force = false) => {
-    const next = { ...payloadRef.current, ...patch, updatedAt: Date.now() }
-    payloadRef.current = next
-    setMembers((current) => mergeLatestMembers(current.filter((member) => member.id !== next.id), next))
-    const channel = channelRef.current
-    if (!channel || (!force && Date.now() - lastBroadcastRef.current < BROADCAST_INTERVAL_MS)) return
-    lastBroadcastRef.current = Date.now()
-    void channel.track(next)
+  const clearWatch = useCallback(() => {
+    if (watchRef.current != null) navigator.geolocation?.clearWatch(watchRef.current)
+    watchRef.current = null
+    payload.current = { ...payload.current, sharing: false, location: null }
+    setSharingStatus('off')
   }, [])
 
+  const send = useCallback((force = false) => {
+    const room = roomRef.current
+    if (!room || (!force && Date.now()-lastPublish.current<PUBLISH_MS)) return Promise.resolve()
+    lastPublish.current = Date.now()
+    const { name } = payload.current
+    const observedAt = payload.current.updatedAt
+    const location = freshLiveLocation(payload.current.location,payload.current.updatedAt)
+    // Serialize GPS updates and stop-sharing deletion so a delayed fix cannot
+    // recreate the location after the traveller explicitly stops sharing.
+    pendingWrite.current = pendingWrite.current.catch(() => {}).then(() => publishLiveLocation(room, name, freshLiveLocation(location,observedAt)))
+    return pendingWrite.current.catch((err) => {
+      if (alive.current) { clearWatch(); setState(null); setError(err); setConnectionStatus('error') }
+      throw err
+    })
+  }, [clearWatch])
+
   const stopSharing = useCallback(() => {
-    if (watchIdRef.current != null && navigator.geolocation) navigator.geolocation.clearWatch(watchIdRef.current)
-    watchIdRef.current = null
-    setSharingStatus('off')
-    publish({ sharing: false, location: null }, true)
-  }, [publish])
+    clearWatch()
+    void send(true).catch(() => {})
+  }, [clearWatch, send])
 
   const startSharing = useCallback(() => {
-    if (watchIdRef.current != null) return
-    if (!navigator.geolocation) {
-      setLocationError('unsupported')
-      return
-    }
-    setLocationError(null)
-    setSharingStatus('locating')
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (position) => {
-        setSharingStatus('sharing')
-        const isFirstSharedLocation = !payloadRef.current.sharing
-        publish({
-          sharing: true,
-          location: {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            heading: position.coords.heading,
-            speed: position.coords.speed,
-          },
-        }, isFirstSharedLocation)
-      },
-      (error) => {
-        if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current)
-        watchIdRef.current = null
-        setSharingStatus('off')
-        setLocationError(error.code === 1 ? 'denied' : error.code === 3 ? 'timeout' : 'unavailable')
-        publish({ sharing: false, location: null }, true)
-      },
-      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 },
-    )
-  }, [publish])
+    if (!roomRef.current || connectionStatus !== 'connected' || watchRef.current != null) return
+    if (!navigator.geolocation) { setLocationError('unsupported'); return }
+    setLocationError(null); setSharingStatus('locating')
+    watchRef.current = navigator.geolocation.watchPosition((position) => {
+      payload.current = { ...payload.current, sharing: true, updatedAt: position.timestamp, location: {
+        lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy,
+        heading: position.coords.heading, speed: position.coords.speed,
+      } }
+      setSharingStatus('sharing')
+      void send().catch(() => {})
+    }, (err) => {
+      setLocationError(err.code === 1 ? 'denied' : err.code === 3 ? 'timeout' : 'unavailable')
+      stopSharing()
+    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 })
+  }, [connectionStatus, send, stopSharing])
 
   const updateMemberName = useCallback((value) => {
     const name = rememberLiveMemberName(value)
-    publish({ name }, true)
+    payload.current = { ...payload.current, name }
+    void send(true).catch(() => {})
     return name
-  }, [publish])
+  }, [send])
 
   useEffect(() => {
-    const channelName = liveRoomChannelName(normalizedRoom)
-    if (!hasSupabase || !channelName || !identityRef.current) return
-
-    let active = true
-    const channel = supabase.channel(channelName, { config: { presence: { key: identityRef.current.id } } })
-    channelRef.current = channel
-
-    const syncMembers = () => {
-      if (!active) return
-      setMembers(mergeLatestMembers(flattenPresenceState(channel.presenceState()), payloadRef.current))
-    }
-
-    channel
-      .on('presence', { event: 'sync' }, syncMembers)
-      .on('presence', { event: 'join' }, syncMembers)
-      .on('presence', { event: 'leave' }, syncMembers)
-      .subscribe((status) => {
+    if (!token || !userId) { setConnectionStatus('invalid'); return undefined }
+    let active = true; let timer; let joinedRoom
+    alive.current = true; setError(null); setState(null); setConnectionStatus('connecting')
+    const poll = async () => {
+      try {
+        const next = await getLiveTripState(joinedRoom)
         if (!active) return
-        if (status === 'SUBSCRIBED') {
-          setConnectionStatus('connected')
-          lastBroadcastRef.current = Date.now()
-          void channel.track(payloadRef.current)
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          setConnectionStatus('error')
-        } else if (status === 'CLOSED') {
-          setConnectionStatus('closed')
+        // Keep the itinerary reference stable: member polling must not rebuild
+        // the route/map every three seconds.
+        setState((previous) => ({ ...next, trip: previous && JSON.stringify(previous.trip) === JSON.stringify(next.trip) ? previous.trip : next.trip }))
+        setError(null); setConnectionStatus('connected')
+        if (payload.current.sharing) {
+          // Never turn an old browser fix into a seemingly fresh position.
+          if (!freshLiveLocation(payload.current.location,payload.current.updatedAt)) {
+            payload.current = { ...payload.current, sharing: false, location: null }
+            setSharingStatus('locating')
+            await send(true)
+          } else await send()
         }
-      })
-
-    return () => {
-      active = false
-      channelRef.current = null
-      if (watchIdRef.current != null && navigator.geolocation) navigator.geolocation.clearWatch(watchIdRef.current)
-      watchIdRef.current = null
-      void supabase.removeChannel(channel)
+      } catch (err) {
+        if (!active) return
+        clearWatch(); setError(err); setState(null); setConnectionStatus('error')
+        return
+      }
+      if (active) timer = setTimeout(poll, POLL_MS)
     }
-  }, [normalizedRoom])
+    joinLiveTrip(itineraryId, token, payload.current.name).then(async (room) => {
+      if (!active) return
+      joinedRoom = room.id; roomRef.current = room.id
+      await poll()
+    }).catch((err) => { if (active) { setError(err); setConnectionStatus('error') } })
+    return () => {
+      active = false; alive.current = false; clearTimeout(timer); clearWatch(); roomRef.current = null
+      if (joinedRoom) void pendingWrite.current.catch(() => {}).then(() => leaveLiveTrip(joinedRoom)).catch(() => {})
+    }
+  }, [itineraryId, token, userId, revision, clearWatch, send])
 
   return {
-    member: payloadRef.current,
-    members,
-    connectionStatus,
-    sharingStatus,
-    locationError,
-    startSharing,
-    stopSharing,
-    updateMemberName,
+    roomId: roomRef.current, member: payload.current,
+    members: (state?.members ?? []).map((m) => ({ ...normalizePresenceMember(m), online: m.online })),
+    trip: state?.trip ?? null, ownerId: state?.owner_id,
+    connectionStatus, sharingStatus, locationError, error,
+    startSharing, stopSharing, updateMemberName, retry: () => setRevision((v) => v+1),
   }
 }

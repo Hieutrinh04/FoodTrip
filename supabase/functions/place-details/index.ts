@@ -1,6 +1,8 @@
 import { jsonResponse, handleOptions } from '../_shared/cors.ts'
 import { normalizeSearchText, GENERIC_WORDS } from '../_shared/relevance.ts'
 import { callSerperMaps, haversineKm, shapePlace, type SerperPlace } from '../_shared/serperPlace.ts'
+import { hasSerperKey } from '../_shared/serper.ts'
+import { saveFound, storedNear, storedAsDetails } from '../_shared/knownPlacesStore.ts'
 
 /**
  * Fetches the factual profile of one place — rating, review count, opening
@@ -63,21 +65,37 @@ function pickBestMatch(results: SerperPlace[], name: string, origin: { lat: numb
   return best?.place ?? null
 }
 
+/**
+ * A venue FoodTrip already stored with fresh details (any page looked it up, or
+ * someone shared a video of it) answers without a search — same matching rules
+ * as a search result: the name, and within 400 m.
+ */
+async function storedDetails(name: string, origin: { lat: number; lng: number }) {
+  const rows = await storedNear(origin)
+  const match = pickBestMatch(rows.map((row) => ({ title: row.name, latitude: row.lat ?? undefined, longitude: row.lng ?? undefined, placeId: row.place_id })), name, origin)
+  const row = match && rows.find((r) => r.place_id === match.placeId)
+  return row ? storedAsDetails(row) : null
+}
+
 async function fetchPlaceDetails(name: string, address: string, origin: { lat: number; lng: number } | null) {
-  const apiKey = Deno.env.get('SERPER_API_KEY')
-  if (!apiKey) return { status: 'no-key', place: null }
+  const stored = origin ? await storedDetails(name, origin) : null
+  if (stored) return { status: 'ok', place: stored, source: 'stored' }
+  if (!hasSerperKey()) return { status: 'no-key', place: null }
 
   const body: Record<string, unknown> = { q: `${name} ${address}`.trim(), gl: 'vn', hl: 'vi' }
   // Biasing the search to the coordinates we already hold is what keeps a
   // common name like "Quán Cà Phê" from resolving to a different city.
   if (origin) body.ll = `@${origin.lat},${origin.lng},15z`
 
-  const json = await callSerperMaps(apiKey, body)
+  const json = await callSerperMaps(body)
   const match = pickBestMatch(json.places ?? [], name, origin)
   // A miss is a normal outcome, not an error: plenty of small places have no
   // Google listing at all. The client then shows what it already has.
   if (!match) return { status: 'not-found', place: null }
-  return { status: 'ok', place: shapePlace(match) }
+  const place = shapePlace(match)
+  // Kept as FoodTrip's own venue data: the next look-up anywhere on the site is free.
+  await saveFound([place])
+  return { status: 'ok', place, source: 'search' }
 }
 
 Deno.serve(async (request) => {

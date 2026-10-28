@@ -6,7 +6,7 @@ import {
   DotsSixVertical, ArrowsClockwise, X, CalendarBlank, Compass,
 } from '@phosphor-icons/react'
 import { getPlace, TRANSPORT } from '../../data/destinations.js'
-import { priceRangeLabel } from '../../lib/pricing.js'
+import { placePrice, knownClosingTime } from '../../lib/pricing.js'
 import { PRICE_LEVEL_LABEL, hotelMapsUrl, hasRealPrice } from '../../lib/hotelSearch.js'
 import { applyReorder, replaceStopPlace, getReplacementCandidates, usedPlaceIdsIn, recomputeDistances } from '../../lib/itineraryEdit.js'
 import { tourDays, tourMoney, vnTime } from '../../lib/tours.js'
@@ -140,6 +140,9 @@ export default function ItineraryTicket({
   function StopRow({ stop, dayIdx, i }) {
     const place = getPlace(stop.placeId)
     if (!place) return null
+    // Only what is known about the place: live-search places have no price and may have no hours.
+    const price = placePrice(place, lang)
+    const closesAt = knownClosingTime(place)
     const matched = preferredTags.length > 0 && place.tags.some((t) => preferredTags.includes(t))
     const key = `${dayIdx}-${i}`
     const isOpen = expandedKey === key
@@ -171,14 +174,16 @@ export default function ItineraryTicket({
               </span>
             </div>
             <div className="flex flex-wrap gap-4 text-sm text-ink-faint">
-              <span className="flex items-center gap-1 text-herb font-medium">
-                <CheckCircle size={13} /> {l.open(place.hours.close)}
-              </span>
+              {closesAt && (
+                <span className="flex items-center gap-1 text-herb font-medium">
+                  <CheckCircle size={13} /> {l.open(closesAt)}
+                </span>
+              )}
               <span className="flex items-center gap-1">
                 <Ruler size={13} /> {stop.distance[lang]}
               </span>
-              <span className="flex items-center gap-1 text-chili font-medium">
-                <Wallet size={13} /> {priceRangeLabel(place.price, lang)}
+              <span className={`flex items-center gap-1 ${price.known ? 'text-chili font-medium' : ''}`}>
+                <Wallet size={13} /> {price.label}
               </span>
             </div>
           </div>

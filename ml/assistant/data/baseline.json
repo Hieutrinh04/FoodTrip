@@ -1,0 +1,55 @@
+{
+  "method": "rules (supabase/functions/_shared/assistant/rules.js)",
+  "test": {
+    "intent_accuracy": 0.7675213675213676,
+    "rows": 585,
+    "per_intent_accuracy": {
+      "plan_trip": 0.925,
+      "modify_plan": 1,
+      "find_food": 0.38095238095238093,
+      "booking_how": 0,
+      "booking_payment": 1,
+      "booking_cancel_refund": 1,
+      "booking_status": 0,
+      "tour_info": 1,
+      "share_video": 1,
+      "saved_trips": 1,
+      "reviews": 1,
+      "account": 1,
+      "partner": 1,
+      "contact_support": 0,
+      "greeting": 0.1111111111111111,
+      "thanks": 1,
+      "estimate_cost": 0.5,
+      "ask_weather": 1,
+      "place_info": 1,
+      "out_of_scope": 1
+    }
+  },
+  "real_test": {
+    "intent_accuracy": 0.7636363636363637,
+    "rows": 110,
+    "per_intent_accuracy": {
+      "plan_trip": 0.9166666666666666,
+      "modify_plan": 0.2857142857142857,
+      "find_food": 0.5714285714285714,
+      "place_info": 1,
+      "booking_how": 0.6,
+      "booking_payment": 1,
+      "booking_cancel_refund": 0.6666666666666666,
+      "booking_status": 0.25,
+      "tour_info": 1,
+      "share_video": 0.75,
+      "saved_trips": 0.2,
+      "reviews": 0.6666666666666666,
+      "account": 1,
+      "partner": 0.75,
+      "contact_support": 0.3333333333333333,
+      "greeting": 1,
+      "thanks": 1,
+      "ask_weather": 1,
+      "out_of_scope": 1,
+      "estimate_cost": 1
+    }
+  }
+}

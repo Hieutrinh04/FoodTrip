@@ -15,9 +15,11 @@ import { usePlaceEnrichment } from '../hooks/usePlaceEnrichment.js'
 import { useVideoReviewsForPlace } from '../hooks/useVideoReviewsForPlace.js'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { useAuth } from '../auth/AuthContext.jsx'
+import { useLoginPrompt } from '../auth/LoginPromptContext.jsx'
 import { getSavedPlaceIds, setPlaceSaved } from '../lib/savedPlaces.js'
 import { fadeUp, staggerContainer, viewportOnce } from '../motion/variants.js'
 import NotFound from './NotFound.jsx'
+import PlaceAssessment from '../components/assistant/PlaceAssessment.jsx'
 
 const C = {
   vi: {
@@ -72,6 +74,7 @@ export default function PlaceDetail() {
   const c = C[lang]
   const place = getPlace(id)
   const { user } = useAuth()
+  const openLogin = useLoginPrompt()
   const [saved, setSaved] = useState(false)
   const enrichment = usePlaceEnrichment(place)
   const videoReviews = useVideoReviewsForPlace({ googlePlaceId: enrichment.data?.placeId, name: place?.name?.vi })
@@ -92,6 +95,7 @@ export default function PlaceDetail() {
   const open = isOpenNow(place.hours)
 
   async function toggleSave() {
+    if (!user) { openLogin(lang === 'vi' ? 'Đăng nhập để lưu địa điểm này' : 'Sign in to save this place'); return }
     const next = !saved
     setSaved(next)
     try {
@@ -161,6 +165,7 @@ export default function PlaceDetail() {
           </motion.div>
 
           <motion.p variants={fadeUp} className="text-base text-ink-muted">{place.longDesc[lang]}</motion.p>
+          <PlaceAssessment key={`${place.id}:${lang}`} place={place} lang={lang} />
 
           <motion.div variants={fadeUp} className="flex flex-col gap-3 bg-paper-2 rounded-xl p-4">
             <div className="flex items-center gap-2 text-md">

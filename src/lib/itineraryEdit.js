@@ -54,7 +54,7 @@ export function applyReorder(originalStops, newOrderStops, transport) {
 export function getReplacementCandidates({ candidatePlaces, category, usedPlaceIds }) {
   return candidatePlaces
     .filter((p) => p.category === category && !usedPlaceIds.has(p.id))
-    .sort((a, b) => (b.liveRating ?? b.rating ?? 0) - (a.liveRating ?? a.rating ?? 0))
+    .sort((a, b) => (b.googleRating ?? b.liveRating ?? b.rating ?? 0) - (a.googleRating ?? a.liveRating ?? a.rating ?? 0))
 }
 
 /**
@@ -69,10 +69,11 @@ export async function replaceStopPlace(stop, newPlace, cityId) {
     return {
       ...stop,
       placeId: newPlace.id,
-      liveRating: newPlace.liveRating ?? null,
-      liveReviewCount: newPlace.liveReviewCount ?? null,
+      liveRating: newPlace.googleRating ?? newPlace.liveRating ?? null,
+      liveReviewCount: newPlace.googleRatingCount ?? newPlace.liveReviewCount ?? null,
       location: newPlace.location ?? null,
       googlePlaceId: newPlace.googlePlaceId,
+      placeSnapshot: newPlace,
     }
   }
   try {

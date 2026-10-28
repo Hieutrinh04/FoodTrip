@@ -4,9 +4,8 @@ import { motion } from 'framer-motion'
 import {
   List, X, SunDim, MoonStars, Translate, UserCircle, SignOut, CaretDown, MapTrifold, Bed, Sparkle, ShieldCheck, Buildings, Handshake,
 } from '@phosphor-icons/react'
-import { getAdminStatus } from '../../lib/admin.js'
-import { isPartner as checkPartner } from '../../lib/partner.js'
-import { isTourMember } from '../../lib/tours.js'
+import { useAccess } from '../../auth/AccessContext.jsx'
+import NotificationBell from './NotificationBell.jsx'
 import LogoMark from '../ui/LogoMark.jsx'
 import Wordmark from '../ui/Wordmark.jsx'
 import AuthModal from '../auth/AuthModal.jsx'
@@ -56,6 +55,11 @@ const PARTNER_LINK = { to: '/partner', icon: Buildings, label: { vi: 'Quản lý
 const JOIN_LINK = { to: '/hop-tac', icon: Handshake, label: { vi: 'Hợp tác với FoodTrip', en: 'Partner with FoodTrip' } }
 // Shown to members of a tour operator (owner, manager or guide).
 const TOUR_PARTNER_LINK = { to: '/partner/tours', icon: Buildings, label: { vi: 'Quản lý tour', en: 'My tours (operator)' } }
+const ACCESS_LINK = { to: '/permissions', icon: ShieldCheck, label: { vi: 'Vai trò & quyền truy cập', en: 'Roles & permissions' } }
+
+function accountLinks(access) {
+  return [...ACCOUNT_LINKS, ...(access.can('hotel.portal') ? [PARTNER_LINK] : []), ...(access.can('tour.portal') ? [TOUR_PARTNER_LINK] : []), JOIN_LINK, ...(access.can('admin') ? [ADMIN_LINK] : []), ACCESS_LINK]
+}
 
 const CTA = { vi: 'Tạo lịch trình', en: 'Plan a trip' }
 
@@ -70,9 +74,7 @@ const ICON_BUTTON = 'flex h-10 items-center justify-center gap-1.5 rounded-full 
 function AccountMenu({ user, onSignOut, lang }) {
   const l = LABELS[lang]
   const [open, setOpen] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
-  const [isPartner, setIsPartner] = useState(false)
-  const [isTourPartner, setIsTourPartner] = useState(false)
+  const access = useAccess()
   const ref = useRef(null)
   const location = useLocation()
 
@@ -89,14 +91,6 @@ function AccountMenu({ user, onSignOut, lang }) {
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
-
-  useEffect(() => {
-    let cancelled = false
-    getAdminStatus().then((status) => { if (!cancelled) setIsAdmin(status === 'admin') })
-    checkPartner(user.id).then((yes) => { if (!cancelled) setIsPartner(yes) })
-    isTourMember(user.id).then((yes) => { if (!cancelled) setIsTourPartner(yes) })
-    return () => { cancelled = true }
-  }, [user.id])
 
   const initial = (user.email?.[0] ?? '?').toUpperCase()
 
@@ -128,7 +122,7 @@ function AccountMenu({ user, onSignOut, lang }) {
             <div className="mt-0.5 truncate text-sm font-semibold">{user.email}</div>
           </div>
           <div className="py-1.5">
-            {[...ACCOUNT_LINKS, ...(isPartner ? [PARTNER_LINK] : []), ...(isTourPartner ? [TOUR_PARTNER_LINK] : []), ...(isPartner || isTourPartner ? [] : [JOIN_LINK]), ...(isAdmin ? [ADMIN_LINK] : [])].map(({ to, icon: Icon, label }) => (
+            {accountLinks(access).map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
                 to={to}
@@ -161,6 +155,7 @@ export default function Nav() {
   const { lang, toggleLang } = useLanguage()
   const { effectiveTheme, toggleTheme } = useTheme()
   const { user, hasAuth, signOut } = useAuth()
+  const access = useAccess()
   const location = useLocation()
   const l = LABELS[lang]
   const navigate = useNavigate()
@@ -225,6 +220,7 @@ export default function Nav() {
           <button onClick={toggleTheme} aria-label={l.theme} className={`${ICON_BUTTON} hidden w-10 sm:flex`}>
             {effectiveTheme === 'dark' ? <MoonStars size={17} /> : <SunDim size={17} />}
           </button>
+          {hasAuth && user && <NotificationBell key={user.id} lang={lang} />}
           {hasAuth && (
             user ? (
               <AccountMenu user={user} onSignOut={signOut} lang={lang} />
@@ -263,7 +259,7 @@ export default function Nav() {
           aria-label={l.mobileNav}
         >
           <div className="mx-auto flex max-w-[1400px] flex-col px-5 py-3 font-utility font-semibold md:px-8">
-            {[...NAV_LINKS, ...(user ? ACCOUNT_LINKS : []), JOIN_LINK].map((link) => (
+            {[...NAV_LINKS, ...(user ? accountLinks(access) : [JOIN_LINK, ACCESS_LINK])].map((link) => (
               <NavLink
                 key={link.to}
                 to={link.to}

@@ -1,5 +1,6 @@
 import { supabase, hasSupabase } from './supabaseClient.js'
 import { parseVideoUrl, reviewPayload } from '../../supabase/functions/_shared/videoUrl.js'
+import { coreName, sameVenue } from '../../supabase/functions/_shared/placeNames.js'
 export { parseVideoUrl }
 
 export const REVIEW_PAGE_SIZE = 12
@@ -20,8 +21,29 @@ export async function fetchYoutubeOEmbed(url) {
 }
 
 // Suggestions are never posted automatically: the user confirms the exact venue.
-export async function detectPlaceFromContent({ caption }) {
-  return invoke('detect-place', { body: { caption } })
+// The video link lets the server reuse venues confirmed for it before, and its cache;
+// the description and TikTok's location tag often name the venue when the title does not.
+// What the reviewer says (TikTok's subtitles) and a city tag (`area`) help too.
+export async function detectPlaceFromContent({ caption, description, location, transcript, area, comments, author, screenText, videoUrl }) {
+  return invoke('detect-place', { body: { caption, description, location, transcript, area, comments, author, screenText, videoUrl } })
+}
+
+/**
+ * Remembers the venue a person confirmed for a shared video, and the words the
+ * caption (or the person) used for it, so the next caption saying them gets it
+ * suggested straight away — without a map search. Best effort: sharing never
+ * fails because of it.
+ */
+export async function rememberSharedPlace(place, { said = [], city = null } = {}) {
+  if (!hasSupabase || !place?.location || !place.placeId) return
+  const core = coreName(place.name)
+  const aliases = [...new Set([core, ...said.filter((s) => s && sameVenue(s, place.name)).map(coreName)])].filter((a) => a.length >= 3).slice(0, 5)
+  try {
+    await supabase.rpc('remember_share_place', {
+      p_place: { place_id: place.placeId, name: place.name, core, address: place.address ?? null, city, lat: place.location.lat, lng: place.location.lng },
+      p_aliases: aliases,
+    })
+  } catch { /* remembering is optional */ }
 }
 export async function verifyPlaceQuery(query) {
   return invoke('verify-place', { body: { query } })
@@ -36,11 +58,11 @@ function rowToReview(row) {
   }
 }
 
-export async function getVideoReviews({ offset = 0, userId } = {}) {
+export async function getVideoReviews({ offset = 0, userId, limit = REVIEW_PAGE_SIZE } = {}) {
   if (!hasSupabase) throw new Error('unavailable')
   let query = supabase.from('video_reviews').select('*').order('created_at', { ascending: false }).order('id', { ascending: false })
   if (userId) query = query.eq('user_id', userId)
-  const { data, error } = await query.range(offset, offset + REVIEW_PAGE_SIZE - 1)
+  const { data, error } = await query.range(offset, offset + Math.min(REVIEW_PAGE_SIZE, Math.max(1, limit)) - 1)
   if (error) throw new Error('list-failed')
   return data.map(rowToReview)
 }

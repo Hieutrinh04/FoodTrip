@@ -1,13 +1,9 @@
 import { shapePlace, type SerperPlace } from './serperPlace.ts'
+import { hasSerperKey, serperFetch } from './serper.ts'
 
 export async function sharePlaceSearch(query: string) {
-  const apiKey = Deno.env.get('SERPER_API_KEY')
-  if (!apiKey) throw new Error('search-unavailable')
-  const response = await fetch('https://google.serper.dev/maps', {
-    method: 'POST', signal: AbortSignal.timeout(10000),
-    headers: { 'content-type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify({ q: query, gl: 'vn', hl: 'vi', num: 8 }),
-  })
+  if (!hasSerperKey()) throw new Error('search-unavailable')
+  const response = await serperFetch('maps', { q: query, gl: 'vn', hl: 'vi', num: 8 }, 10000)
   if (!response.ok) throw new Error('search-failed')
   const body = await response.json()
   return (body.places || []).slice(0, 8).map((raw: SerperPlace) => {

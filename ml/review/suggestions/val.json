@@ -1,0 +1,311 @@
+{
+ "v0": {
+  "B": [
+   "Quán cơm niêu Kim Anh"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "v1": {
+  "B": [
+   "Quán Cơm Không Gian Xưa"
+  ],
+  "L": [
+   "HUẾ"
+  ]
+ },
+ "v2": {
+  "B": [
+   "CƠM HẾN HOA ĐÔNG"
+  ],
+  "L": [
+   "Cồn Hến"
+  ]
+ },
+ "v3": {
+  "B": [
+   "Quán ăn cơm niêu kim Anh Quán"
+  ],
+  "L": [
+   "Mũi Né",
+   "Phan thiết"
+  ]
+ },
+ "v4": {
+  "B": [
+   "quán Vỹ Dạ Xưa"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "v5": {
+  "B": [
+   "Cơm niêu Kim Anh Quán"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "v6": {
+  "B": [
+   "BUFFET RAU LEGUDA"
+  ],
+  "L": [
+   "ĐÀ LẠT"
+  ]
+ },
+ "v7": {
+  "B": [
+   "Cơm niêu Kim Anh Quán"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "v8": {
+  "B": [
+   "Buffet rau Léguda"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "v9": {
+  "B": [
+   "Hoa Đông"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "v10": {
+  "B": [
+   "Nhà hàng Léguda"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "v11": {
+  "B": [
+   "nhà hàng léguda Buffet rau"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "v12": {
+  "B": [
+   "Nhà hàng Buffet rau Leguda"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "v13": {
+  "B": [
+   "nhà hàng MADAME LAN"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "v14": {
+  "B": [
+   "Nhà hàng Madame Lân"
+  ],
+  "L": [
+   "Đà Nẵng"
+  ]
+ },
+ "v15": {
+  "B": [
+   "Cơm Niêu Việt Xưa"
+  ],
+  "L": [
+   "Ninh Bình"
+  ]
+ },
+ "v16": {
+  "B": [
+   "Quán Cơm Niêu Việt Xưa"
+  ],
+  "L": [
+   "Tam Cốc Bích Động",
+   "Ninh Bình"
+  ]
+ },
+ "v17": {
+  "B": [
+   "Léguda Buffet Rau"
+  ],
+  "L": [
+   "Đà Lạt",
+   "Đồi Rôbin",
+   "Lâm Đồng",
+   "Vietnam"
+  ]
+ },
+ "v18": {
+  "B": [
+   "Lẩu Nấm Thiên Nhiên Ashima"
+  ],
+  "L": [
+   "Hoàng Đạo Thúy",
+   "Hà Nội"
+  ]
+ },
+ "v19": {
+  "B": [
+   "Buffet rau Léguda"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "v20": {
+  "B": [
+   "Nhà Hàng Không Gian Xưa"
+  ],
+  "L": []
+ },
+ "v21": {
+  "B": [
+   "Quán Bờ Kè Mr Crab"
+  ],
+  "L": [
+   "Phan Thiết",
+   "Mũi Né"
+  ]
+ },
+ "v22": {
+  "B": [
+   "Buffet Rau Sạch LÉGUDA"
+  ],
+  "L": [
+   "Đà Lạt"
+  ]
+ },
+ "v23": {
+  "B": [
+   "Cơm Hến Hoa Đông"
+  ],
+  "L": [
+   "Huế",
+   "Phá Tam Giang"
+  ]
+ },
+ "v24": {
+  "B": [
+   "Cơm hến Hoa Đông"
+  ],
+  "L": [
+   "Vỹ Dạ",
+   "Huế",
+   "Mỹ"
+  ]
+ },
+ "v25": {
+  "B": [
+   "Nhà hàng Madame Lân"
+  ],
+  "L": [
+   "Da Nang",
+   "Vietnam"
+  ]
+ },
+ "v26": {
+  "B": [
+   "Quán Cơm Niêu Xưa"
+  ],
+  "L": [
+   "Ninh Bình"
+  ],
+  "flag": "N",
+  "note": "Có thể là cùng quán Cơm Niêu Việt Xưa viết tắt."
+ },
+ "v27": {
+  "B": [
+   "Cơm Hến Hoa Đông"
+  ],
+  "L": [
+   "HUẾ",
+   "Cồn Hến"
+  ]
+ },
+ "v28": {
+  "B": [
+   "Quán Cơm Niêu Kim Anh"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "v29": {
+  "B": [
+   "Nhà hàng cơm không gian Huế xưa"
+  ],
+  "L": [],
+  "flag": "N",
+  "note": "Có thể là nhà hàng Không Gian Xưa (Huế) viết theo kiểu mô tả."
+ },
+ "v30": {
+  "B": [
+   "Cơm Hến Hoa Đông"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "v31": {
+  "B": [
+   "Nhà Hàng MADAME LÂN"
+  ],
+  "L": [
+   "Việt Nam"
+  ]
+ },
+ "v32": {
+  "B": [
+   "Không Gian Xưa"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "v33": {
+  "B": [
+   "Cơm Niêu Kim Anh Quán"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ },
+ "v34": {
+  "B": [
+   "Nhà Hàng Không Gian Xưa"
+  ],
+  "L": [
+   "Huế"
+  ]
+ },
+ "v35": {
+  "B": [
+   "madame Lân"
+  ],
+  "L": [
+   "Đà Nẵng",
+   "hội an"
+  ]
+ },
+ "v36": {
+  "B": [
+   "Cơm Niêu Kim Anh Quán"
+  ],
+  "L": [
+   "Phan Thiết"
+  ]
+ }
+}

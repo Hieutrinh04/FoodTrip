@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Bed, CheckCircle, Copy, Check, Lock, QrCode, SpinnerGap, Warning, XCircle } from '@phosphor-icons/react'
-import { getSepayPayment, getBookingPaymentStatus } from '../lib/sepay.js'
+import { getSepayPayment, getBookingPaymentStatus, mockSepayTransfer } from '../lib/sepay.js'
 import { cancelBooking } from '../lib/bookings.js'
 import EmptyState from '../components/ui/EmptyState.jsx'
 import Spinner from '../components/ui/Spinner.jsx'
@@ -20,7 +20,8 @@ const C = {
     copy: 'Sao chép', copied: 'Đã chép',
     waiting: 'Đang chờ tiền về tài khoản…', waitingHint: 'Trang tự cập nhật khi nhận được tiền, thường trong vòng 1 phút. Bạn có thể đóng trang và quay lại sau.',
     paidTitle: 'Đã nhận thanh toán!', paidBody: 'Thanh toán đã được ghi nhận. Xem trạng thái xác nhận của khách sạn trong Đặt chỗ của tôi.',
-    cancelledTitle: 'Đơn đặt phòng đã huỷ', failedTitle: 'Thanh toán không thành công',
+    cancelledTitle: 'Đơn đặt phòng đã huỷ', expiredTitle: 'Đơn đã hết hạn thanh toán', expiredBody: 'Phòng chỉ được giữ 30 phút khi chưa thanh toán và đã được trả lại. Nếu bạn đã chuyển khoản sau thời hạn, FoodTrip sẽ liên hệ để hoàn tiền.',
+    holdUntil: (time, minutes) => `Phòng được giữ đến ${time} (còn ${minutes} phút). Sau đó đơn tự huỷ.`, failedTitle: 'Thanh toán không thành công',
     refundedTitle: 'Đã hoàn tiền', cancelError: 'Chưa hủy được đơn. Đơn có thể vừa nhận thanh toán; hãy kiểm tra lại trong Đặt chỗ của tôi.',
     viewBookings: 'Xem đơn đặt phòng', cancel: 'Huỷ đơn này', confirmCancel: 'Huỷ đơn đặt phòng này? Nếu đã chuyển khoản, hãy liên hệ FoodTrip để được hoàn tiền.',
     loginTitle: 'Đăng nhập để thanh toán', loginCta: 'Đăng nhập',
@@ -38,7 +39,8 @@ const C = {
     copy: 'Copy', copied: 'Copied',
     waiting: 'Waiting for the transfer to arrive…', waitingHint: 'This page updates itself when the money arrives, usually within a minute. You can close it and come back.',
     paidTitle: 'Payment received!', paidBody: 'Your payment was recorded. Check My bookings for the hotel’s confirmation status.',
-    cancelledTitle: 'This booking was cancelled', failedTitle: 'Payment failed',
+    cancelledTitle: 'This booking was cancelled', expiredTitle: 'This booking expired unpaid', expiredBody: 'Unpaid rooms are held for 30 minutes; this one was released. If you transferred after that, FoodTrip will contact you to refund it.',
+    holdUntil: (time, minutes) => `The room is held until ${time} (${minutes} min left), then the booking cancels itself.`, failedTitle: 'Payment failed',
     refundedTitle: 'Payment refunded', cancelError: 'Could not cancel. Payment may have just arrived; check the latest status in My bookings.',
     viewBookings: 'View my bookings', cancel: 'Cancel this booking', confirmCancel: 'Cancel this booking? If you already transferred, contact FoodTrip for a refund.',
     loginTitle: 'Log in to pay', loginCta: 'Log in',
@@ -119,7 +121,7 @@ function BookingPaymentForAccount() {
   // Watch for the webhook's verdict while waiting, pausing in a hidden tab and
   // checking at once when the traveller comes back from their banking app.
   useEffect(() => {
-    if (state.status !== 'waiting') return undefined
+    if (state.status !== 'waiting' || state.payment?.mock) return undefined
     let stopped = false
     const check = async () => {
       if (stopped || document.visibilityState === 'hidden') return
@@ -127,7 +129,7 @@ function BookingPaymentForAccount() {
         const row = await getBookingPaymentStatus(bookingId)
         setLastChecked(new Date())
         if (!stopped && row && row.payment_status !== 'pending') {
-          setState((s) => ({ status: row.payment_status, booking: s.payment?.booking }))
+          setState((s) => ({ status: row.payment_status, booking: { ...s.payment?.booking, mock:row.payment_txn_ref==='DEMO' } }))
         }
       } catch { /* a missed poll is retried on the next tick */ }
     }
@@ -138,7 +140,7 @@ function BookingPaymentForAccount() {
       clearInterval(pollRef.current)
       document.removeEventListener('visibilitychange', check)
     }
-  }, [state.status, bookingId])
+  }, [state.status, state.payment?.mock, bookingId])
 
   async function handleCancel() {
     if (cancelling) return
@@ -162,17 +164,20 @@ function BookingPaymentForAccount() {
   else if (state.status === 'auth-required') {
     body = <EmptyState icon={Lock} title={c.loginTitle} action={<button type="button" onClick={() => setAuthOpen(true)} className="rounded-full bg-chili px-6 py-[13px] font-utility text-md font-semibold text-chili-ink">{c.loginCta}</button>} />
   } else if (state.status === 'paid') {
-    body = <EmptyState icon={CheckCircle} title={c.paidTitle} body={c.paidBody} action={viewBookings} />
+    body = <EmptyState icon={CheckCircle} title={state.booking?.mock ? (lang === 'vi' ? 'Đã ghi nhận thanh toán thử' : 'Test payment recorded') : c.paidTitle} body={state.booking?.mock ? (lang === 'vi' ? 'Đây là giao dịch mô phỏng SePay. Không có tiền thật được chuyển; đơn được gắn nhãn DEMO.' : 'This is a simulated SePay transfer. No real funds were moved; the order is marked DEMO.') : c.paidBody} action={viewBookings} />
   } else if (state.status === 'refunded') {
     body = <EmptyState icon={CheckCircle} title={c.refundedTitle} action={viewBookings} />
   } else if (state.status === 'cancelled' || state.status === 'failed') {
-    body = <EmptyState icon={XCircle} title={state.status === 'cancelled' ? c.cancelledTitle : c.failedTitle} action={viewBookings} />
+    const expired = state.status === 'cancelled' && state.booking?.cancelReason === 'expired'
+    body = <EmptyState icon={XCircle} title={expired ? c.expiredTitle : state.status === 'cancelled' ? c.cancelledTitle : c.failedTitle} body={expired ? c.expiredBody : undefined} action={viewBookings} />
   } else if (state.status === 'no-key') {
     body = <EmptyState icon={Warning} title={c.noKey} action={viewBookings} />
   } else if (state.status === 'not-found' || state.status === 'not-your-booking') {
     body = <EmptyState icon={Bed} title={state.status === 'not-found' ? c.notFound : c.notYours} action={viewBookings} />
   } else if (state.status !== 'waiting') {
     body = <EmptyState icon={Warning} title={c.error} action={<button type="button" onClick={load} className="rounded-full border border-line px-5 py-2.5 font-utility text-sm font-semibold">{c.retry}</button>} />
+  } else if (state.payment?.mock) {
+    body = <SepayMockPanel bookingId={bookingId} payment={state.payment} lang={lang} onChanged={load} />
   } else {
     const { payment } = state
     const { booking } = payment
@@ -194,6 +199,7 @@ function BookingPaymentForAccount() {
             <SpinnerGap size={20} className="mt-0.5 shrink-0 animate-spin text-lantern" />
             <div>
               <div className="font-semibold">{c.waiting}</div>
+              {booking.holdUntil && <HoldCountdown until={booking.holdUntil} c={c} lang={lang} />}
               <p className="text-sm text-ink-muted">{c.waitingHint}{lastChecked && <span className="text-ink-faint"> · {c.lastChecked(lastChecked.toLocaleTimeString(lang === 'vi' ? 'vi-VN' : 'en-GB'))}</span>}</p>
             </div>
           </div>
@@ -216,9 +222,52 @@ function BookingPaymentForAccount() {
     <div className="mx-auto max-w-[920px] px-5 py-10 md:px-8 md:py-14">
       {backLink}
       <span className="eyebrow eyebrow-tick">{c.eyebrow}</span>
-      <h1 className="mb-6 mt-3 text-3xl font-bold leading-[1.15] md:text-4xl">{c.title}</h1>
+      <h1 className="mb-6 mt-3 text-3xl font-bold leading-[1.15] md:text-4xl">{state.payment?.mock ? (lang === 'vi' ? 'Thử thanh toán SePay' : 'Test SePay payment') : c.title}</h1>
       {body}
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </div>
   )
+}
+
+function SepayMockPanel({ bookingId,payment,lang,onChanged }) {
+  const t=(vi,en)=>lang==='vi'?vi:en
+  const [busy,setBusy]=useState(false)
+  const [result,setResult]=useState(null)
+  const [error,setError]=useState('')
+  const lastRequest=useRef(null)
+  async function simulate(scenario,repeat=false) {
+    if (busy) return
+    const request=repeat?lastRequest.current:{key:crypto.randomUUID(),scenario}
+    if (!request) return
+    lastRequest.current=request;setBusy(true);setError('')
+    try {
+      const data=await mockSepayTransfer(bookingId,request.key,request.scenario)
+      setResult(data)
+      // Keep the simulator open so duplicate delivery can be checked after paid.
+    } catch(e) { setError(String(e.message).includes('mock-disabled')?t('Chế độ mock đã tắt.', 'Mock mode is off.'):t('Chưa mô phỏng được. Đơn có thể đã hết hạn hoặc không còn chờ thanh toán.', 'Could not simulate. The order may have expired or is no longer pending.')) }
+    finally {setBusy(false)}
+  }
+  const outcomes={paid:t('Đủ tiền: đơn đã thanh toán thử', 'Paid: test payment recorded'),underpaid:t('Thiếu tiền: đơn vẫn chờ thanh toán', 'Underpaid: order remains pending'),'no-booking':t('Sai nội dung: không khớp đơn', 'Wrong note: no matching booking'),'wrong-account':t('Sai tài khoản: không xác nhận đơn', 'Wrong account: not accepted'),'not-pending':t('Đơn không còn chờ thanh toán', 'Order is no longer pending')}
+  return <section className="rounded-2xl border border-lantern bg-surface p-5">
+    <p className="font-bold text-chili">{t('MOCKTEST — không chuyển tiền thật', 'MOCK TEST — no real transfers')}</p>
+    <p className="mt-3">{payment.booking.hotelName} · {formatVnd(payment.amount)}</p>
+    <p className="mt-1 font-utility text-sm">{payment.content}</p>
+    <p className="mt-3 text-sm text-ink-muted">{t('Chọn tình huống để kiểm tra xử lý webhook. Giao dịch thử được tách khỏi doanh thu/đối soát thật.', 'Choose a webhook scenario. Test transfers are excluded from real settlements.')}</p>
+    <div className="mt-5 flex flex-wrap gap-3">
+      {['exact','underpaid','remaining','wrong-code','wrong-account'].map((s,i)=><button key={s} disabled={busy} onClick={()=>simulate(s)} className="rounded-full border border-line px-4 py-2 text-sm disabled:opacity-50">{[t('Đúng số tiền','Exact amount'),t('Thiếu 1.000đ','1,000 VND short'),t('Nộp phần còn thiếu','Pay remaining balance'),t('Sai nội dung','Wrong note'),t('Sai tài khoản','Wrong account')][i]}</button>)}
+      <button disabled={busy||!lastRequest.current} onClick={()=>simulate('',true)} className="rounded-full border border-line px-4 py-2 text-sm disabled:opacity-50">{t('Gửi lại cùng giao dịch','Redeliver same transfer')}</button>
+      <button onClick={onChanged} disabled={busy} className="rounded-full bg-chili px-4 py-2 text-sm text-chili-ink">{t('Xem trạng thái đơn','View order status')}</button>
+    </div>
+    {result&&<p role="status" className="mt-4 text-sm text-herb">{outcomes[result.outcome]??result.outcome}{result.duplicate?t(' · Đã nhận trước đó; không ghi nhận thêm',' · Already processed; no duplicate receipt'):''}</p>}
+    {error&&<p role="alert" className="mt-4 text-sm text-chili">{error}</p>}
+  </section>
+}
+
+/** How long the room is still held, refreshed every 30 seconds. */
+function HoldCountdown({ until, c, lang }) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(timer) }, [])
+  const minutes = Math.max(0, Math.ceil((Date.parse(until) - now) / 60000))
+  const time = new Date(until).toLocaleTimeString(lang === 'vi' ? 'vi-VN' : 'en-GB', { hour: '2-digit', minute: '2-digit' })
+  return <p className={`text-sm font-semibold ${minutes <= 5 ? 'text-chili' : ''}`}>{c.holdUntil(time, minutes)}</p>
 }

@@ -22,18 +22,47 @@ export type SerperItem = {
   date?: string
 }
 
+// The Serper keys in the order they are tried: the main one, then a backup
+// that takes over when the main account runs out of credits.
+const KEY_NAMES = ['SERPER_API_KEY', 'SERPER_API_KEY_BACKUP']
+
+export function serperKeys() {
+  return KEY_NAMES.map((name) => Deno.env.get(name)).filter((key): key is string => Boolean(key))
+}
+
+/**
+ * A Serper request that moves on to the next key when the account behind the
+ * current one cannot serve it — out of credits (Serper answers 400 "Not
+ * enough credits"), key rejected (401/403), or rate-limited (429). Any other
+ * failure is the request's own and is returned as is, without spending the
+ * backup's credits on it.
+ */
+export async function serperFetch(path: string, body: unknown, timeoutMs = 15000): Promise<Response> {
+  const keys = serperKeys()
+  if (!keys.length) throw new Error('no-key')
+  let last: Response | null = null
+  for (const key of keys) {
+    const response = await fetch(`https://google.serper.dev/${path}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'X-API-KEY': key },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    if (response.ok) return response
+    const text = await response.clone().text()
+    const accountProblem = [401, 402, 403, 429].includes(response.status) || (response.status === 400 && /credit|quota|limit/i.test(text))
+    if (!accountProblem) return response
+    console.warn(`serper: key ${keys.indexOf(key) + 1}/${keys.length} unusable (${response.status}), trying the next`)
+    last = response
+  }
+  return last!
+}
+
 export async function serper(endpoint: 'search' | 'videos', q: string, num = 20): Promise<SerperItem[]> {
-  const apiKey = Deno.env.get('SERPER_API_KEY')
-  if (!apiKey) throw new Error('no-key')
-  const response = await fetch(`https://google.serper.dev/${endpoint}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'X-API-KEY': apiKey },
-    body: JSON.stringify({ q: q.replace(/["']/g, ' ').replace(/\s+/g, ' ').trim(), num, gl: 'vn', hl: 'vi' }),
-    signal: AbortSignal.timeout(12000),
-  })
+  const response = await serperFetch(endpoint, { q: q.replace(/["']/g, ' ').replace(/\s+/g, ' ').trim(), num, gl: 'vn', hl: 'vi' }, 12000)
   if (!response.ok) throw new Error(`Serper ${response.status}: ${(await response.text()).slice(0, 180)}`)
   const json = await response.json()
   return (endpoint === 'videos' ? json.videos : json.organic) ?? []
 }
 
-export const hasSerperKey = () => Boolean(Deno.env.get('SERPER_API_KEY'))
+export const hasSerperKey = () => serperKeys().length > 0

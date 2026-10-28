@@ -33,8 +33,8 @@ async function userId() {
 }
 function checkedId(id) { if (!isUuid(id)) throw new Error('not-found'); return id }
 
-export async function listCommunityPosts({ cursor, mine, search = '', signal } = {}) {
-  let query = client().from('community_posts').select(POST_FIELDS).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(POST_PAGE_SIZE)
+export async function listCommunityPosts({ cursor, mine, search = '', signal, limit = POST_PAGE_SIZE } = {}) {
+  let query = client().from('community_posts').select(POST_FIELDS).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(Math.min(POST_PAGE_SIZE, Math.max(1, limit)))
   if (mine) query = query.eq('user_id', checkedId(mine))
   if (search.trim()) query = query.ilike('place_name', `%${search.trim().replace(/[\\%_]/g, '\\$&')}%`)
   const filter = olderThan(cursor)

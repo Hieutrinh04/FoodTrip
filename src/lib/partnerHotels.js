@@ -21,7 +21,14 @@ export async function bookableHotels(ids) {
 export async function withBookable(hotels) {
   const partners = await bookableHotels(hotels.map((hotel) => hotel.id))
   return hotels
-    .map((hotel) => ({ ...hotel, bookable: partners.has(hotel.id) }))
+    .map((hotel) => {
+      const partner = partners.get(hotel.id)
+      if (!partner) return { ...hotel, bookable: false }
+      // A search result without a public rating takes its FoodTrip guests' one.
+      return hotel.rating == null && partner.rating != null
+        ? { ...hotel, bookable: true, rating: Number(partner.rating), userRatingCount: Number(partner.review_count) }
+        : { ...hotel, bookable: true }
+    })
     .sort((a, b) => Number(b.bookable) - Number(a.bookable))
 }
 
@@ -42,8 +49,9 @@ function asHotel(row, id = row.id ?? row.hotel_place_id) {
     checkOut: row.check_out_time ?? null,
     cancellation: row.cancellation_policy ?? null,
     houseRules: row.house_rules ?? null,
-    rating: null,
-    userRatingCount: null,
+    // FoodTrip guests' reviews (1–5), the only rating a self-listed homestay has.
+    rating: row.rating != null ? Number(row.rating) : null,
+    userRatingCount: row.review_count != null ? Number(row.review_count) : null,
     priceFrom: row.price_from != null ? Number(row.price_from) : null,
     priceSource: row.price_from != null ? 'partner' : 'estimated',
     rooms: [],

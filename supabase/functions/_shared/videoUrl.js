@@ -16,7 +16,9 @@ export function parseVideoUrl(raw) {
       return { platform, url: `https://www.youtube.com/watch?v=${id}` }
     }
     if (platform === 'tiktok') {
-      const match = url.pathname.match(/^\/@([^/]+)\/video\/(\d+)\/?$/)
+      // Photo posts ("/photo/<id>") open at the video address too, which is also
+      // where TikTok's page carries the post's data — one address per post.
+      const match = url.pathname.match(/^\/@([^/]+)\/(?:video|photo)\/(\d+)\/?$/)
       if (match) return { platform, url: `https://www.tiktok.com/@${match[1]}/video/${match[2]}` }
       if (!['vm.tiktok.com', 'vt.tiktok.com'].includes(host) && !url.pathname.startsWith('/t/')) return null
       if (url.pathname === '/') return null

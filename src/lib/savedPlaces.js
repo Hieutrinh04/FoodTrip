@@ -18,8 +18,8 @@ function setLocalSavedPlaceIds(ids) {
 }
 
 export async function getSavedPlaceIds(userId = null) {
+  if (!userId || !hasSupabase) return []
   const localIds = getLocalSavedPlaceIds()
-  if (!userId || !hasSupabase) return localIds
 
   const { data, error } = await supabase
     .from('saved_places')
@@ -38,18 +38,14 @@ export async function getSavedPlaceIds(userId = null) {
       })
     if (syncError) throw syncError
   }
-
+  // Legacy guest favourites are imported once; account favourites must never
+  // be copied to the next account using this browser.
+  if (localIds.length) setLocalSavedPlaceIds([])
   return [...new Set([...accountIds, ...localIds])]
 }
 
 export async function setPlaceSaved({ userId = null, placeId, saved }) {
-  const localIds = getLocalSavedPlaceIds()
-  const nextLocal = saved
-    ? [...new Set([...localIds, placeId])]
-    : localIds.filter((id) => id !== placeId)
-  setLocalSavedPlaceIds(nextLocal)
-
-  if (!userId || !hasSupabase) return
+  if (!userId || !hasSupabase) throw new Error('auth-required')
   if (saved) {
     const { error } = await supabase
       .from('saved_places')

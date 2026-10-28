@@ -69,16 +69,24 @@ export function rememberLiveMemberName(value) {
 }
 
 function normalizeLocation(value) {
+  if (value?.lat == null || value?.lng == null) return null
   const lat = Number(value?.lat)
   const lng = Number(value?.lng)
   if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null
   return {
     lat,
     lng,
-    accuracy: Number.isFinite(Number(value.accuracy)) ? Math.max(0, Number(value.accuracy)) : null,
-    heading: Number.isFinite(Number(value.heading)) ? Number(value.heading) : null,
-    speed: Number.isFinite(Number(value.speed)) ? Math.max(0, Number(value.speed)) : null,
+    accuracy: value.accuracy != null && Number.isFinite(Number(value.accuracy)) ? Math.max(0, Number(value.accuracy)) : null,
+    heading: value.heading != null && Number.isFinite(Number(value.heading)) ? Number(value.heading) : null,
+    speed: value.speed != null && Number.isFinite(Number(value.speed)) ? Math.max(0, Number(value.speed)) : null,
   }
+}
+
+/** A cached browser fix must never be re-labelled as a fresh GPS position. */
+export function freshLiveLocation(value, updatedAt, now = Date.now()) {
+  const timestamp = Number(updatedAt)
+  if (!Number.isFinite(timestamp) || now-timestamp>15000 || timestamp-now>2000) return null
+  return normalizeLocation(value)
 }
 
 export function normalizePresenceMember(value, fallbackId = '') {

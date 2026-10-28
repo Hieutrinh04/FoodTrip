@@ -1,7 +1,7 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
-  Buildings, CheckCircle, Clock, MapPin, DoorOpen, Lock, Phone, EnvelopeSimple, SignIn, SignOut, UserMinus, X, PencilSimple, Storefront, Hourglass,
+  Buildings, CheckCircle, Clock, MapPin, SquaresFour, CalendarCheck, Bed, Wallet, UsersThree, DoorOpen, Lock, Phone, EnvelopeSimple, SignIn, SignOut, UserMinus, X, PencilSimple, Storefront, Hourglass, ChatCircleText,
 } from '@phosphor-icons/react'
 import * as partner from '../lib/partner.js'
 import { FULFILLMENT } from '../lib/partner.js'
@@ -13,6 +13,9 @@ import { useAuth } from '../auth/AuthContext.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import RoomInventory from '../components/booking/RoomInventory.jsx'
 import ListingEditor from '../components/partner/ListingEditor.jsx'
+import PortalShell, { StatCard, PortalCard } from '../components/portal/PortalShell.jsx'
+import PartnerReviews from '../components/reviews/PartnerReviews.jsx'
+import { listRooms } from '../lib/inventory.js'
 import { CITIES } from '../data/destinations.js'
 import { searchPlaces } from '../lib/trackAsia.js'
 import { destinationWeatherLocation } from '../lib/tripWeather.js'
@@ -88,7 +91,8 @@ export default function Partner() {
   } else if (!state.properties.length) {
     body = <Application t={t} lang={lang} applications={state.applications} onSubmitted={load} explain={explain} />
   } else {
-    body = <Dashboard t={t} lang={lang} properties={state.properties} explain={explain} onPropertyChanged={load} />
+    // A partner gets the portal itself, which carries its own header.
+    return <Dashboard t={t} lang={lang} properties={state.properties} explain={explain} onPropertyChanged={load} />
   }
 
   return (
@@ -120,7 +124,7 @@ function Application({ t, lang, applications, onSubmitted, explain }) {
     hotelName: (params.get('name') ?? '').slice(0, 200),
     address: (params.get('address') ?? '').slice(0, 500),
     phone: '',
-    hotelLink: claim ? `${window.location.origin}/booking/${encodeURIComponent(claim)}` : '',
+    hotelLink: claim ? `${window.location.origin}/booking/${encodeURIComponent(claim)}?${new URLSearchParams({ name: (params.get('name') ?? '').slice(0, 200), address: (params.get('address') ?? '').slice(0, 500) })}` : '',
     message: '',
   }))
   // 'listed': the place is on FoodTrip already (search found it).
@@ -394,7 +398,7 @@ function matchesFilter(b, filter, today) {
     case 'today': return open && ((b.check_in === today && ['awaiting', 'confirmed'].includes(b.fulfillment_status)) || (b.check_out === today && b.fulfillment_status === 'checked_in'))
     case 'upcoming': return open && b.check_in > today && ['awaiting', 'confirmed'].includes(b.fulfillment_status)
     case 'inhouse': return b.fulfillment_status === 'checked_in'
-    case 'history': return !open || ['completed', 'no_show', 'rejected'].includes(b.fulfillment_status) || (b.check_out < today && b.fulfillment_status !== 'checked_in')
+    case 'history': return !open || ['completed', 'no_show', 'rejected', 'guest_cancelled'].includes(b.fulfillment_status) || (b.check_out < today && b.fulfillment_status !== 'checked_in')
     default: return true
   }
 }
@@ -402,30 +406,142 @@ function matchesFilter(b, filter, today) {
 function Dashboard({ t, lang, properties, explain, onPropertyChanged }) {
   const [propertyId, setPropertyId] = useState(properties[0].id)
   const property = properties.find((p) => p.id === propertyId) ?? properties[0]
+  const owner = property.role === 'owner'
   const [bookings, setBookings] = useState(null)
+  const [rooms, setRooms] = useState([])
   const [filter, setFilter] = useState('needs')
-  const [busyId, setBusyId] = useState(null)
-  const [error, setError] = useState('')
-  const [dialog, ask] = useInputDialog(t)
   const today = partner.vietnamToday()
 
   const load = useCallback(() => {
     setBookings(null)
     partner.getPropertyBookings(property.hotel_place_id).then(setBookings).catch(() => setBookings([]))
-  }, [property.hotel_place_id])
+    listRooms(property.id).then(setRooms).catch(() => setRooms([]))
+  }, [property.hotel_place_id, property.id])
   useEffect(load, [load])
 
-  const stats = useMemo(() => {
-    const list = bookings ?? []
-    const month = today.slice(0, 7)
-    return {
-      needs: list.filter((b) => matchesFilter(b, 'needs', today)).length,
-      arrivals: list.filter((b) => b.check_in === today && OPEN_PAYMENT.includes(b.payment_status) && ['awaiting', 'confirmed'].includes(b.fulfillment_status)).length,
-      inhouse: list.filter((b) => b.fulfillment_status === 'checked_in').length,
-      revenue: list.filter((b) => b.payment_status === 'paid' && !['rejected', 'no_show'].includes(b.fulfillment_status) && b.check_in.slice(0, 7) === month).reduce((sum, b) => sum + Number(b.total_price), 0),
-    }
-  }, [bookings, today])
+  const needs = (bookings ?? []).filter((b) => matchesFilter(b, 'needs', today)).length
+  const sections = [
+    { id: 'overview', label: t('Tổng quan', 'Overview'), icon: SquaresFour },
+    { id: 'bookings', label: t('Đặt phòng', 'Bookings'), icon: CalendarCheck, badge: needs || null },
+    { id: 'rooms', label: t('Phòng & giá', 'Rooms & rates'), icon: Bed },
+    { id: 'listing', label: t('Hồ sơ cơ sở', 'Property profile'), icon: Storefront, badge: !property.inventory_enabled && owner ? '!' : null },
+    { id: 'reviews', label: t('Đánh giá', 'Reviews'), icon: ChatCircleText },
+    ...(owner ? [
+      { id: 'money', label: t('Doanh thu & đối soát', 'Revenue & payouts'), icon: Wallet },
+      { id: 'team', label: t('Nhân sự', 'Team'), icon: UsersThree },
+    ] : []),
+  ]
+
+  return (
+    <PortalShell
+      eyebrow={t('Cổng đối tác lưu trú', 'Lodging partner portal')}
+      title={property.name}
+      subtitle={`${property.address ?? ''}${property.role === 'owner' ? '' : ` · ${t('Bạn là nhân viên', 'You are staff')}`}`}
+      switcher={properties.length > 1 && (
+        <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} aria-label={t('Chọn cơ sở', 'Choose property')} className="rounded-full border border-line bg-surface px-4 py-2 font-utility text-sm font-semibold">
+          {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      )}
+      actions={<Link to={`/booking/${encodeURIComponent(property.hotel_place_id)}`} className={BUTTON}>{t('Xem trang đặt phòng ↗', 'View booking page ↗')}</Link>}
+      sections={sections}
+    >
+      {(section, open) => (
+        <div className="space-y-5">
+          {!property.active && (
+            <p role="alert" className="rounded-2xl border border-chili/40 bg-chili/10 px-4 py-3 text-sm text-chili">
+              <strong>{t('Cơ sở đang bị tạm khoá — không nhận đơn mới.', 'This property is suspended — it takes no new bookings.')}</strong>
+              {property.suspension_note ? ` ${t('Lý do', 'Reason')}: ${property.suspension_note}.` : ''} {t('Các đơn đã có vẫn cần được phục vụ. Liên hệ FoodTrip để mở lại.', 'Existing bookings must still be honoured. Contact FoodTrip to reopen.')}
+            </p>
+          )}
+          {section === 'overview' && <HotelOverview t={t} lang={lang} property={property} bookings={bookings} rooms={rooms} today={today} owner={owner}
+            openBookings={(f) => { setFilter(f); open('bookings') }} openListing={() => open('listing')} />}
+          {section === 'bookings' && <HotelBookings t={t} lang={lang} bookings={bookings} filter={filter} setFilter={setFilter} today={today} explain={explain} reload={load} />}
+          {section === 'rooms' && <RoomInventory key={property.id} property={property} onSaved={() => { onPropertyChanged(); load() }} />}
+          {section === 'listing' && <>
+            <PropertyCard property={property} t={t} explain={explain} onSaved={onPropertyChanged} />
+            {owner
+              ? <ListingEditor key={`listing-${property.id}`} property={property} t={t} lang={lang} explain={explain} onSaved={onPropertyChanged} onOpenRooms={() => open('rooms')} />
+              : <p className="text-sm text-ink-muted">{t('Chỉ chủ cơ sở sửa được ảnh, tiện nghi, chính sách và tài khoản nhận tiền.', 'Only the owner can edit photos, facilities, policies and the payout account.')}</p>}
+          </>}
+          {section === 'reviews' && <PartnerReviews key={property.id} kind="stay" ownerId={property.id} lang={lang} />}
+          {section === 'money' && owner && <HotelMoney t={t} lang={lang} property={property} openListing={() => open('listing')} />}
+          {section === 'team' && owner && <HotelTeam t={t} property={property} explain={explain} />}
+        </div>
+      )}
+    </PortalShell>
+  )
+}
+
+/** Today at a glance: what needs doing, who arrives and leaves, how full the week is. */
+function HotelOverview({ t, lang, property, bookings, rooms, today, owner, openBookings, openListing }) {
+  if (bookings == null) return <Spinner label={t('Đang tải…', 'Loading…')} />
+  const month = today.slice(0, 7)
+  const live = (b) => OPEN_PAYMENT.includes(b.payment_status) && !['rejected', 'no_show', 'guest_cancelled'].includes(b.fulfillment_status)
+  const arrivals = bookings.filter((b) => b.check_in === today && live(b) && ['awaiting', 'confirmed'].includes(b.fulfillment_status))
+  const departures = bookings.filter((b) => b.check_out === today && b.fulfillment_status === 'checked_in')
+  const revenue = bookings.filter((b) => b.payment_status === 'paid' && !['rejected', 'no_show'].includes(b.fulfillment_status) && b.check_in.slice(0, 7) === month).reduce((sum, b) => sum + Number(b.total_price), 0)
+  const totalRooms = rooms.filter((r) => r.active).reduce((sum, r) => sum + r.quantity, 0)
+  // The next 7 nights: rooms held by paid or pending bookings that cover the night.
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const day = new Date(`${today}T12:00:00Z`); day.setUTCDate(day.getUTCDate() + i)
+    const iso = day.toISOString().slice(0, 10)
+    const held = bookings.filter((b) => live(b) && b.check_in <= iso && b.check_out > iso).length
+    return { iso, held }
+  })
+
+  return (
+    <>
+      {!property.inventory_enabled && owner && (
+        <button type="button" onClick={openListing} className="flex w-full items-center justify-between gap-3 rounded-2xl border border-lantern/50 bg-lantern/10 px-4 py-3 text-left text-sm">
+          <span><strong>{t('Cơ sở chưa mở bán.', 'Not live yet.')}</strong> {t('Hoàn thiện hồ sơ (ảnh, tiện nghi, chính sách, phòng, tài khoản nhận tiền) rồi bấm Mở bán.', 'Finish your profile (photos, facilities, policies, rooms, payout account), then go live.')}</span>
+          <span className="shrink-0 font-semibold text-chili">{t('Hoàn thiện hồ sơ →', 'Finish profile →')}</span>
+        </button>
+      )}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label={t('Cần xác nhận', 'To confirm')} value={bookings.filter((b) => matchesFilter(b, 'needs', today)).length} alert={bookings.some((b) => matchesFilter(b, 'needs', today))} onClick={() => openBookings('needs')} />
+        <StatCard label={t('Nhận phòng hôm nay', 'Arriving today')} value={arrivals.length} onClick={() => openBookings('today')} />
+        <StatCard label={t('Đang ở', 'In house')} value={bookings.filter((b) => b.fulfillment_status === 'checked_in').length} onClick={() => openBookings('inhouse')} />
+        <StatCard label={t('Doanh thu tháng này', 'Revenue this month')} value={formatVnd(revenue)} hint={t('đơn đã thanh toán, theo ngày nhận phòng', 'paid, by check-in date')} />
+      </div>
+
+      <div className="grid gap-5 lg:grid-cols-2">
+        <PortalCard title={t('Hôm nay', 'Today')}>
+          {!arrivals.length && !departures.length && <p className="text-sm text-ink-muted">{t('Không có khách đến hay đi hôm nay.', 'No arrivals or departures today.')}</p>}
+          <ul className="divide-y divide-line">
+            {arrivals.map((b) => <li key={b.id} className="flex items-center justify-between gap-2 py-2 text-sm"><span><SignIn size={13} className="mr-1.5 inline text-herb" />{b.guest_name} · {b.room_name}</span><span className="text-2xs text-ink-faint">{FULFILLMENT[b.fulfillment_status]?.[lang]}</span></li>)}
+            {departures.map((b) => <li key={b.id} className="flex items-center justify-between gap-2 py-2 text-sm"><span><SignOut size={13} className="mr-1.5 inline text-chili" />{b.guest_name} · {b.room_name}</span><span className="text-2xs text-ink-faint">{t('Trả phòng', 'Check-out')}</span></li>)}
+          </ul>
+        </PortalCard>
+        <PortalCard title={t('Công suất 7 đêm tới', 'Next 7 nights')}>
+          {totalRooms === 0 ? <p className="text-sm text-ink-muted">{t('Chưa có loại phòng nào đang bán.', 'No rooms on sale yet.')}</p> : (
+            <ul className="space-y-1.5">
+              {week.map(({ iso, held }) => {
+                const pct = Math.min(100, Math.round((held / totalRooms) * 100))
+                return (
+                  <li key={iso} className="grid grid-cols-[96px_1fr_72px] items-center gap-2 text-xs">
+                    <span className="whitespace-nowrap font-utility text-ink-muted">{formatDay(iso)}</span>
+                    <span className="h-2.5 overflow-hidden rounded-full bg-paper-2"><span className={`block h-full rounded-full ${pct >= 90 ? 'bg-chili' : 'bg-herb'}`} style={{ width: `${pct}%` }} /></span>
+                    <span className="whitespace-nowrap text-right font-utility tabular">{held}/{totalRooms} · {pct}%</span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </PortalCard>
+      </div>
+    </>
+  )
+}
+
+/** Every booking for the property, filtered and searchable, with the hotel's actions. */
+function HotelBookings({ t, lang, bookings, filter, setFilter, today, explain, reload }) {
+  const [query, setQuery] = useState('')
+  const [busyId, setBusyId] = useState(null)
+  const [error, setError] = useState('')
+  const [dialog, ask] = useInputDialog(t)
+  const q = normalizeVi(query)
   const shown = (bookings ?? []).filter((b) => matchesFilter(b, filter, today))
+    .filter((b) => !q || normalizeVi(`${b.guest_name} ${b.guest_phone ?? ''} ${b.guest_email ?? ''} ${b.payment_code ?? ''} ${b.room_name}`).includes(q))
   if (filter === 'history' || filter === 'all') shown.reverse()
 
   async function act(b, status, dialogOptions) {
@@ -435,40 +551,15 @@ function Dashboard({ t, lang, properties, explain, onPropertyChanged }) {
       if (note == null) return
     }
     setBusyId(b.id); setError('')
-    try { await partner.setFulfillment(b.id, status, note); load() } catch (err) { setError(explain(err)) }
+    try { await partner.setFulfillment(b.id, status, note); reload() } catch (err) { setError(explain(err)) }
     setBusyId(null)
   }
-
   const reasonDialog = (title, body) => ({ title, body, label: t('Lý do (khách sẽ thấy)', 'Reason (the guest will see it)'), confirmLabel: t('Xác nhận', 'Confirm'), minLength: 3, danger: true })
 
   return (
-    <div className="space-y-6">
-      {properties.length > 1 && (
-        <select value={propertyId} onChange={(e) => setPropertyId(e.target.value)} className="rounded-full border border-line bg-surface px-4 py-2 font-utility text-sm font-semibold">
-          {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
-      )}
-      <PropertyCard property={property} t={t} explain={explain} onSaved={onPropertyChanged} />
-      {property.role === 'owner' && <ListingEditor key={`listing-${property.id}`} property={property} t={t} lang={lang} explain={explain} onSaved={onPropertyChanged} />}
-      <div id="room-inventory" className="scroll-mt-24"><RoomInventory key={property.id} property={property} onSaved={onPropertyChanged} /></div>
-
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { id: 'needs', label: t('Cần xác nhận', 'To confirm'), value: stats.needs, alert: stats.needs > 0 },
-          { id: 'today', label: t('Nhận phòng hôm nay', 'Arriving today'), value: stats.arrivals },
-          { id: 'inhouse', label: t('Đang ở', 'In house'), value: stats.inhouse },
-          { id: 'all', label: t('Doanh thu tháng này', 'Revenue this month'), value: formatVnd(stats.revenue) },
-        ].map((card) => (
-          <button key={card.label} type="button" onClick={() => setFilter(card.id)}
-            className={`min-w-0 rounded-2xl border bg-surface p-4 text-left transition-colors hover:border-chili ${card.alert ? 'border-chili/50' : 'border-line'}`}>
-            <div className="font-utility text-micro uppercase tracking-wide text-ink-faint">{card.label}</div>
-            <div className={`mt-1.5 truncate font-utility text-xl font-bold sm:text-2xl ${card.alert ? 'text-chili' : ''}`}>{card.value}</div>
-          </button>
-        ))}
-      </div>
-
-      <div className="rounded-2xl border border-line bg-surface p-4 md:p-5">
-        <div className="no-scrollbar -mx-1 mb-4 flex gap-1.5 overflow-x-auto px-1">
+    <PortalCard>
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="no-scrollbar -mx-1 flex gap-1.5 overflow-x-auto px-1">
           {FILTERS.map((f) => {
             const n = bookings ? bookings.filter((b) => matchesFilter(b, f.id, today)).length : null
             return (
@@ -479,55 +570,158 @@ function Dashboard({ t, lang, properties, explain, onPropertyChanged }) {
             )
           })}
         </div>
-        {error && <p role="alert" className="mb-3 rounded-xl bg-chili/10 px-4 py-2.5 text-sm text-chili">{error}</p>}
-        {bookings == null && <Spinner label={t('Đang tải đơn…', 'Loading bookings…')} />}
-        {bookings != null && !shown.length && <p className="rounded-xl border border-dashed border-line-strong px-4 py-8 text-center text-sm text-ink-muted">{t('Không có đơn nào ở mục này.', 'Nothing here.')}</p>}
-        <ul className="divide-y divide-line">
-          {shown.map((b) => {
-            const pay = PAYMENT[b.payment_status] ?? PAYMENT.pending
-            const ful = FULFILLMENT[b.fulfillment_status] ?? FULFILLMENT.awaiting
-            const open = OPEN_PAYMENT.includes(b.payment_status)
-            const arrived = today >= b.check_in
-            const busy = busyId === b.id
-            return (
-              <li key={b.id} className="flex flex-col gap-3 py-4 md:flex-row md:items-start md:justify-between">
-                <div className="min-w-0 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-display text-md font-bold">{b.guest_name}</span>
-                    <span className={`rounded-full px-2 py-0.5 font-utility text-micro font-semibold ${ful.style}`}>{ful[lang]}</span>
-                    <span className={`rounded-full px-2 py-0.5 font-utility text-micro font-semibold ${pay.style}`}>{pay[lang]}</span>
-                  </div>
-                  <div className="text-sm text-ink-muted">{b.room_name} · {t(`${b.guests} khách`, `${b.guests} guests`)} · {formatVnd(b.total_price)}</div>
-                  <div className="font-utility text-xs"><SignIn size={12} className="mr-1 inline" />{formatDay(b.check_in)} <span className="text-ink-faint">→</span> <SignOut size={12} className="mx-1 inline" />{formatDay(b.check_out)} <span className="text-ink-faint">· {t(`${b.nights} đêm`, `${b.nights} nights`)} · {b.payment_code}</span></div>
-                  <div className="flex flex-wrap gap-x-4 text-xs">
-                    {b.guest_phone && <a href={`tel:${b.guest_phone}`} className="inline-flex items-center gap-1 text-chili hover:underline"><Phone size={12} />{b.guest_phone}</a>}
-                    {b.guest_email && <a href={`mailto:${b.guest_email}`} className="inline-flex items-center gap-1 text-ink-muted hover:underline"><EnvelopeSimple size={12} />{b.guest_email}</a>}
-                  </div>
-                  {b.hotel_note && <p className="text-2xs text-ink-faint">{t('Ghi chú', 'Note')}: {b.hotel_note}</p>}
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2 md:justify-end">
-                  {open && b.fulfillment_status === 'awaiting' && (
-                    b.payment_status === 'paid'
-                      ? <button type="button" disabled={busy} className={PRIMARY_SM} onClick={() => act(b, 'confirmed')}><CheckCircle size={13} />{t('Xác nhận còn phòng', 'Confirm')}</button>
-                      : <span className="self-center text-2xs text-ink-faint">{t('Chờ khách thanh toán mới xác nhận được', 'Can confirm once paid')}</span>
-                  )}
-                  {open && b.fulfillment_status === 'confirmed' && <>
-                    <button type="button" disabled={busy || !arrived} title={arrived ? '' : t('Chưa đến ngày nhận phòng', 'Not the check-in date yet')} className={PRIMARY_SM} onClick={() => act(b, 'checked_in')}><DoorOpen size={13} />{t('Nhận phòng', 'Check in')}</button>
-                    <button type="button" disabled={busy || !arrived} className={BUTTON} onClick={() => act(b, 'no_show', reasonDialog(t('Khách không đến', 'Guest did not arrive'), t('Đánh dấu khi đã quá giờ nhận phòng mà khách không đến.', 'After the check-in time has passed without the guest.')))}><UserMinus size={13} />{t('Không đến', 'No-show')}</button>
-                  </>}
-                  {open && ['awaiting', 'confirmed'].includes(b.fulfillment_status) && (
-                    <button type="button" disabled={busy} className={DANGER} onClick={() => act(b, 'rejected', reasonDialog(t('Từ chối đơn đặt phòng', 'Reject booking'), t('Ví dụ hết phòng. Nếu khách đã trả tiền, FoodTrip sẽ hoàn tiền cho khách.', 'e.g. fully booked. If the guest paid, FoodTrip refunds them.')))}><X size={13} />{t('Từ chối', 'Reject')}</button>
-                  )}
-                  {b.fulfillment_status === 'checked_in' && <button type="button" disabled={busy} className={PRIMARY_SM} onClick={() => act(b, 'completed')}><SignOut size={13} />{t('Trả phòng', 'Check out')}</button>}
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('Tìm tên, SĐT, mã đơn…', 'Search name, phone, code…')} aria-label={t('Tìm đơn', 'Search bookings')} className={`${INPUT} md:max-w-[260px]`} />
       </div>
+      {error && <p role="alert" className="mb-3 rounded-xl bg-chili/10 px-4 py-2.5 text-sm text-chili">{error}</p>}
+      {bookings == null && <Spinner label={t('Đang tải đơn…', 'Loading bookings…')} />}
+      {bookings != null && !shown.length && <p className="rounded-xl border border-dashed border-line-strong px-4 py-8 text-center text-sm text-ink-muted">{t('Không có đơn nào ở mục này.', 'Nothing here.')}</p>}
+      <ul className="divide-y divide-line">
+        {shown.map((b) => {
+          const pay = PAYMENT[b.payment_status] ?? PAYMENT.pending
+          const ful = FULFILLMENT[b.fulfillment_status] ?? FULFILLMENT.awaiting
+          const open = OPEN_PAYMENT.includes(b.payment_status)
+          const arrived = today >= b.check_in
+          const busy = busyId === b.id
+          return (
+            <li key={b.id} className="flex flex-col gap-3 py-4 md:flex-row md:items-start md:justify-between">
+              <div className="min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-display text-md font-bold">{b.guest_name}</span>
+                  <span className={`rounded-full px-2 py-0.5 font-utility text-micro font-semibold ${ful.style}`}>{ful[lang]}</span>
+                  <span className={`rounded-full px-2 py-0.5 font-utility text-micro font-semibold ${pay.style}`}>{pay[lang]}</span>
+                  {b.payment_txn_ref === 'DEMO' && <span title={t('Thanh toán ở chế độ demo — không có tiền thật, không được đối soát.', 'Paid in demo mode — no real money, never paid out.')} className="rounded-full bg-paper-2 px-2 py-0.5 font-utility text-micro font-semibold text-ink-muted">Demo</span>}
+                </div>
+                <div className="text-sm text-ink-muted">{b.room_name} · {t(`${b.guests} khách`, `${b.guests} guests`)} · {formatVnd(b.total_price)}</div>
+                <div className="font-utility text-xs"><SignIn size={12} className="mr-1 inline" />{formatDay(b.check_in)} <span className="text-ink-faint">→</span> <SignOut size={12} className="mx-1 inline" />{formatDay(b.check_out)} <span className="text-ink-faint">· {t(`${b.nights} đêm`, `${b.nights} nights`)} · {b.payment_code}</span></div>
+                <div className="flex flex-wrap gap-x-4 text-xs">
+                  {b.guest_phone && <a href={`tel:${b.guest_phone}`} className="inline-flex items-center gap-1 text-chili hover:underline"><Phone size={12} />{b.guest_phone}</a>}
+                  {b.guest_email && <a href={`mailto:${b.guest_email}`} className="inline-flex items-center gap-1 text-ink-muted hover:underline"><EnvelopeSimple size={12} />{b.guest_email}</a>}
+                </div>
+                {b.hotel_note && <p className="text-2xs text-ink-faint">{t('Ghi chú', 'Note')}: {b.hotel_note}</p>}
+                {b.fulfillment_status === 'guest_cancelled' && <p className="text-2xs text-ink-muted">{t(`Khách huỷ${b.cancel_reason ? ` (${b.cancel_reason})` : ''} — hoàn khách ${formatVnd(b.refund_amount)}, cơ sở giữ lại ${formatVnd(b.total_price - b.refund_amount)} (được đối soát).`, `Guest cancelled — refunded ${formatVnd(b.refund_amount)}, you keep ${formatVnd(b.total_price - b.refund_amount)} (paid out).`)}</p>}
+              </div>
+              <div className="flex shrink-0 flex-wrap gap-2 md:justify-end">
+                {open && b.fulfillment_status === 'awaiting' && (
+                  b.payment_status === 'paid'
+                    ? <button type="button" disabled={busy} className={PRIMARY_SM} onClick={() => act(b, 'confirmed')}><CheckCircle size={13} />{t('Xác nhận còn phòng', 'Confirm')}</button>
+                    : <span className="self-center text-2xs text-ink-faint">{t('Chờ khách thanh toán mới xác nhận được', 'Can confirm once paid')}</span>
+                )}
+                {open && b.fulfillment_status === 'confirmed' && <>
+                  <button type="button" disabled={busy || !arrived} title={arrived ? '' : t('Chưa đến ngày nhận phòng', 'Not the check-in date yet')} className={PRIMARY_SM} onClick={() => act(b, 'checked_in')}><DoorOpen size={13} />{t('Nhận phòng', 'Check in')}</button>
+                  <button type="button" disabled={busy || !arrived} className={BUTTON} onClick={() => act(b, 'no_show', reasonDialog(t('Khách không đến', 'Guest did not arrive'), t('Đánh dấu khi đã quá giờ nhận phòng mà khách không đến.', 'After the check-in time has passed without the guest.')))}><UserMinus size={13} />{t('Không đến', 'No-show')}</button>
+                </>}
+                {open && ['awaiting', 'confirmed'].includes(b.fulfillment_status) && (
+                  <button type="button" disabled={busy} className={DANGER} onClick={() => act(b, 'rejected', reasonDialog(t('Từ chối đơn đặt phòng', 'Reject booking'), t('Ví dụ hết phòng. Nếu khách đã trả tiền, FoodTrip sẽ hoàn tiền cho khách.', 'e.g. fully booked. If the guest paid, FoodTrip refunds them.')))}><X size={13} />{t('Từ chối', 'Reject')}</button>
+                )}
+                {b.fulfillment_status === 'checked_in' && <button type="button" disabled={busy} className={PRIMARY_SM} onClick={() => act(b, 'completed')}><SignOut size={13} />{t('Trả phòng', 'Check out')}</button>}
+              </div>
+            </li>
+          )
+        })}
+      </ul>
       {dialog}
-    </div>
+    </PortalCard>
   )
+}
+
+/**
+ * What FoodTrip owes the property: stays that are over and not yet paid out,
+ * money still to come, month by month, and every past payout with its bank
+ * reference — what Agoda calls the finance page.
+ */
+function HotelMoney({ t, lang, property, openListing }) {
+  const [statement, setStatement] = useState(null)
+  const [payout, setPayout] = useState(undefined)
+  const [error, setError] = useState('')
+  useEffect(() => {
+    partner.getStatement(property.id).then(setStatement).catch(() => setError(t('Chưa tải được số liệu.', 'Could not load the figures.')))
+    partner.getPayout(property.id).then(setPayout).catch(() => setPayout(null))
+  }, [property.id, t])
+  if (error) return <p role="alert" className="text-sm text-chili">{error}</p>
+  if (!statement) return <Spinner label={t('Đang tải số liệu…', 'Loading the figures…')} />
+  const pct = Number(statement.commission_pct)
+  const monthLabel = (ym) => new Date(`${ym}-15T12:00:00`).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-GB', { month: 'long', year: 'numeric' })
+  const STATUS = { pending: [t('Chờ chuyển', 'Pending'), 'bg-lantern/20 text-lantern'], paid: [t('Đã chuyển', 'Paid'), 'bg-herb/15 text-herb'] }
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label={t('Chờ đối soát', 'Awaiting payout')} value={formatVnd(statement.unsettled.net)} hint={t(`${statement.unsettled.count} đơn đã trả phòng`, `${statement.unsettled.count} finished stays`)} />
+        <StatCard label={t('Sắp tới', 'Upcoming')} value={formatVnd(statement.upcoming.gross)} hint={t(`${statement.upcoming.count} đơn đã thanh toán, chưa trả phòng`, `${statement.upcoming.count} paid, stay not over`)} />
+        {statement.demo > 0 && <p className="col-span-full rounded-xl bg-paper-2 px-4 py-2.5 text-sm text-ink-muted">{t(`${statement.demo} đơn được "thanh toán" ở chế độ demo (chưa có cổng thanh toán thật) — không tính vào doanh thu và không được đối soát.`, `${statement.demo} booking(s) were "paid" in demo mode (no real gateway yet) — not counted and never paid out.`)}</p>}
+        <StatCard label={t('Hoa hồng FoodTrip', 'FoodTrip commission')} value={`${pct}%`} hint={t('theo điều khoản đã ký', 'per your signed terms')} />
+        <StatCard label={t('Đã nhận', 'Paid out')} value={formatVnd(statement.settlements.filter((s) => s.status === 'paid').reduce((sum, s) => sum + Number(s.net), 0))} hint={t(`${statement.settlements.filter((s) => s.status === 'paid').length} lần chuyển`, `${statement.settlements.filter((s) => s.status === 'paid').length} transfers`)} />
+      </div>
+      <PortalCard title={t('Tài khoản nhận tiền', 'Payout account')}>
+        {payout === undefined ? <Spinner label="…" /> : payout
+          ? <p className="text-sm">{payout.bank_name} · ••••{payout.account_number.slice(-4)} · {payout.account_holder} <button type="button" onClick={openListing} className="ml-2 text-chili hover:underline">{t('Đổi', 'Change')}</button></p>
+          : <p className="text-sm text-lantern">{t('Chưa khai tài khoản nhận tiền — FoodTrip chưa thể chuyển tiền cho bạn.', 'No payout account yet — FoodTrip cannot pay you.')} <button type="button" onClick={openListing} className="ml-1 font-semibold text-chili hover:underline">{t('Khai ngay →', 'Add one →')}</button></p>}
+      </PortalCard>
+      <PortalCard title={t('Theo tháng (đơn đã trả phòng)', 'By month (finished stays)')}>
+        {!statement.months.length ? <p className="text-sm text-ink-muted">{t('Chưa có đơn nào hoàn thành.', 'No finished stays yet.')}</p> : (
+          <div className="overflow-x-auto"><table className="w-full min-w-[440px] text-sm">
+            <thead className="text-left font-utility text-2xs uppercase tracking-wide text-ink-faint"><tr><th className="py-2">{t('Tháng', 'Month')}</th><th>{t('Đơn', 'Stays')}</th><th>{t('Tiền phòng', 'Room revenue')}</th><th>{t('Hoa hồng', 'Commission')}</th><th>{t('Thực nhận', 'You receive')}</th></tr></thead>
+            <tbody className="divide-y divide-line">
+              {statement.months.map((m) => <tr key={m.month}><td className="py-2 capitalize">{monthLabel(m.month)}</td><td className="tabular">{m.count}</td><td className="tabular">{formatVnd(m.gross)}</td><td className="tabular text-ink-muted">−{formatVnd(m.commission)}</td><td className="font-semibold tabular">{formatVnd(m.gross - m.commission)}</td></tr>)}
+            </tbody>
+          </table></div>
+        )}
+      </PortalCard>
+      <PortalCard title={t('Các lần đối soát', 'Payouts')}>
+        {!statement.settlements.length ? <p className="text-sm text-ink-muted">{t('FoodTrip lập bảng đối soát định kỳ cho các đơn đã trả phòng và chuyển tiền vào tài khoản của bạn.', 'FoodTrip settles finished stays periodically and transfers the money to your account.')}</p> : (
+          <ul className="divide-y divide-line">
+            {statement.settlements.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                <span>{t(`Đến ${formatDay(s.period_end)}`, `Up to ${formatDay(s.period_end)}`)} · {t(`${s.item_count} đơn`, `${s.item_count} stays`)} · <strong>{formatVnd(s.net)}</strong> <span className="text-2xs text-ink-faint">({formatVnd(s.gross)} − {Number(s.commission_pct)}%)</span></span>
+                <span className="flex items-center gap-2">{s.reference && <span className="font-utility text-2xs text-ink-faint">{s.reference}</span>}<span className={`rounded-full px-2 py-0.5 font-utility text-micro font-semibold ${STATUS[s.status][1]}`}>{STATUS[s.status][0]}</span></span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </PortalCard>
+    </>
+  )
+}
+
+/** The owner's team: add staff by their FoodTrip email, remove them when they leave. */
+function HotelTeam({ t, property, explain }) {
+  const [team, setTeam] = useState(null)
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const load = useCallback(() => { partner.getTeam(property.id).then(setTeam).catch(() => setTeam([])) }, [property.id])
+  useEffect(load, [load])
+  async function run(fn) {
+    setBusy(true); setError('')
+    try { await fn(); load(); setEmail('') } catch (err) { setError(explainTeam(err, t) ?? explain(err)) }
+    setBusy(false)
+  }
+  return (
+    <PortalCard title={t('Nhân sự', 'Team')}>
+      <p className="mb-4 text-sm text-ink-muted">{t('Nhân viên xem và xử lý đơn đặt phòng (xác nhận, nhận phòng, trả phòng), nhưng không sửa giá, hồ sơ hay tài khoản nhận tiền và không xem doanh thu.', 'Staff see and handle bookings (confirm, check in, check out) but cannot change prices, the profile or the payout account, nor see revenue.')}</p>
+      <form className="mb-4 flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); run(() => partner.setStaff(property.id, email, true)) }}>
+        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('Email tài khoản FoodTrip của nhân viên', 'Staff member’s FoodTrip email')} className={`${INPUT} max-w-[340px]`} />
+        <button type="submit" disabled={busy} className={PRIMARY_SM}>{t('Thêm nhân viên', 'Add staff')}</button>
+      </form>
+      {error && <p role="alert" className="mb-3 text-sm text-chili">{error}</p>}
+      {team == null ? <Spinner label="…" /> : (
+        <ul className="divide-y divide-line">
+          {team.map((m) => (
+            <li key={m.user_id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
+              <span className="min-w-0 truncate">{m.email} <span className="text-2xs text-ink-faint">· {m.role === 'owner' ? t('chủ cơ sở', 'owner') : t('nhân viên', 'staff')}</span></span>
+              {m.role === 'staff' && <button type="button" disabled={busy} onClick={() => run(() => partner.setStaff(property.id, m.email, false))} className={DANGER}>{t('Gỡ', 'Remove')}</button>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </PortalCard>
+  )
+}
+
+function explainTeam(err, t) {
+  const message = String(err?.message ?? '')
+  if (message.includes('account-not-found')) return t('Email này chưa có tài khoản FoodTrip — nhờ nhân viên đăng ký trước.', 'No FoodTrip account with that email — ask them to sign up first.')
+  if (message.includes('member-not-removable')) return t('Không gỡ được người này.', 'That person cannot be removed.')
+  return null
 }
 
 /** The property's name and address, and the contact details its owner keeps current. */
