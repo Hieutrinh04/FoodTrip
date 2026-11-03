@@ -490,7 +490,7 @@ export function HotelOverview({ t, lang, property, bookings, rooms, today, owner
   const live = (b) => OPEN_PAYMENT.includes(b.payment_status) && !['rejected', 'no_show', 'guest_cancelled'].includes(b.fulfillment_status)
   const arrivals = bookings.filter((b) => b.check_in === today && live(b) && ['awaiting', 'confirmed'].includes(b.fulfillment_status))
   const departures = bookings.filter((b) => b.check_out === today && b.fulfillment_status === 'checked_in')
-  const revenue = bookings.filter((b) => b.payment_status === 'paid' && !['rejected', 'no_show'].includes(b.fulfillment_status) && b.check_in.slice(0, 7) === month).reduce((sum, b) => sum + Number(b.total_price), 0)
+  const revenue = partner.monthRevenue(bookings, month)
   const totalRooms = rooms.filter((r) => r.active).reduce((sum, r) => sum + r.quantity, 0)
   // The next 7 nights: rooms held by paid or pending bookings that cover the night.
   const week = Array.from({ length: 7 }, (_, i) => {

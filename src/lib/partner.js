@@ -119,6 +119,19 @@ export function vietnamToday() {
   return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10)
 }
 
+/**
+ * A month's room revenue, by check-in date: what the hotel keeps of paid
+ * bookings. Demo payments are not money (the admin overview and payouts leave
+ * them out too, migration 20261004090000); declined and no-show stays count
+ * nothing; a stay the guest cancelled counts what was not refunded.
+ */
+export function monthRevenue(bookings, month) {
+  return (bookings ?? [])
+    .filter((b) => b.payment_status === 'paid' && (b.payment_txn_ref ?? '') !== 'DEMO'
+      && !['rejected', 'no_show'].includes(b.fulfillment_status) && String(b.check_in).slice(0, 7) === month)
+    .reduce((sum, b) => sum + Number(b.total_price) - (b.fulfillment_status === 'guest_cancelled' ? Number(b.refund_amount ?? 0) : 0), 0)
+}
+
 /** The hotel's side of a booking, as partners, travellers and admins see it. */
 export const FULFILLMENT = {
   awaiting: { vi: 'Chờ xác nhận', en: 'To confirm', style: 'bg-lantern/20 text-lantern' },
