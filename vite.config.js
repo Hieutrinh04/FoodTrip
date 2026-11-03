@@ -1,8 +1,22 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { requireLocalSupabase } from './scripts/e2e-safety.mjs'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
+  ...(mode === 'e2e' ? {
+    // Never load .env/.env.local, even when a developer's default points at production.
+    envDir: false,
+    // Fixture/report writes during a run must not reload a page mid-conversation.
+    server: { hmr: false, watch: null },
+    define: {
+      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(requireLocalSupabase(process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54329')),
+      'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_e2e_mock_only'),
+      'import.meta.env.VITE_TRACK_ASIA_API_KEY': JSON.stringify(''),
+      'import.meta.env.VITE_TRACK_ASIA_API_KEY_BACKUP': JSON.stringify(''),
+      'import.meta.env.VITE_GOOGLE_MAPS_EMBED_KEY': JSON.stringify(''),
+    },
+  } : {}),
   plugins: [react(), tailwindcss()],
   // MapLibre's worker is an ES module and the library spawns it with
   // `{ type: 'module' }`, so Vite must emit it as ESM rather than the default
@@ -28,4 +42,4 @@ export default defineConfig({
       },
     },
   },
-})
+}))

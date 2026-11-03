@@ -47,7 +47,7 @@ test('rendered public content uses bilingual reference labels, neutral wording a
   const React = await import('react')
   const { renderToStaticMarkup } = await import('react-dom/server')
   const { MemoryRouter } = await import('react-router-dom')
-  const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
+  const server = await createServer({ envDir: false, server: { middlewareMode: true, hmr: false }, appType: 'custom', logLevel: 'error' })
   const oldWindow = globalThis.window
   try {
     const [{ LanguageProvider }, { default: HotelCard }, { default: InfoPage }, { default: Footer }, { default: EmptyState }, { default: PlaceAssessment }, { default: Landing }] = await Promise.all([

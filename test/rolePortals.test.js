@@ -34,7 +34,7 @@ test('rendered role views hide owner revenue from staff and provide actionable e
   const React = await import('react')
   const { renderToStaticMarkup } = await import('react-dom/server')
   const { MemoryRouter } = await import('react-router-dom')
-  const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
+  const server = await createServer({ envDir: false, server: { middlewareMode: true, hmr: false }, appType: 'custom', logLevel: 'error' })
   try {
     const [{ HotelOverview }, { GuideManifest }, { LanguageProvider }, { default: PortalLoadState }, { default: PortalShell }, { default: RoomInventory }, { default: ListingEditor }, { TourChecklist }, { WorkspaceCards }] = await Promise.all([
       server.ssrLoadModule('/src/pages/Partner.jsx'), server.ssrLoadModule('/src/pages/TourPartner.jsx'),

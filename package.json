@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "test": "node --test",
     "preflight": "node scripts/preflight.mjs",
-    "test:release-ui": "node scripts/release-browser-check.mjs"
+    "test:release-ui": "node scripts/release-browser-check.mjs",
+    "test:e2e:ui": "playwright test --config=e2e/playwright.ui.config.js",
+    "test:e2e": "node scripts/run-local-e2e.mjs"
   },
   "dependencies": {
     "@fontsource-variable/bricolage-grotesque": "^5.3.0",
