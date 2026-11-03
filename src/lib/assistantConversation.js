@@ -2,7 +2,7 @@ import { getCity, TAGS } from '../data/destinations.js'
 import { normalizeVi } from './text.js'
 import { answersPending, changesTrip, tripInContext } from './assistantAnswers.js'
 import { ruleIntent } from '../../supabase/functions/_shared/assistant/rules.js'
-import { composeReply } from '../../supabase/functions/_shared/assistant/reply.js'
+import { composeReply, nearExactFaq } from '../../supabase/functions/_shared/assistant/reply.js'
 import { intentById } from '../../supabase/functions/_shared/assistant/intents.js'
 
 /** Resolve the turn before any planner state changes. Explicit questions beat old context. */
@@ -11,14 +11,19 @@ export function resolveChatTurn(message, reading, { trip = null, pending = null,
   // The browser may be talking to an older deployed classifier. A clear food
   // question must still reach search, rather than a stale plan/FAQ response.
   const local = ruleIntent(message)
-  if (local.intent === 'find_food') answer = { ...reading, ...composeReply(message, local, lang), slots: reading.slots ?? [] }
+  const own = composeReply(message, local, lang)
+  // Nor should it refuse, or start planning from, what the site's own FAQ answers.
+  const staleServer = own.faq && own.faq !== reading.faq
+    && ((!reading.faq && ['out_of_scope', 'plan_trip'].includes(reading.intent)) || nearExactFaq(message) === own.faq)
+  if (local.intent === 'find_food' || staleServer) answer = { ...reading, ...own, slots: reading.slots ?? [] }
   const follow = answersPending(pending, message, answer)
   if (follow) {
-    const own = intentById(pending.intent)
-    answer = { ...answer, intent: own.id, label: own.label, faq: null, related: [] }
+    const asked = intentById(pending.intent)
+    answer = { ...answer, intent: asked.id, label: asked.label, faq: null, related: [] }
   }
   const plannerFallback = ['modify_plan', 'out_of_scope'].includes(answer.intent)
-  const updatePlan = answer.intent === 'plan_trip'
+  // A written answer about planning is an answer, not a request to plan.
+  const updatePlan = (answer.intent === 'plan_trip' && !answer.faq)
     || Boolean(plannerFallback && (startsNewTrip(message) || (!follow && trip && changesTrip(message, answer.slots))))
   return { answer, follow, updatePlan }
 }

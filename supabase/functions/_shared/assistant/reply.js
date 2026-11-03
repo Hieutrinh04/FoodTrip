@@ -5,13 +5,26 @@
 
 import { intentById } from './intents.js'
 import { FAQ, faqById, faqRetrieve } from './faq.js'
+import { plain } from '../placeNames.js'
+import { citiesIn } from '../captionSignals.js'
 
 // Word matching answers outright only when it is this sure (86% right on
 // faq_test at ≥ 0.5); a trained retriever brings its own threshold.
 export const WORDS_DIRECT = 0.5
 export const RELATED_MIN = 0.2
+// "xuất lịch trình ra excel" names a trip but asks how a feature works: only a
+// near-exact FAQ phrasing outranks starting a plan.
+const OVER_PLAN = 0.75
 // Intents answered by the planner or by computing, not from the FAQ.
 const NOT_FAQ = new Set(['plan_trip', 'estimate_cost', 'ask_weather', 'place_info', 'find_food', 'greeting', 'thanks'])
+
+// A city says where, not what is asked: "khách sạn ở Đà Nẵng" asks what "khách sạn ở" does,
+// and a bare "Đà Lạt" asks nothing the FAQ could answer.
+function withoutCity(message) {
+  let text = plain(message)
+  for (const city of citiesIn(text)) text = text.replace(plain(city), ' ')
+  return text.trim()
+}
 
 const linksOf = (list, lang) => (list ?? []).map((l) => ({ to: l.to, label: l[lang] }))
 
@@ -22,11 +35,14 @@ const linksOf = (list, lang) => (list ?? []).map((l) => ({ to: l.to, label: l[la
  */
 export function composeReply(message, reading, lang = 'vi', { hits = null, threshold = WORDS_DIRECT } = {}) {
   const intent = intentById(reading.intent)
-  const found = NOT_FAQ.has(intent.id) ? [] : (hits ?? faqRetrieve(message, { top: 3 })).filter((h) => faqById(h.id))
+  const found = NOT_FAQ.has(intent.id) ? [] : (hits ?? faqRetrieve(withoutCity(message), { top: 3 })).filter((h) => faqById(h.id))
   const best = found[0]
   const direct = best && best.score >= threshold ? faqById(best.id) : null
   const related = found.filter((h) => h.id !== direct?.id && h.score >= RELATED_MIN).slice(0, 2)
     .map((h) => ({ id: h.id, question: faqById(h.id).q[0] }))
+
+  const howTo = intent.id === 'plan_trip' ? faqRetrieve(withoutCity(message), { top: 1 })[0] : null
+  if (howTo?.score >= OVER_PLAN) return faqReply(howTo.id, lang)
 
   if (intent.id === 'plan_trip') {
     return { intent: intent.id, label: intent.label, faq: null, related: [], action: { type: 'plan', request: message },
@@ -38,6 +54,12 @@ export function composeReply(message, reading, lang = 'vi', { hits = null, thres
     return { intent: own.id, label: own.label, faq: direct.id, related, action: null, reply: { text: direct.a[lang], links: linksOf(direct.links, lang) } }
   }
   return { intent: intent.id, label: intent.label, faq: null, related, action: null, reply: { text: intent.answer?.[lang] ?? '', links: linksOf(intent.links, lang) } }
+}
+
+/** The FAQ entry a message all but quotes, if any: worth more than an older server's guess. */
+export function nearExactFaq(message) {
+  const best = faqRetrieve(withoutCity(message), { top: 1 })[0]
+  return best?.score >= OVER_PLAN ? best.id : null
 }
 
 /** A FAQ entry's own answer, when a person taps one of the related questions. */

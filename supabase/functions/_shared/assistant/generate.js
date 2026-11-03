@@ -5,8 +5,27 @@ import { faqRetrieve, faqById } from './faq.js'
 const COMPUTED = new Set(['plan_trip', 'modify_plan', 'estimate_cost', 'ask_weather', 'place_info', 'find_food', 'booking_status'])
 
 /** Optional prose generation. Routing, links and private/live data stay under application control. */
-export async function generateReply({ message, lang, history, composed }, { apiKey, model, fetcher = fetch } = {}) {
-  if (!apiKey || !model || COMPUTED.has(composed.intent)) return null
+export async function generateReply({ message, lang, history, composed }, { apiKey, model, localUrl, localToken, fetcher = fetch } = {}) {
+  if (COMPUTED.has(composed.intent)) return null
+  // A self-trained model is tried first. No commercial API is required.
+  if (localUrl && localToken) {
+    try {
+      const url = new URL(localUrl)
+      if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('invalid-generator-url')
+      const res = await fetcher(`${localUrl.replace(/\/$/, '')}/generate`, {
+        method: 'POST', signal: AbortSignal.timeout(6500),
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${localToken}` },
+        body: JSON.stringify({ request: redact(message).slice(0, 600), lang,
+          context: { answer: composed.reply.text.slice(0, 1600) }, history: conversationHistory(history).slice(-4) }),
+      })
+      const out = res.ok ? await res.json() : null
+      const text = typeof out?.text === 'string' ? out.text.trim() : ''
+      const numbers = (value) => [...new Set(String(value).match(/\d+(?:[.,]\d+)?/g) ?? [])].sort().join('|')
+      if (out?.complete === true && text && text.length <= 3000 && !/https?:\/\/|www\.|\]\(/i.test(text)
+        && numbers(text) === numbers(composed.reply.text)) return text
+    } catch { /* Preserve grounded answer; external fallback is separately opt-in. */ }
+  }
+  if (!apiKey || !model) return null
   const facts = faqRetrieve(message, { top: 4 }).filter((h) => h.score >= 0.2)
     .map((h) => faqById(h.id)).filter(Boolean).map((e) => ({ question: e.q[0], answer: e.a[lang] }))
   const knowledge = INTENTS.filter((i) => i.answer).map((i) => ({ topic: i.id, fact: i.answer[lang] }))

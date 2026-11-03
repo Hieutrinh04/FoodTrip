@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { ChatCircleDots, X, PaperPlaneRight, ThumbsUp, ThumbsDown, MapTrifold, SpinnerGap, Info, ArrowCounterClockwise, Headset, Star } from '@phosphor-icons/react'
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
@@ -6,14 +6,20 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { useGuestBarVisible } from '../auth/GuestLoginBar.jsx'
 import AuthModal from '../auth/AuthModal.jsx'
 import { askAssistant, faqAnswer, handOff, rateAnswer } from '../../lib/assistant.js'
-import { askedPlace, estimateCost, findFoodAnswer, placeInfoAnswer, requestFromTrip, tripInContext, weatherAnswer } from '../../lib/assistantAnswers.js'
+import { getSepayMode } from '../../lib/sepay.js'
+import { getPaymentMode } from '../../lib/vnpay.js'
+import { askedPlace, estimateCost, findFoodAnswer, paymentAvailabilityNote, placeInfoAnswer, requestFromTrip, tripInContext, weatherAnswer } from '../../lib/assistantAnswers.js'
 import { ACCOUNT_INTENTS, accountAnswer } from '../../lib/assistantAccount.js'
 import { suggestionsFor } from '../../lib/assistantSuggestions.js'
 import { planTurn, resolveChatTurn, startsNewTrip } from '../../lib/assistantConversation.js'
 import { repairReply } from '../../../supabase/functions/_shared/assistant/conversation.js'
 import { normalise as toMapPlace } from '../../lib/mapAreaSearch.js'
-import PlaceDetailsDrawer from '../map/PlaceDetailsDrawer.jsx'
 import { getCity, TAGS, TRANSPORT } from '../../data/destinations.js'
+import { comparePlaces, placeFollowUp, nextQuestions } from '../../lib/assistantPlaceContext.js'
+import { assessPlace } from '../../lib/placeAssessment.js'
+import { foodPreferencePatch } from '../../lib/assistantFoodPreferences.js'
+
+const PlaceDetailsDrawer = lazy(() => import('../map/PlaceDetailsDrawer.jsx'))
 
 const C = {
   vi: {
@@ -64,7 +70,8 @@ const vnd = (n) => `${Math.round(n).toLocaleString('vi-VN')}đ`
 function restore() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORE) ?? 'null')
-    return saved && Array.isArray(saved.messages) ? saved : null
+    if (!saved || !Array.isArray(saved.messages)) return null
+    return { ...saved, messages: saved.messages.filter((m) => m && ['user', 'bot'].includes(m.from) && !m.account && !m.handedOff).slice(-KEEP) }
   } catch { return null }
 }
 
@@ -144,15 +151,15 @@ function HandOffForm({ c, user, messages, page, onSent, onCancel }) {
 }
 
 /** The floating assistant: a button on every page, and the conversation panel it opens. */
-export default function AssistantChat() {
+export default function AssistantChat({ initiallyOpen = false }) {
   const { lang } = useLanguage()
   const c = C[lang]
   const navigate = useNavigate()
   const { pathname } = useLocation()
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const guestBar = useGuestBarVisible()
   const [saved] = useState(restore)
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(initiallyOpen)
   const [messages, setMessages] = useState(saved?.messages ?? [])
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
@@ -167,24 +174,42 @@ export default function AssistantChat() {
   const closeDetail = useCallback(() => setDetail(null), [])
   const listRef = useRef(null)
   const inputRef = useRef(null)
+  const launcherRef = useRef(null)
   const sendingRef = useRef(false)
+  const requestRef = useRef(0)
+  const ownerRef = useRef(saved?.owner ?? null)
+  useEffect(() => {
+    if (authLoading) return
+    const owner = user?.id ?? null
+    if (ownerRef.current !== owner) {
+      requestRef.current++
+      sendingRef.current = false
+      setBusy(false); setMessages([]); setTrip(null); setPending(null); setHanding(false)
+      ownerRef.current = owner
+    }
+  }, [user?.id, authLoading])
 
-  useEffect(() => { if (open) inputRef.current?.focus() }, [open])
+  useEffect(() => {
+    if (open) inputRef.current?.focus()
+    else launcherRef.current?.focus({ preventScroll: true })
+  }, [open])
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }) }, [messages, busy, handing])
   useEffect(() => {
-    if (!open) return undefined
+    if (!open || authOpen || detail) return undefined
     const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open])
+  }, [open, authOpen, detail])
   useEffect(() => {
-    try { sessionStorage.setItem(STORE, JSON.stringify({ messages: messages.slice(-KEEP), trip, pending })) } catch { /* private mode: the chat still works */ }
-  }, [messages, trip, pending])
+    if (authLoading) return
+    try { sessionStorage.setItem(STORE, JSON.stringify({ owner: ownerRef.current, messages: messages.filter((m) => !m.account && !m.handedOff).slice(-KEEP), trip, pending })) } catch { /* private mode: the chat still works */ }
+  }, [messages, trip, pending, authLoading])
 
   async function send(text, retry = false) {
     const message = text.replace(/\s+/g, ' ').trim().slice(0, 600)
     if (!message || sendingRef.current) return
     sendingRef.current = true
+    const request = ++requestRef.current
     setDraft('')
     setHanding(false)
     if (retry) setMessages((prev) => prev.filter((m) => !m.error))
@@ -192,8 +217,12 @@ export default function AssistantChat() {
     setBusy(true)
     try {
       const repair = repairReply(message, lang)
-      const answer = repair ? null : await askAssistant(message, lang, retry ? messages.slice(0, -2) : messages)
-      const reply = repair ? { intent: 'clarify', reply: repair } : await respond(message, answer)
+      const history = retry ? messages.slice(0, -2) : messages
+      const followUp = placeFollowUp(message, history)
+      const answer = repair || followUp ? null : await askAssistant(message, lang, history)
+      if (request !== requestRef.current) return
+      const reply = repair ? { intent: 'clarify', reply: repair } : followUp ? await respondToPlace(followUp, request) : await respond(message, answer, request)
+      if (request !== requestRef.current) return
       setMessages((prev) => {
         // Twice in a row out of scope: offer a person instead of a third guess.
         const lastBot = [...prev].reverse().find((m) => m.from === 'bot')
@@ -201,20 +230,44 @@ export default function AssistantChat() {
         return [...prev, { from: 'bot', ...reply, offerHuman: reply.offerHuman || stuck }]
       })
     } catch {
+      if (request !== requestRef.current) return
       setMessages((prev) => [...prev, { from: 'bot', error: true, retryText: message, reply: { text: c.chatError, links: [] } }])
     } finally {
-      sendingRef.current = false
-      setBusy(false)
+      if (request === requestRef.current) { sendingRef.current = false; setBusy(false) }
     }
   }
 
+  async function respondToPlace(followUp, request) {
+    setPending(null)
+    if (followUp.type === 'compare') return { intent: 'place_info', reply: comparePlaces(followUp.places, lang) }
+    if (followUp.type === 'clarify') return { intent: 'clarify', reply: { text: lang === 'vi' ? followUp.text : 'Which place do you mean? Please give its number in the list.', links: [] } }
+    if (['more', 'refine'].includes(followUp.type)) {
+      const { search, excludeIds } = followUp
+      const reply = await findFoodAnswer(search.message, search.slots, search.trip, lang, { excludeIds, preferences: search.preferences })
+      if (request === requestRef.current) {
+        setTrip(search.trip)
+        if (reply.need) setPending({ intent: 'find_food', need: reply.need, message: search.message, slots: search.slots, trip: search.trip, preferences: reply.preferences })
+      }
+      return { intent: 'find_food', reply, places: reply.places, foodSearch: { ...search, preferences: reply.preferences } }
+    }
+    const place = followUp.place
+    if (followUp.type === 'assessment') {
+      const result = await assessPlace(place, null, lang)
+      return { intent: 'place_info', focusPlace: place, reply: { text: result.text, links: [] } }
+    }
+    const details = await placeInfoAnswer(place.name.vi, trip ?? { destinationQuery: place.address?.vi }, lang, { selected: place })
+    return { intent: 'place_info', focusPlace: place, reply: details, place: details.place }
+  }
+
   /** FoodTrip's reply to one reading: the written answer, or one computed for the trip being talked about. */
-  async function respond(message, reading) {
+  async function respond(message, reading, request) {
     const vi = lang === 'vi'
     const { answer, follow, updatePlan: shouldPlan } = resolveChatTurn(message, reading, { trip, pending, lang })
     setPending(null)
     const { intent, slots } = answer
     const current = tripInContext(message, slots, follow ? pending.trip ?? trip : trip)
+    // A meal limit is not the whole-trip budget used by the planner.
+    if (intent === 'find_food' && foodPreferencePatch(message).mealBudget) current.budgetPerPerson = trip?.budgetPerPerson ?? null
     const updatePlan = () => {
       const turn = planTurn(message, slots, startsNewTrip(message) ? null : trip, follow ? pending : null, lang)
       setTrip(turn.trip)
@@ -223,13 +276,14 @@ export default function AssistantChat() {
     }
     if (shouldPlan) return updatePlan()
     const ask = (reply, extra = {}) => {
-      if (reply.need) setPending({ intent, need: reply.need, message: extra.message ?? message, slots: extra.slots ?? slots, trip: current })
+      if (request !== requestRef.current) return { ...answer, reply }
+      if (reply.need) setPending({ intent, need: reply.need, message: extra.message ?? message, slots: extra.slots ?? slots, trip: current, preferences: reply.preferences })
       else if (current.cityId || current.destinationQuery) setTrip(current)
       return { ...answer, reply, ...extra.out }
     }
     try {
       if (intent === 'estimate_cost') return ask(await estimateCost(current, lang))
-      if (intent === 'ask_weather') return ask(await weatherAnswer(current, lang))
+      if (intent === 'ask_weather' && !answer.faq) return ask(await weatherAnswer(current, lang))
       if (intent === 'place_info') {
         const name = follow ? message.replace(/[?!.]+$/g, '').trim() : askedPlace(message, slots)
         const found = await placeInfoAnswer(name, current, lang)
@@ -237,15 +291,22 @@ export default function AssistantChat() {
       }
       if (intent === 'find_food' && !answer.faq) {
         const source = follow ? pending : { message, slots }
-        const found = await findFoodAnswer(source.message, source.slots, current, lang)
-        return ask(found, { message: source.message, slots: source.slots, out: { places: found.places ?? null } })
+        const found = await findFoodAnswer(source.message, source.slots, current, lang, { preferences: source.preferences })
+        return ask(found, { message: source.message, slots: source.slots, out: { places: found.places ?? null, foodSearch: { message: source.message, slots: source.slots, trip: current, preferences: found.preferences } } })
       }
     } catch {
       return { ...answer, reply: { text: vi ? 'Mình chưa lấy được dữ liệu lúc này, thử lại sau nhé.' : 'I could not get the data right now — try again later.', links: [] } }
     }
+    if (intent === 'booking_payment') {
+      const [sepay, vnpay] = await Promise.all([getSepayMode(), getPaymentMode()])
+      const note = paymentAvailabilityNote({ sepay, vnpay }, lang)
+      if (note) answer.reply = { ...answer.reply, text: `${answer.reply.text}\n\n${note}` }
+    }
     if (ACCOUNT_INTENTS.has(intent)) {
       if (!user) return intent === 'tour_info' ? answer : { ...answer, signIn: true }
-      const account = await accountAnswer(intent, user.id, lang).catch(() => null)
+      let account
+      try { account = await accountAnswer(intent, user.id, lang) }
+      catch { return { ...answer, reply: { text: vi ? 'Mình chưa đọc được đơn của bạn lúc này. Bạn thử lại hoặc mở “Đặt phòng của tôi” để kiểm tra nhé.' : 'I could not read your bookings. Please retry or open My bookings.', links: [{ to: '/bookings', label: vi ? 'Đặt phòng của tôi' : 'My bookings' }] } } }
       return account ? { ...answer, account } : answer
     }
     if (intent === 'contact_support') return { ...answer, offerHuman: true }
@@ -284,9 +345,10 @@ export default function AssistantChat() {
   }
 
   const handedOffAlready = messages.some((m) => m.handedOff)
+  const followQuestions = messages.at(-1)?.from === 'bot' ? nextQuestions(messages.at(-1), lang) : []
   const bottom = guestBar ? 'bottom-40 md:bottom-28' : 'bottom-5'
   return <div className="no-print">
-    {!open && <button type="button" onClick={() => setOpen(true)} aria-label={c.open}
+    {!open && <button ref={launcherRef} type="button" onClick={() => setOpen(true)} aria-label={c.open}
       className={`fixed right-4 ${bottom} z-[60] inline-flex items-center gap-2 rounded-full bg-chili px-4 py-3 font-utility text-sm font-semibold text-chili-ink shadow-lifted transition-transform hover:-translate-y-0.5`}>
       <ChatCircleDots size={20} weight="fill" /><span className="hidden sm:inline">{c.open}</span>
     </button>}
@@ -329,13 +391,14 @@ export default function AssistantChat() {
               </div>}
             </div>
             <div className="mt-1 flex items-center gap-2 pl-1 text-2xs text-ink-faint">
-              <span>FoodTrip</span>
+              <span>{m.answeredBy === 'offline' ? (lang === 'vi' ? 'FoodTrip · Chế độ dự phòng' : 'FoodTrip · Fallback mode') : 'FoodTrip'}</span>
               {m.id && (m.rated == null
                 ? <><button type="button" onClick={() => rate(i, true)} aria-label={c.helpful} className="hover:text-herb"><ThumbsUp size={13} /></button><button type="button" onClick={() => rate(i, false)} aria-label={c.notHelpful} className="hover:text-chili"><ThumbsDown size={13} /></button></>
                 : <span>{c.thanks}</span>)}
             </div>
           </div>)}
         {busy && <div className="flex items-center gap-2 text-sm text-ink-muted"><SpinnerGap size={14} className="animate-spin" />{c.thinking}</div>}
+        {!busy && followQuestions.length > 0 && <div className="flex flex-wrap gap-1.5">{followQuestions.map((q) => <button key={q} type="button" onClick={() => send(q)} className="rounded-full border border-line-strong px-3 py-1.5 text-left text-xs font-semibold text-chili hover:border-chili">{q}</button>)}</div>}
         {handing && <HandOffForm c={c} user={user} messages={messages} page={pathname} onSent={handedOff} onCancel={() => setHanding(false)} />}
       </div>
       <form onSubmit={(e) => { e.preventDefault(); send(draft) }} className="border-t border-line bg-surface p-3">
@@ -350,7 +413,7 @@ export default function AssistantChat() {
         </div>
       </form>
     </section>}
-    {detail && <PlaceDetailsDrawer place={detail} onClose={closeDetail} />}
+    {detail && <Suspense fallback={<p role="status" className="fixed bottom-5 right-4 z-[70] rounded-xl bg-surface p-4">{lang === 'vi' ? 'Đang tải chi tiết…' : 'Loading details…'}</p>}><PlaceDetailsDrawer place={detail} onClose={closeDetail} /></Suspense>}
     {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
   </div>
 }
