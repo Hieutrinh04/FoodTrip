@@ -11,6 +11,8 @@ import { useLiveNavigation } from '../hooks/useLiveNavigation.js'
 import { splitRoute } from '../lib/routeProgress.js'
 import CityPattern from '../components/CityPattern.jsx'
 import RemoteImage from '../components/ui/RemoteImage.jsx'
+import ShareButton from '../components/ui/ShareButton.jsx'
+import { exploreParams } from '../lib/exploreUrl.js'
 import { CITIES, PLACES, CATEGORY_LABEL, getCity, isLivePlace } from '../data/destinations.js'
 import { FOODTRIP_CRITERIA, getFoodTripScore, scoreForCriterion, criteriaWithData } from '../lib/foodTripScore.js'
 import { fetchRouteDetails, haversineKm } from '../lib/trackAsia.js'
@@ -141,15 +143,16 @@ export default function Explore() {
   const copy = COPY[lang]
   const [searchParams, setSearchParams] = useSearchParams()
   const cityFilter = searchParams.get('city') || 'all'
-  const [category, setCategory] = useState('all')
-  const [foodType, setFoodType] = useState('all')
-  const [query, setQuery] = useState('')
+  // A shared link (?q=phở&category=food&food=noodle&place=…) opens the same search.
+  const [category, setCategory] = useState(() => (CATEGORY_LABEL[searchParams.get('category')] ? searchParams.get('category') : 'all'))
+  const [foodType, setFoodType] = useState(() => (FOOD_TYPES.some((t) => t.id === searchParams.get('food')) ? searchParams.get('food') : 'all'))
+  const [query, setQuery] = useState(() => (searchParams.get('q') ?? '').slice(0, 80))
   const [criterion, setCriterion] = useState('overall')
   const [minScore, setMinScore] = useState(0)
   const [price, setPrice] = useState('all')
   const [openOnly, setOpenOnly] = useState(false)
   const [sort, setSort] = useState('relevant')
-  const [selectedId, setSelectedId] = useState(null)
+  const [selectedId, setSelectedId] = useState(() => searchParams.get('place')?.slice(0, 120) || null)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [mobileView, setMobileView] = useState('list')
   const [userLocation, setUserLocation] = useState(null)
@@ -200,7 +203,7 @@ export default function Explore() {
   // wins so "bánh xèo" finds real places instead of filtering the seed list
   // down to nothing. Debounced so typing doesn't fire a request per keystroke.
   const trimmedQuery = query.trim()
-  const [liveQuery, setLiveQuery] = useState('')
+  const [liveQuery, setLiveQuery] = useState(() => (searchParams.get('q') ?? '').slice(0, 80).trim())
   useEffect(() => {
     const timer = setTimeout(() => setLiveQuery(trimmedQuery), 450)
     return () => clearTimeout(timer)
@@ -233,6 +236,15 @@ export default function Explore() {
       })
     return () => { cancelled = true }
   }, [foodType, category, liveQuery, cityFilter, userLocation, mapSearchOrigin, radiusKm])
+
+  // The view lives in the URL — city, search, filters and the place open — so
+  // the address bar is always a link to what is on screen. Replaced, not
+  // pushed: typing must not leave a history entry per keystroke.
+  useEffect(() => {
+    const next = exploreParams({ city: cityFilter, q: liveQuery, category, food: foodType, place: selectedId })
+    if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cityFilter, liveQuery, category, foodType, selectedId])
 
   function setCity(id) {
     stopLocationWatch()
@@ -565,7 +577,7 @@ export default function Explore() {
           <ExploreMap places={filtered} criterion={criterion} selectedId={selectedId} onSelect={selectFromMap} onAreaSelect={searchMapArea} userLocation={userLocation} onLocationsResolved={mergeResolvedLocations} routeGeometry={(navigation.active && navigation.route?.geometry) || route?.geometry || null} navigation={mapNavigation} followPosition={following} onUserMove={() => setFollowing(false)} className="h-full" />
           {navigating && selectedPlace && !previewOpen && <NavigationBanner navigation={navigation} destinationName={selectedPlace.name[lang]} following={following} onRecenter={() => setFollowing(true)} onEnd={navigation.end} />}
           {!selectedPlace && !navigating && <div className="explore-map-hint"><span>{liveStatus === 'loading' ? (lang === 'vi' ? 'Đang cập nhật khu vực…' : 'Updating area…') : (lang === 'vi' ? 'Chọn ghim để xem quán · Bấm vùng trống để tìm quanh đó' : 'Select a pin · Click an empty area to search nearby')}</span></div>}
-          {selectedPlace && !previewOpen && !following && <div className="explore-selected-summary"><button onClick={() => setSelectedId(null)} aria-label={lang === 'vi' ? 'Bỏ chọn địa điểm' : 'Deselect place'}><X size={18} /></button><h2>{selectedPlace.name[lang]}</h2><p>{selectedPlace.address[lang]}</p><div className="mt-3 flex flex-wrap gap-2">{destination && <button onClick={startNavigation} className="inline-flex items-center gap-1.5 rounded-full bg-[#2583d8] px-4 py-2 font-utility text-xs font-semibold text-white"><NavigationArrow size={13} weight="fill" />{lang === 'vi' ? 'Bắt đầu dẫn đường' : 'Start navigation'}</button>}<button onClick={() => setPreviewOpen(true)} className="rounded-full bg-chili px-4 py-2 font-utility text-xs font-semibold text-chili-ink">{copy.viewDetail} →</button></div></div>}
+          {selectedPlace && !previewOpen && !following && <div className="explore-selected-summary"><button onClick={() => setSelectedId(null)} aria-label={lang === 'vi' ? 'Bỏ chọn địa điểm' : 'Deselect place'}><X size={18} /></button><h2>{selectedPlace.name[lang]}</h2><p>{selectedPlace.address[lang]}</p><div className="mt-3 flex flex-wrap gap-2">{destination && <button onClick={startNavigation} className="inline-flex items-center gap-1.5 rounded-full bg-[#2583d8] px-4 py-2 font-utility text-xs font-semibold text-white"><NavigationArrow size={13} weight="fill" />{lang === 'vi' ? 'Bắt đầu dẫn đường' : 'Start navigation'}</button>}<button onClick={() => setPreviewOpen(true)} className="rounded-full bg-chili px-4 py-2 font-utility text-xs font-semibold text-chili-ink">{copy.viewDetail} →</button><ShareButton title={selectedPlace.name[lang]} text={selectedPlace.address[lang]} className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-line-strong px-3 py-2 font-utility text-xs font-semibold hover:border-chili hover:text-chili" /></div></div>}
           {selectedPlace && previewOpen && (
             <MapPlacePreview
               place={selectedPlace}

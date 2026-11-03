@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { MapTrifold, LinkBreak } from '@phosphor-icons/react'
 import ItineraryTicket from '../components/ticket/ItineraryTicket.jsx'
 import { getCity, getPlace, registerCustomPlaces } from '../data/destinations.js'
+import { usePageMeta } from '../hooks/usePageMeta.js'
 import { getPublicItinerary } from '../lib/itineraries.js'
 import { fetchCustomPlaces } from '../lib/customPlacesCache.js'
 import EmptyState from '../components/ui/EmptyState.jsx'
@@ -51,6 +52,8 @@ export default function SharedTrip() {
   const c = C[lang]
   const [status, setStatus] = useState('loading') // loading | ready | not-found
   const [trip, setTrip] = useState(null)
+  const tripName = trip ? tripCity(trip)?.name?.[lang] : null
+  usePageMeta({ title: tripName ? (lang === 'vi' ? `Lịch trình ${tripName}, ${trip.duration} ngày` : `${trip.duration}-day trip in ${tripName}`) : null })
 
   useEffect(() => {
     let cancelled = false

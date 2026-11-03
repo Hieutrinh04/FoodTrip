@@ -19,6 +19,8 @@ import { useLoginPrompt } from '../auth/LoginPromptContext.jsx'
 import { getSavedPlaceIds, setPlaceSaved } from '../lib/savedPlaces.js'
 import { fadeUp, staggerContainer, viewportOnce } from '../motion/variants.js'
 import NotFound from './NotFound.jsx'
+import ShareButton from '../components/ui/ShareButton.jsx'
+import { usePageMeta } from '../hooks/usePageMeta.js'
 import PlaceAssessment from '../components/assistant/PlaceAssessment.jsx'
 
 const C = {
@@ -78,6 +80,7 @@ export default function PlaceDetail() {
   const [saved, setSaved] = useState(false)
   const enrichment = usePlaceEnrichment(place)
   const videoReviews = useVideoReviewsForPlace({ googlePlaceId: enrichment.data?.placeId, name: place?.name?.vi })
+  usePageMeta({ title: place?.name?.[lang], description: place?.shortDesc?.[lang], image: place?.image })
 
   useEffect(() => {
     if (!place) return
@@ -135,7 +138,9 @@ export default function PlaceDetail() {
               the title it squeezed a three-word name to one word per line. */}
           <motion.div variants={fadeUp}>
             <div className="flex items-center justify-between gap-3">
-              <span className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint">{city.name[lang]} · {CATEGORY_LABEL[place.category][lang]}</span>
+              <span className="font-utility text-xs font-bold uppercase tracking-wide text-ink-faint"><Link to={`/thanh-pho/${city.id}`} className="hover:text-chili">{city.name[lang]}</Link> · {CATEGORY_LABEL[place.category][lang]}</span>
+              <div className="flex shrink-0 items-center gap-2">
+              <ShareButton compact title={place.name[lang]} text={place.shortDesc?.[lang]} />
               <button
                 onClick={toggleSave}
                 aria-pressed={saved}
@@ -144,6 +149,7 @@ export default function PlaceDetail() {
                 <BookmarkSimple size={16} weight={saved ? 'fill' : 'regular'} />
                 {saved ? c.saved : c.save}
               </button>
+              </div>
             </div>
             <h1 className="text-3xl md:text-4xl font-bold leading-tight mt-2">{place.name[lang]}</h1>
           </motion.div>

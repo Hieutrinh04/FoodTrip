@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { usePageMeta } from '../hooks/usePageMeta.js'
 import { CalendarPlus, Compass, LinkSimple, ShareNetwork, Users } from '@phosphor-icons/react'
 import TourDetail from '../components/tours/TourDetail.jsx'
 import TourReservePanel from '../components/planner/TourReservePanel.jsx'
@@ -60,10 +61,7 @@ export default function TourPage() {
   }, [id, lang])
 
   const tour = state.tour
-  useEffect(() => {
-    if (tour) document.title = `${tour.title} — FoodTrip`
-    return () => { document.title = 'FoodTrip — Ăn ngon, đi vui, lịch trình vừa ý' }
-  }, [tour])
+  usePageMeta({ title: tour?.title, description: tour ? `${tour.destination} · ${tour.operator_name}` : null, image: tour?.cover_url })
 
   // Choosing a departure (also from the sticky bar on phones) leads to the request form.
   useEffect(() => {
