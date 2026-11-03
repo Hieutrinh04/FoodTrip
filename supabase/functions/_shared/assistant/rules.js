@@ -86,6 +86,19 @@ export function ruleIntent(message) {
   if (score.plan_trip && score.booking_payment && !/thanh toan|chuyen khoan|vnpay|sepay/.test(t)) delete score.booking_payment
   // Paying for a tour is about tours (they are not paid on the site), not room payment.
   if (score.tour_info && score.booking_payment && !/phong|khach san|homestay/.test(t)) delete score.booking_payment
+  // Feature questions outrank isolated nouns ("tour", "lịch trình", "địa chỉ").
+  // Match actions and their objects; do not learn individual evaluation sentences.
+  const feature = (intent) => { score[intent] = Math.max(score[intent] ?? 0, 7) }
+  if (/\b(khach san|homestay|hotel)\b/.test(t) && /\b(tham khao|khong dat duoc|tim khach san)\b/.test(t)) feature('booking_how')
+  if (/\b(?:don (?:dat phong|cua (?:toi|minh))|tour (?:da dat|roi))\b/.test(t) && /\b(xem|nam o dau|tinh trang|trang thai|sao .*bi huy)\b/.test(t)) feature('booking_status')
+  if (/\b(?:dat tour roi|xem lai tour da dat)\b/.test(t)) feature('booking_status')
+  if (/\b(?:lich trinh|chuyen di)\b/.test(t) && /\b(?:gui|chia se|xuat|da luu|luu dau|minh luu)\b/.test(t)) feature('saved_trips')
+  if (/\b(?:theo doi|chia se) vi tri\b/.test(t) && /\b(?:nhau|nhom|ban be)\b/.test(t)) feature('saved_trips')
+  if (!score.booking_payment && /\b(?:bao loi|web bi loi|khong load duoc|khong tai duoc|gap nhan vien|noi chuyen voi nhan vien)\b/.test(t)) feature('contact_support')
+  if (!score.booking_payment && /\b(?:thong tin|dia chi)\b.*\b(?:sai|khong dung)\b/.test(t)) feature('contact_support')
+  if (!score.partner && !/\bdoi (?:tac|tien)\b/.test(t) && (/\b(?:doi|thay|bot|them)\b/.test(t) || /\bbo (?:diem|chua|quan)\b/.test(t)) && /\b(?:quan|diem|chua|an trua|taxi|xe may|khach san)\b/.test(t)) feature('modify_plan')
+  if (/\b(?:sang|toi|trua) ngay \d+\b/.test(t) && /\b(?:cho minh|doi|them)\b/.test(t)) feature('modify_plan')
+  if (!score.modify_plan && /\b(?:quan .+ nao ngon|an o dau|co gi an (?:khuya|toi|sang))\b/.test(t) && !score.ask_weather && !score.booking_cancel_refund) feature('find_food')
   const ranked = Object.entries(score).sort((a, b) => b[1] - a[1])
   if (!ranked.length) return { intent: 'out_of_scope', confidence: 0.3, source: 'rules' }
   const [best, top] = ranked[0]

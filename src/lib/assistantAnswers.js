@@ -314,6 +314,9 @@ export function answersPending(pending, message, reading) {
   // A new, understood question wins over an outstanding clarification.
   // Naming a city in a food/weather question is not an answer to a planner prompt.
   if (reading.intent !== 'out_of_scope' && reading.intent !== pending.intent) return false
+  // An explicit new dish is a new search, even while waiting for a city.
+  // A bare city still completes the old dish request.
+  if (pending.intent === 'find_food' && askedDish(message, reading.slots ?? [])) return false
   const words = message.trim().split(/\s+/).length
   if (pending.intent === 'plan_trip' && ['duration', 'people'].includes(pending.need)) {
     if (/^\d{1,2}$/.test(message.trim())) return true
