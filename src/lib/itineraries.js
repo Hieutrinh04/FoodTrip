@@ -77,14 +77,14 @@ export async function setItineraryPublic(id, isPublic) {
 }
 
 /** Fetches a shared itinerary by id, for anonymous visitors too. Shared trips can be opened by link but not listed. */
-export async function getPublicItinerary(id) {
-  if (!hasSupabase || !isUuid(id)) return null
-  const { data, error } = await supabase.rpc('shared_itinerary', { p_id: id })
-  if (error?.code === 'PGRST202') {
-    // Rollout window: this page can be live before the migration that adds the function.
-    const direct = await supabase.from('itineraries').select('*').eq('id', id).eq('is_public', true).single()
-    return direct.error ? null : normalizeItinerary(direct.data)
-  }
-  if (error || !data) return null
-  return normalizeItinerary(data)
+export async function getPublicItinerary(id, { client = supabase } = {}) {
+  if (!client || !isUuid(id)) return null
+  try {
+    const { data, error } = await client.rpc('shared_itinerary', { p_id: id })
+    // Fail closed during rollout/network errors; never fall back to table reads.
+    if (error || !data) return null
+    const publicTrip = { ...data }
+    delete publicTrip.user_id
+    return normalizeItinerary(publicTrip)
+  } catch { return null }
 }

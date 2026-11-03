@@ -65,7 +65,7 @@ export default function SharedTrip() {
       if (cancelled) return
       setTrip(data)
       setStatus('ready')
-    })
+    }).catch(() => { if (!cancelled) setStatus('not-found') })
     return () => {
       cancelled = true
     }
