@@ -1,0 +1,96 @@
+Trợ lý FoodTrip
+
+Lên lịch và giải đáp về FoodTrip. Có thể hiểu sai — hãy kiểm tra trước khi dùng.
+
+Chào bạn! Bạn đang tính đi đâu, hay cần tìm một quán ăn ngon? Kể mình nghe ý định của bạn nhé.
+bún chả ở Hà Nội
+
+Mình tìm được 3 quán bún chả để bạn cân nhắc ở Hà Nội:
+1. Bún Chả Lằu Gất Gụ — 4.9★ (1.176) · 41-43 P. Hàng Bè, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội 100000, Việt Nam
+2. Bún chả Sinh Từ — 4.7★ (1.330) · 63 P. Đường Thành, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội, Việt Nam
+3. Bún chả CỘI phố cổ: Hanoi Specialty food & Vegetarian food — 4.7★ (1.307) · 57 P. Nguyễn Hữu Huân, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội 100000, Việt Nam
+Mình ưu tiên dữ liệu khớp món, rồi điểm Google có cân nhắc số lượt đánh giá. Có sử dụng quán đã lưu trong FoodTrip. Bạn muốn xem kỹ quán nào?
+
+Xem thêm trong Khám phá →
+Bún Chả Lằu Gất Gụ
+4.9 · 1.176 · 41-43 P. Hàng Bè, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội 100000, Việt Nam
+Chi tiết
+Bún chả Sinh Từ
+4.7 · 1.330 · 63 P. Đường Thành, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội, Việt Nam
+Chi tiết
+Bún chả CỘI phố cổ: Hanoi Specialty food & Vegetarian food
+4.7 · 1.307 · 57 P. Nguyễn Hữu Huân, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội 100000, Việt Nam
+Chi tiết
+FoodTrip
+hải sản ở Đà Nẵng
+
+Mình tìm được 3 quán hải sản để bạn cân nhắc ở Đà Nẵng:
+1. Hải Sản Ku Tom Đà Nẵng — 4.9★ (3.721) · 283 Hồ Nghinh, An Hải, Đà Nẵng 550000, Việt Nam
+2. Thèm Hải Sản — 4.8★ (10.480) · 39 Trần Bạch Đằng, An Hải, Đà Nẵng 550000, Việt Nam
+3. Hải Sản Đà Nẵng Bé Biển — 4.8★ (5.525) · 202 Võ Nguyên Giáp, An Hải, Đà Nẵng 550000, Việt Nam
+Mình ưu tiên dữ liệu khớp món, rồi điểm Google có cân nhắc số lượt đánh giá. Bạn muốn xem kỹ quán nào?
+
+Xem thêm trong Khám phá →
+Hải Sản Ku Tom Đà Nẵng
+4.9 · 3.721 · 283 Hồ Nghinh, An Hải, Đà Nẵng 550000, Việt Nam
+Chi tiết
+Thèm Hải Sản
+4.8 · 10.480 · 39 Trần Bạch Đằng, An Hải, Đà Nẵng 550000, Việt Nam
+Chi tiết
+Hải Sản Đà Nẵng Bé Biển
+4.8 · 5.525 · 202 Võ Nguyên Giáp, An Hải, Đà Nẵng 550000, Việt Nam
+Chi tiết
+FoodTrip
+phở Hà Nội
+
+Mình tìm được 3 quán phở để bạn cân nhắc ở Hà Nội:
+1. Phở Gà Huyền Hương — 4.7★ (5.345) · 20 P. Báo Khánh, Hoàn Kiếm, Hà Nội, Việt Nam
+2. Phở Khôi Hói — 4.2★ (1.430) · 50 P. Hàng Vải, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội, Việt Nam
+3. Phở Thìn — 4.1★ (1.677) · 13 P. Lò Đúc, Hai Bà Trưng, Hà Nội, Việt Nam
+Mình ưu tiên dữ liệu khớp món, rồi điểm Google có cân nhắc số lượt đánh giá. Có sử dụng quán đã lưu trong FoodTrip. Bạn muốn xem kỹ quán nào?
+
+Xem thêm trong Khám phá →
+Phở Gà Huyền Hương
+4.7 · 5.345 · 20 P. Báo Khánh, Hoàn Kiếm, Hà Nội, Việt Nam
+Chi tiết
+Phở Khôi Hói
+4.2 · 1.430 · 50 P. Hàng Vải, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội, Việt Nam
+Chi tiết
+Phở Thìn
+4.1 · 1.677 · 13 P. Lò Đúc, Hai Bà Trưng, Hà Nội, Việt Nam
+Chi tiết
+FoodTrip
+quán phở ngon ở Hà Nội
+
+Mình tìm được 3 quán phở để bạn cân nhắc ở Hà Nội:
+1. Phở Gà Huyền Hương — 4.7★ (5.345) · 20 P. Báo Khánh, Hoàn Kiếm, Hà Nội, Việt Nam
+2. Phở Khôi Hói — 4.2★ (1.430) · 50 P. Hàng Vải, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội, Việt Nam
+3. Phở Thìn — 4.1★ (1.677) · 13 P. Lò Đúc, Hai Bà Trưng, Hà Nội, Việt Nam
+Mình ưu tiên dữ liệu khớp món, rồi điểm Google có cân nhắc số lượt đánh giá. Có sử dụng quán đã lưu trong FoodTrip. Bạn muốn xem kỹ quán nào?
+
+Xem thêm trong Khám phá →
+Phở Gà Huyền Hương
+4.7 · 5.345 · 20 P. Báo Khánh, Hoàn Kiếm, Hà Nội, Việt Nam
+Chi tiết
+Phở Khôi Hói
+4.2 · 1.430 · 50 P. Hàng Vải, Phố cổ Hà Nội, Hoàn Kiếm, Hà Nội, Việt Nam
+Chi tiết
+Phở Thìn
+4.1 · 1.677 · 13 P. Lò Đúc, Hai Bà Trưng, Hà Nội, Việt Nam
+Chi tiết
+FoodTrip
+huỷ phòng có được hoàn tiền không?
+
+Theo chính sách của nơi ở, ghi trên trang đặt phòng: Linh hoạt — hoàn 100% nếu huỷ trước ít nhất 1 ngày; Vừa phải — hoàn 100% nếu trước ít nhất 5 ngày; Nghiêm ngặt — hoàn 50% nếu trước ít nhất 7 ngày; Không hoàn tiền — không hoàn. Huỷ muộn hơn mốc thì không được hoàn. Web hiện số tiền được hoàn trước khi bạn xác nhận huỷ.
+
+Đặt phòng của tôi →
+Đăng nhập để mình xem trực tiếp đơn của bạn.
+Đăng nhập
+Có thể bạn muốn hỏi:
+làm sao để huỷ đơn →
+bao lâu thì nhận được tiền hoàn →
+FoodTrip
+
+Tin nhắn được lưu ẩn danh (bỏ số điện thoại, email) để cải thiện trợ lý.
+
+Gặp nhân viên hỗ trợ
