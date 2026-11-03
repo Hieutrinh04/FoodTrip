@@ -1,6 +1,6 @@
 # Mức sẵn sàng phát hành — 03/11/2026
 
-Tài liệu này ghi điều đã kiểm chứng. Chưa có gì được commit, deploy hay áp dụng lên Supabase thật.
+Đây là bản ghi trước đợt `chore/release-hardening`. Kết quả mới nhất, các commit, điều kiện còn chặn và sự cố an toàn trong đợt tiếp theo nằm ở [review-20261103.md](review-20261103.md). Chưa deploy hoặc áp dụng migration lên Supabase thật.
 
 ## Đã xong
 

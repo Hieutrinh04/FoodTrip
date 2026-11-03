@@ -70,7 +70,7 @@ Danh sách trên là công việc còn lại, không phải hướng dẫn đã 
 - Hiện chưa chạy được cả các mô phỏng trên do Docker/Supabase local chưa sẵn sàng.
 # Cập nhật 03/11/2026 — hai tầng kiểm thử
 
-Phần lịch sử bên dưới mô tả lần Docker bị chặn trước đây. Trạng thái mới nhất nằm trong mục cập nhật này.
+Phần lịch sử ngày 02/11 phía trên mô tả lần Docker bị chặn trước đây. Trạng thái mới nhất nằm trong mục cập nhật này.
 
 ## Cách chạy hiện tại
 
