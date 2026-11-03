@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { CheckCircle, Circle, ImageSquare } from '@phosphor-icons/react'
 import { CITIES } from '../../data/destinations.js'
 import { getCurrentTerms } from '../../lib/partner.js'
 import { acceptTourTerms, tourError, tourReadiness, updateOperatorProfile, uploadTourPhoto, OPERATOR_TYPES } from '../../lib/tours.js'
-import Spinner from '../ui/Spinner.jsx'
+import { usePortalResource } from '../../hooks/usePortalResource.js'
+import PortalLoadState from '../portal/PortalLoadState.jsx'
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
 
 function useT() {
@@ -32,12 +33,13 @@ export function OperatorChecklist({ operator, onSaved }) {
     description: operator.description ?? '', logoUrl: operator.logo_url ?? '', website: operator.website ?? '',
     operatorType: operator.operator_type ?? 'food_tour', cities: operator.cities ?? [],
   }))
-  const [terms, setTerms] = useState(null)
+  const loadTerms = useCallback(() => getCurrentTerms('tour'), [])
+  const termsResource = usePortalResource(operator.id, loadTerms)
+  const terms = termsResource.data
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState({ description: operator.description ?? '', terms: operator.terms_accepted_at })
-  useEffect(() => { getCurrentTerms('tour').then(setTerms).catch(() => setTerms(null)) }, [])
 
   const profileOk = saved.description.trim().length >= 30
   const termsOk = Boolean(saved.terms)
@@ -76,7 +78,7 @@ export function OperatorChecklist({ operator, onSaved }) {
         <form className="!mt-4 grid gap-3" onSubmit={(e) => { e.preventDefault(); run('profile', () => updateOperatorProfile(operator.id, { description: form.description, logo_url: form.logoUrl, website: form.website, operator_type: form.operatorType, cities: form.cities }), () => { setSaved((s) => ({ ...s, description: form.description })); setEditing(false) }) }}>
           <label className={`${BUTTON} cursor-pointer self-start`}>
             <ImageSquare size={13} />{busy === 'logo' ? t('Đang tải ảnh…', 'Uploading…') : t('Tải logo / ảnh đại diện (≤ 3 MB)', 'Upload a logo / photo (≤ 3 MB)')}
-            <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={(e) => { uploadLogo(e.target.files?.[0]); e.target.value = '' }} />
+            <input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={Boolean(busy)} onChange={(e) => { uploadLogo(e.target.files?.[0]); e.target.value = '' }} />
           </label>
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block text-sm font-semibold">{t('Loại hình', 'Type')}
@@ -91,7 +93,7 @@ export function OperatorChecklist({ operator, onSaved }) {
             <div className="mt-1.5 flex flex-wrap gap-1.5">
               {[...new Set([...CITIES.map((c) => c.name.vi), ...form.cities])].map((name) => (
                 <button key={name} type="button" aria-pressed={form.cities.includes(name)} onClick={() => toggleCity(name)}
-                  className={`rounded-full border-[1.5px] px-3 py-1 text-sm ${form.cities.includes(name) ? 'border-herb bg-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}>{name}</button>
+                  className={`rounded-full border-[1.5px] px-3 py-1 text-sm ${form.cities.includes(name) ? 'border-herb bg-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}>{CITIES.find((city) => city.name.vi === name)?.name[lang] ?? name}</button>
               ))}
             </div>
           </div>
@@ -107,7 +109,9 @@ export function OperatorChecklist({ operator, onSaved }) {
             <div className="max-h-[160px] overflow-y-auto rounded-xl border border-line bg-paper px-4 py-3 text-sm text-ink-muted">{terms.summary}</div>
             <div><button type="button" className={SAVE} disabled={Boolean(busy)} onClick={() => run('terms', () => acceptTourTerms(operator.id, terms.version), () => setSaved((s) => ({ ...s, terms: new Date().toISOString() })))}>{t('Tôi đồng ý điều khoản', 'I accept the terms')}</button></div>
           </div>
-        ) : <Spinner label={t('Đang tải điều khoản…', 'Loading the terms…')} />
+        ) : termsResource.status !== 'ready'
+          ? <PortalLoadState status={termsResource.status} onRetry={termsResource.reload} />
+          : <p role="status" className="text-sm text-ink-muted">{t('Chưa có điều khoản được công bố. Vui lòng liên hệ FoodTrip.', 'No terms have been published. Please contact FoodTrip.')}</p>
       )}
       {error && <p role="alert" className="tour-error">{error}</p>}
     </section>
@@ -132,14 +136,14 @@ const TOUR_ITEMS = [
 export function TourChecklist({ tourId, refresh = 0, onReady }) {
   const { t, lang } = useT()
   const i = lang === 'vi' ? 0 : 1
-  const [ready, setReady] = useState(null)
+  const load = useCallback(() => tourReadiness(tourId), [tourId])
+  const resource = usePortalResource(`${tourId}:${refresh}`, load)
+  const ready = resource.data
+  const complete = resource.status === 'ready' && TOUR_ITEMS.every(([key]) => ready?.[key])
   useEffect(() => {
-    let active = true
-    tourReadiness(tourId).then((r) => { if (active) { setReady(r); onReady?.(TOUR_ITEMS.every(([key]) => r[key])) } }).catch(() => { if (active) setReady({}) })
-    return () => { active = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tourId, refresh])
-  if (!ready) return <p className="text-sm text-ink-muted">{t('Đang kiểm tra hồ sơ tour…', 'Checking the tour…')}</p>
+    onReady?.(complete)
+  }, [complete, onReady])
+  if (resource.status !== 'ready') return <PortalLoadState status={resource.status} onRetry={resource.reload} />
   const done = TOUR_ITEMS.filter(([key]) => ready[key]).length
   return (
     <div className="rounded-xl border border-line bg-paper px-4 py-3">

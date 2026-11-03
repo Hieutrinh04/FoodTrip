@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import {
   Buildings, CheckCircle, Clock, MapPin, SquaresFour, CalendarCheck, Bed, Wallet, UsersThree, DoorOpen, Lock, Phone, EnvelopeSimple, SignIn, SignOut, UserMinus, X, PencilSimple, Storefront, Hourglass, ChatCircleText,
@@ -20,6 +20,9 @@ import { CITIES } from '../data/destinations.js'
 import { searchPlaces } from '../lib/trackAsia.js'
 import { destinationWeatherLocation } from '../lib/tripWeather.js'
 import { normalizeVi } from '../lib/text.js'
+import { usePortalResource } from '../hooks/usePortalResource.js'
+import PortalLoadState from '../components/portal/PortalLoadState.jsx'
+import { selectedBusiness } from '../lib/portalView.js'
 
 const LocationPicker = lazy(() => import('../components/map/LocationPicker.jsx'))
 
@@ -29,7 +32,7 @@ const DANGER = 'inline-flex items-center gap-1.5 rounded-full border border-chil
 const INPUT = 'w-full rounded-xl border border-line-strong bg-paper px-3.5 py-2.5 text-md focus:border-chili'
 
 const formatVnd = (n) => `${Number(n ?? 0).toLocaleString('vi-VN')}đ`
-const formatDay = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '—')
+const formatDay = (iso, lang) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString(lang === 'en' ? 'en-GB' : 'vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' }) : '—')
 
 const PAYMENT = {
   pending: { vi: 'Chờ khách thanh toán', en: 'Awaiting payment', style: 'bg-lantern/20 text-lantern' },
@@ -65,20 +68,23 @@ export default function Partner() {
     return key ? t(...ERRORS[key]) : t('Thao tác không thành công. Vui lòng thử lại.', 'That did not work. Please try again.')
   }
   const { user, loading: authLoading, hasAuth } = useAuth()
+  const [params] = useSearchParams()
   const [state, setState] = useState({ status: 'loading', properties: [], applications: [] })
   const [authOpen, setAuthOpen] = useState(false)
+  const loadVersion = useRef(0)
 
   const load = useCallback(async () => {
+    const version = ++loadVersion.current
     if (!user) { setState({ status: 'signed-out', properties: [], applications: [] }); return }
     setState((s) => ({ ...s, status: 'loading' }))
     try {
       const [properties, applications] = await Promise.all([partner.getMyProperties(user.id), partner.getMyApplications(user.id)])
-      setState({ status: 'ready', properties, applications })
+      if (version === loadVersion.current) setState({ status: 'ready', properties, applications })
     } catch {
-      setState({ status: 'error', properties: [], applications: [] })
+      if (version === loadVersion.current) setState({ status: 'error', properties: [], applications: [] })
     }
   }, [user])
-  useEffect(() => { if (!authLoading) load() }, [authLoading, load])
+  useEffect(() => { const requests = loadVersion; if (!authLoading) load(); return () => { requests.current++ } }, [authLoading, load])
 
   let body
   if (authLoading || state.status === 'loading') body = <Spinner label={t('Đang tải…', 'Loading…')} />
@@ -88,7 +94,7 @@ export default function Partner() {
       action={hasAuth && <button type="button" onClick={() => setAuthOpen(true)} className="rounded-full bg-chili px-6 py-[13px] font-utility text-md font-semibold text-chili-ink">{t('Đăng nhập', 'Log in')}</button>} />
   } else if (state.status === 'error') {
     body = <EmptyState icon={Clock} title={t('Chưa tải được dữ liệu.', 'Could not load your data.')} action={<button type="button" onClick={load} className={BUTTON}>{t('Thử lại', 'Retry')}</button>} />
-  } else if (!state.properties.length) {
+  } else if (!state.properties.length || params.get('view') === 'application' || params.has('claim')) {
     body = <Application t={t} lang={lang} applications={state.applications} onSubmitted={load} explain={explain} />
   } else {
     // A partner gets the portal itself, which carries its own header.
@@ -96,10 +102,9 @@ export default function Partner() {
   }
 
   return (
-    <div className="mx-auto max-w-[1180px] px-5 py-12 md:px-8 md:py-16">
+    <div className="portal-workspace mx-auto max-w-[1280px] px-5 py-10 md:px-8 md:py-12">
       <span className="eyebrow eyebrow-tick">{t('Đối tác lưu trú', 'Lodging partners')}</span>
-      <h1 className="mb-8 mt-3 text-3xl font-bold leading-[1.15] md:text-4xl">{t('Quản lý khách sạn trên FoodTrip', 'Run your hotel on FoodTrip')}</h1>
-      <Link to="/partner/tours" className="mb-6 inline-block font-semibold text-chili">{t('Chuyển sang cổng đối tác tour →', 'Tour partner portal →')}</Link>
+      <h1 className="mb-8 mt-3 text-3xl font-bold leading-[1.15] md:text-4xl">{t('Đăng ký & hồ sơ đối tác lưu trú', 'Property partner applications')}</h1>
       {body}
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </div>
@@ -132,7 +137,9 @@ function Application({ t, lang, applications, onSubmitted, explain }) {
   const [mode, setMode] = useState('listed')
   const [listing, setListing] = useState({ propertyType: 'homestay', city: '', description: '', lat: null, lng: null })
   const [contact, setContact] = useState({ name: '', role: 'owner', roomCount: '', stars: '', license: '', taxCode: '' })
-  const [terms, setTerms] = useState(null)
+  const loadTerms = useCallback(() => partner.getCurrentTerms(), [])
+  const termsResource = usePortalResource('stay-application', loadTerms)
+  const terms = termsResource.data
   const [agreed, setAgreed] = useState(false)
   const [step, setStep] = useState(0)
   const [locating, setLocating] = useState('idle') // idle | busy | none
@@ -142,7 +149,6 @@ function Application({ t, lang, applications, onSubmitted, explain }) {
   const setL = (key) => (e) => setListing((l) => ({ ...l, [key]: e.target.value }))
   const setC = (key) => (e) => setContact((c) => ({ ...c, [key]: e.target.value }))
 
-  useEffect(() => { partner.getCurrentTerms().then(setTerms).catch(() => setTerms(null)) }, [])
 
   if (latest?.status === 'pending') {
     return <EmptyState icon={Hourglass} title={t('Đơn đăng ký đang chờ duyệt', 'Your application is under review')}
@@ -166,7 +172,7 @@ function Application({ t, lang, applications, onSubmitted, explain }) {
       if (form.phone.trim().length < 8) return t('Nhập số điện thoại để FoodTrip gọi xác minh.', 'Enter a phone number FoodTrip can call.')
       if (contact.taxCode.trim() && !/^[0-9-]{10,14}$/.test(contact.taxCode.trim())) return t('Mã số thuế gồm 10–14 chữ số.', 'A tax code has 10–14 digits.')
     }
-    if (at === 2 && !agreed) return t('Hãy đọc và đồng ý điều khoản đối tác.', 'Please read and accept the partner terms.')
+    if (at === 2 && (!terms || termsResource.status !== 'ready' || !agreed)) return t('Hãy tải, đọc và đồng ý điều khoản đối tác.', 'Please load, read and accept the partner terms.')
     return ''
   }
   function next() {
@@ -285,7 +291,7 @@ function Application({ t, lang, applications, onSubmitted, explain }) {
               </div>
               <label className="block text-sm font-semibold">{t('Tỉnh / thành phố', 'City / province')}
                 <input maxLength={120} list="partner-cities" value={listing.city} onChange={setL('city')} placeholder="Đà Lạt" className={`${INPUT} mt-1`} />
-                <datalist id="partner-cities">{CITIES.map((city) => <option key={city.id} value={city.name.vi} />)}</datalist>
+                <datalist id="partner-cities">{CITIES.map((city) => <option key={city.id} value={city.name.vi} label={city.name[lang]} />)}</datalist>
               </label>
               <label className="block text-sm font-semibold">{t('Địa chỉ', 'Address')}<input required minLength={5} maxLength={500} value={form.address} onChange={set('address')} className={`${INPUT} mt-1`} /></label>
               {mode === 'new' && (
@@ -347,7 +353,9 @@ function Application({ t, lang, applications, onSubmitted, explain }) {
                   <span>{t('Tôi là chủ hoặc người được chủ cơ sở uỷ quyền, đã đọc và đồng ý điều khoản đối tác FoodTrip.', 'I own this property or am authorised by its owner, and I accept the FoodTrip partner terms.')}</span>
                 </label>
               </>
-            ) : <Spinner label={t('Đang tải điều khoản…', 'Loading the terms…')} />
+            ) : termsResource.status !== 'ready'
+              ? <PortalLoadState status={termsResource.status} onRetry={termsResource.reload} />
+              : <p role="status" className="text-sm text-ink-muted">{t('Chưa có điều khoản được công bố. Vui lòng liên hệ FoodTrip.', 'No terms have been published. Please contact FoodTrip.')}</p>
           )}
 
           {step === 3 && (
@@ -404,20 +412,22 @@ function matchesFilter(b, filter, today) {
 }
 
 function Dashboard({ t, lang, properties, explain, onPropertyChanged }) {
-  const [propertyId, setPropertyId] = useState(properties[0].id)
-  const property = properties.find((p) => p.id === propertyId) ?? properties[0]
+  const [params, setParams] = useSearchParams()
+  const property = selectedBusiness(properties, params.get('property'))
+  const propertyId = property.id
+  const setPropertyId = (id) => setParams((p) => { const next = new URLSearchParams(p); next.set('property', id); return next })
   const owner = property.role === 'owner'
-  const [bookings, setBookings] = useState(null)
-  const [rooms, setRooms] = useState([])
   const [filter, setFilter] = useState('needs')
   const today = partner.vietnamToday()
 
-  const load = useCallback(() => {
-    setBookings(null)
-    partner.getPropertyBookings(property.hotel_place_id).then(setBookings).catch(() => setBookings([]))
-    listRooms(property.id).then(setRooms).catch(() => setRooms([]))
+  const loadData = useCallback(async () => {
+    const [bookings, rooms] = await Promise.all([partner.getPropertyBookings(property.hotel_place_id), listRooms(property.id)])
+    return { bookings, rooms }
   }, [property.hotel_place_id, property.id])
-  useEffect(load, [load])
+  const resource = usePortalResource(property.id, loadData)
+  const { reload: load } = resource
+  const bookings = resource.data?.bookings ?? null
+  const rooms = resource.data?.rooms ?? []
 
   const needs = (bookings ?? []).filter((b) => matchesFilter(b, 'needs', today)).length
   const sections = [
@@ -442,21 +452,22 @@ function Dashboard({ t, lang, properties, explain, onPropertyChanged }) {
           {properties.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
       )}
-      actions={<Link to={`/booking/${encodeURIComponent(property.hotel_place_id)}`} className={BUTTON}>{t('Xem trang đặt phòng ↗', 'View booking page ↗')}</Link>}
+      actions={<><button type="button" onClick={load} disabled={resource.status === 'loading'} className={BUTTON}>{t('Tải lại', 'Reload')}</button><Link to={`/booking/${encodeURIComponent(property.hotel_place_id)}`} className={BUTTON}>{t('Xem trang đặt phòng ↗', 'View booking page ↗')}</Link></>}
       sections={sections}
     >
       {(section, open) => (
-        <div className="space-y-5">
+        <div key={property.id} className="space-y-5">
           {!property.active && (
             <p role="alert" className="rounded-2xl border border-chili/40 bg-chili/10 px-4 py-3 text-sm text-chili">
               <strong>{t('Cơ sở đang bị tạm khoá — không nhận đơn mới.', 'This property is suspended — it takes no new bookings.')}</strong>
               {property.suspension_note ? ` ${t('Lý do', 'Reason')}: ${property.suspension_note}.` : ''} {t('Các đơn đã có vẫn cần được phục vụ. Liên hệ FoodTrip để mở lại.', 'Existing bookings must still be honoured. Contact FoodTrip to reopen.')}
             </p>
           )}
-          {section === 'overview' && <HotelOverview t={t} lang={lang} property={property} bookings={bookings} rooms={rooms} today={today} owner={owner}
+          {['overview', 'bookings'].includes(section) && resource.status !== 'ready' && <PortalLoadState status={resource.status} onRetry={load} />}
+          {section === 'overview' && resource.status === 'ready' && <HotelOverview t={t} lang={lang} property={property} bookings={bookings} rooms={rooms} today={today} owner={owner}
             openBookings={(f) => { setFilter(f); open('bookings') }} openListing={() => open('listing')} />}
-          {section === 'bookings' && <HotelBookings t={t} lang={lang} bookings={bookings} filter={filter} setFilter={setFilter} today={today} explain={explain} reload={load} />}
-          {section === 'rooms' && <RoomInventory key={property.id} property={property} onSaved={() => { onPropertyChanged(); load() }} />}
+          {section === 'bookings' && resource.status === 'ready' && <HotelBookings t={t} lang={lang} bookings={bookings} filter={filter} setFilter={setFilter} today={today} explain={explain} reload={load} canOperate={property.active === true} />}
+          {section === 'rooms' && <RoomInventory key={property.id} property={property} onOpenListing={() => open('listing')} onSaved={() => { onPropertyChanged(); load() }} />}
           {section === 'listing' && <>
             <PropertyCard property={property} t={t} explain={explain} onSaved={onPropertyChanged} />
             {owner
@@ -473,7 +484,7 @@ function Dashboard({ t, lang, properties, explain, onPropertyChanged }) {
 }
 
 /** Today at a glance: what needs doing, who arrives and leaves, how full the week is. */
-function HotelOverview({ t, lang, property, bookings, rooms, today, owner, openBookings, openListing }) {
+export function HotelOverview({ t, lang, property, bookings, rooms, today, owner, openBookings, openListing }) {
   if (bookings == null) return <Spinner label={t('Đang tải…', 'Loading…')} />
   const month = today.slice(0, 7)
   const live = (b) => OPEN_PAYMENT.includes(b.payment_status) && !['rejected', 'no_show', 'guest_cancelled'].includes(b.fulfillment_status)
@@ -501,7 +512,7 @@ function HotelOverview({ t, lang, property, bookings, rooms, today, owner, openB
         <StatCard label={t('Cần xác nhận', 'To confirm')} value={bookings.filter((b) => matchesFilter(b, 'needs', today)).length} alert={bookings.some((b) => matchesFilter(b, 'needs', today))} onClick={() => openBookings('needs')} />
         <StatCard label={t('Nhận phòng hôm nay', 'Arriving today')} value={arrivals.length} onClick={() => openBookings('today')} />
         <StatCard label={t('Đang ở', 'In house')} value={bookings.filter((b) => b.fulfillment_status === 'checked_in').length} onClick={() => openBookings('inhouse')} />
-        <StatCard label={t('Doanh thu tháng này', 'Revenue this month')} value={formatVnd(revenue)} hint={t('đơn đã thanh toán, theo ngày nhận phòng', 'paid, by check-in date')} />
+        {owner ? <StatCard label={t('Doanh thu tháng này', 'Revenue this month')} value={formatVnd(revenue)} hint={t('đơn đã thanh toán, theo ngày nhận phòng', 'paid, by check-in date')} /> : <StatCard label={t('Trả phòng hôm nay', 'Departing today')} value={departures.length} onClick={() => openBookings('today')} />}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-2">
@@ -519,7 +530,7 @@ function HotelOverview({ t, lang, property, bookings, rooms, today, owner, openB
                 const pct = Math.min(100, Math.round((held / totalRooms) * 100))
                 return (
                   <li key={iso} className="grid grid-cols-[96px_1fr_72px] items-center gap-2 text-xs">
-                    <span className="whitespace-nowrap font-utility text-ink-muted">{formatDay(iso)}</span>
+                    <span className="whitespace-nowrap font-utility text-ink-muted">{formatDay(iso, lang)}</span>
                     <span className="h-2.5 overflow-hidden rounded-full bg-paper-2"><span className={`block h-full rounded-full ${pct >= 90 ? 'bg-chili' : 'bg-herb'}`} style={{ width: `${pct}%` }} /></span>
                     <span className="whitespace-nowrap text-right font-utility tabular">{held}/{totalRooms} · {pct}%</span>
                   </li>
@@ -534,7 +545,7 @@ function HotelOverview({ t, lang, property, bookings, rooms, today, owner, openB
 }
 
 /** Every booking for the property, filtered and searchable, with the hotel's actions. */
-function HotelBookings({ t, lang, bookings, filter, setFilter, today, explain, reload }) {
+function HotelBookings({ t, lang, bookings, filter, setFilter, today, explain, reload, canOperate }) {
   const [query, setQuery] = useState('')
   const [busyId, setBusyId] = useState(null)
   const [error, setError] = useState('')
@@ -545,6 +556,7 @@ function HotelBookings({ t, lang, bookings, filter, setFilter, today, explain, r
   if (filter === 'history' || filter === 'all') shown.reverse()
 
   async function act(b, status, dialogOptions) {
+    if (!canOperate || busyId) return
     let note = ''
     if (dialogOptions) {
       note = await ask(dialogOptions)
@@ -581,7 +593,7 @@ function HotelBookings({ t, lang, bookings, filter, setFilter, today, explain, r
           const ful = FULFILLMENT[b.fulfillment_status] ?? FULFILLMENT.awaiting
           const open = OPEN_PAYMENT.includes(b.payment_status)
           const arrived = today >= b.check_in
-          const busy = busyId === b.id
+          const busy = busyId != null || !canOperate
           return (
             <li key={b.id} className="flex flex-col gap-3 py-4 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0 space-y-1">
@@ -592,7 +604,7 @@ function HotelBookings({ t, lang, bookings, filter, setFilter, today, explain, r
                   {b.payment_txn_ref === 'DEMO' && <span title={t('Thanh toán ở chế độ demo — không có tiền thật, không được đối soát.', 'Paid in demo mode — no real money, never paid out.')} className="rounded-full bg-paper-2 px-2 py-0.5 font-utility text-micro font-semibold text-ink-muted">Demo</span>}
                 </div>
                 <div className="text-sm text-ink-muted">{b.room_name} · {t(`${b.guests} khách`, `${b.guests} guests`)} · {formatVnd(b.total_price)}</div>
-                <div className="font-utility text-xs"><SignIn size={12} className="mr-1 inline" />{formatDay(b.check_in)} <span className="text-ink-faint">→</span> <SignOut size={12} className="mx-1 inline" />{formatDay(b.check_out)} <span className="text-ink-faint">· {t(`${b.nights} đêm`, `${b.nights} nights`)} · {b.payment_code}</span></div>
+                <div className="font-utility text-xs"><SignIn size={12} className="mr-1 inline" />{formatDay(b.check_in, lang)} <span className="text-ink-faint">→</span> <SignOut size={12} className="mx-1 inline" />{formatDay(b.check_out, lang)} <span className="text-ink-faint">· {t(`${b.nights} đêm`, `${b.nights} nights`)} · {b.payment_code}</span></div>
                 <div className="flex flex-wrap gap-x-4 text-xs">
                   {b.guest_phone && <a href={`tel:${b.guest_phone}`} className="inline-flex items-center gap-1 text-chili hover:underline"><Phone size={12} />{b.guest_phone}</a>}
                   {b.guest_email && <a href={`mailto:${b.guest_email}`} className="inline-flex items-center gap-1 text-ink-muted hover:underline"><EnvelopeSimple size={12} />{b.guest_email}</a>}
@@ -630,15 +642,13 @@ function HotelBookings({ t, lang, bookings, filter, setFilter, today, explain, r
  * reference — what Agoda calls the finance page.
  */
 function HotelMoney({ t, lang, property, openListing }) {
-  const [statement, setStatement] = useState(null)
-  const [payout, setPayout] = useState(undefined)
-  const [error, setError] = useState('')
-  useEffect(() => {
-    partner.getStatement(property.id).then(setStatement).catch(() => setError(t('Chưa tải được số liệu.', 'Could not load the figures.')))
-    partner.getPayout(property.id).then(setPayout).catch(() => setPayout(null))
-  }, [property.id, t])
-  if (error) return <p role="alert" className="text-sm text-chili">{error}</p>
-  if (!statement) return <Spinner label={t('Đang tải số liệu…', 'Loading the figures…')} />
+  const load = useCallback(async () => {
+    const [statement, payout] = await Promise.all([partner.getStatement(property.id), partner.getPayout(property.id)])
+    return { statement, payout }
+  }, [property.id])
+  const resource = usePortalResource(property.id, load)
+  if (resource.status !== 'ready') return <PortalLoadState status={resource.status} onRetry={resource.reload} />
+  const { statement, payout } = resource.data
   const pct = Number(statement.commission_pct)
   const monthLabel = (ym) => new Date(`${ym}-15T12:00:00`).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-GB', { month: 'long', year: 'numeric' })
   const STATUS = { pending: [t('Chờ chuyển', 'Pending'), 'bg-lantern/20 text-lantern'], paid: [t('Đã chuyển', 'Paid'), 'bg-herb/15 text-herb'] }
@@ -671,7 +681,7 @@ function HotelMoney({ t, lang, property, openListing }) {
           <ul className="divide-y divide-line">
             {statement.settlements.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
-                <span>{t(`Đến ${formatDay(s.period_end)}`, `Up to ${formatDay(s.period_end)}`)} · {t(`${s.item_count} đơn`, `${s.item_count} stays`)} · <strong>{formatVnd(s.net)}</strong> <span className="text-2xs text-ink-faint">({formatVnd(s.gross)} − {Number(s.commission_pct)}%)</span></span>
+                <span>{t(`Đến ${formatDay(s.period_end, lang)}`, `Up to ${formatDay(s.period_end, lang)}`)} · {t(`${s.item_count} đơn`, `${s.item_count} stays`)} · <strong>{formatVnd(s.net)}</strong> <span className="text-2xs text-ink-faint">({formatVnd(s.gross)} − {Number(s.commission_pct)}%)</span></span>
                 <span className="flex items-center gap-2">{s.reference && <span className="font-utility text-2xs text-ink-faint">{s.reference}</span>}<span className={`rounded-full px-2 py-0.5 font-utility text-micro font-semibold ${STATUS[s.status][1]}`}>{STATUS[s.status][0]}</span></span>
               </li>
             ))}
@@ -684,12 +694,13 @@ function HotelMoney({ t, lang, property, openListing }) {
 
 /** The owner's team: add staff by their FoodTrip email, remove them when they leave. */
 function HotelTeam({ t, property, explain }) {
-  const [team, setTeam] = useState(null)
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const load = useCallback(() => { partner.getTeam(property.id).then(setTeam).catch(() => setTeam([])) }, [property.id])
-  useEffect(load, [load])
+  const fetchTeam = useCallback(() => partner.getTeam(property.id), [property.id])
+  const resource = usePortalResource(property.id, fetchTeam)
+  const team = resource.data
+  const load = resource.reload
   async function run(fn) {
     setBusy(true); setError('')
     try { await fn(); load(); setEmail('') } catch (err) { setError(explainTeam(err, t) ?? explain(err)) }
@@ -699,11 +710,11 @@ function HotelTeam({ t, property, explain }) {
     <PortalCard title={t('Nhân sự', 'Team')}>
       <p className="mb-4 text-sm text-ink-muted">{t('Nhân viên xem và xử lý đơn đặt phòng (xác nhận, nhận phòng, trả phòng), nhưng không sửa giá, hồ sơ hay tài khoản nhận tiền và không xem doanh thu.', 'Staff see and handle bookings (confirm, check in, check out) but cannot change prices, the profile or the payout account, nor see revenue.')}</p>
       <form className="mb-4 flex flex-wrap gap-2" onSubmit={(e) => { e.preventDefault(); run(() => partner.setStaff(property.id, email, true)) }}>
-        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('Email tài khoản FoodTrip của nhân viên', 'Staff member’s FoodTrip email')} className={`${INPUT} max-w-[340px]`} />
-        <button type="submit" disabled={busy} className={PRIMARY_SM}>{t('Thêm nhân viên', 'Add staff')}</button>
+        <input type="email" required disabled={busy || resource.status !== 'ready'} aria-label={t('Email tài khoản FoodTrip của nhân viên', 'Staff member’s FoodTrip email')} value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('Email tài khoản FoodTrip của nhân viên', 'Staff member’s FoodTrip email')} className={`${INPUT} max-w-[340px]`} />
+        <button type="submit" disabled={busy || resource.status !== 'ready'} className={PRIMARY_SM}>{t('Thêm nhân viên', 'Add staff')}</button>
       </form>
       {error && <p role="alert" className="mb-3 text-sm text-chili">{error}</p>}
-      {team == null ? <Spinner label="…" /> : (
+      {resource.status !== 'ready' ? <PortalLoadState status={resource.status} onRetry={load} /> : (
         <ul className="divide-y divide-line">
           {team.map((m) => (
             <li key={m.user_id} className="flex items-center justify-between gap-2 py-2.5 text-sm">

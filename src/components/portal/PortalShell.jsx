@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router-dom'
+import { selectedSection } from '../../lib/portalView.js'
 
 /**
  * The frame of a partner portal (hotel or tour operator), the way Agoda's
@@ -12,27 +13,27 @@ import { useSearchParams } from 'react-router-dom'
 export default function PortalShell({ eyebrow, title, subtitle, switcher, actions, sections, defaultSection, children }) {
   const [params, setParams] = useSearchParams()
   const wanted = params.get('tab')
-  const current = sections.some((s) => s.id === wanted) ? wanted : (defaultSection ?? sections[0]?.id)
-  const open = (id) => setParams((p) => { const next = new URLSearchParams(p); next.set('tab', id); return next }, { replace: true })
+  const current = selectedSection(sections, wanted, defaultSection)
+  const open = (id) => { if (sections.some((s) => s.id === id)) setParams((p) => { const next = new URLSearchParams(p); next.set('tab', id); return next }) }
 
   return (
-    <div className="mx-auto max-w-[1280px] px-5 py-10 md:px-8 md:py-12">
+    <div className="portal-workspace mx-auto max-w-[1280px] px-5 py-10 md:px-8 md:py-12">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
           {eyebrow && <span className="eyebrow eyebrow-tick">{eyebrow}</span>}
-          <h1 className="mt-2 truncate text-2xl font-bold leading-tight md:text-3xl">{title}</h1>
+          <h1 className="mt-2 break-words text-2xl font-bold leading-tight md:text-3xl">{title}</h1>
           {subtitle && <p className="mt-1 text-sm text-ink-muted">{subtitle}</p>}
         </div>
-        <div className="flex flex-wrap items-center gap-2">{switcher}{actions}</div>
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 [&_select]:max-w-full">{switcher}{actions}</div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <nav aria-label={title} className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5 lg:sticky lg:top-24 lg:mx-0 lg:flex-col lg:self-start lg:overflow-visible lg:px-0">
+        <nav aria-label={title} className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5 lg:sticky lg:top-24 lg:mx-0 lg:max-h-[calc(100dvh-112px)] lg:flex-col lg:self-start lg:overflow-y-auto lg:px-0">
           {sections.map(({ id, label, icon: Icon, badge }) => {
             const active = id === current
             return (
-              <button key={id} type="button" onClick={() => open(id)} aria-current={active ? 'page' : undefined}
-                className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left font-utility text-sm font-semibold transition-colors ${active ? 'bg-ink text-paper' : 'text-ink-muted hover:bg-paper-2 hover:text-ink'}`}>
+              <button key={id} type="button" onClick={() => open(id)} aria-current={active ? 'page' : undefined} aria-controls="portal-content"
+                className={`flex min-h-11 shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left font-utility text-sm font-semibold transition-colors ${active ? 'bg-ink text-paper' : 'text-ink-muted hover:bg-paper-2 hover:text-ink'}`}>
                 {Icon && <Icon size={17} weight={active ? 'fill' : 'regular'} />}
                 <span className="whitespace-nowrap lg:flex-1">{label}</span>
                 {badge ? <span className={`rounded-full px-1.5 py-0.5 text-micro font-bold ${active ? 'bg-paper text-ink' : 'bg-chili text-chili-ink'}`}>{badge}</span> : null}
@@ -40,7 +41,7 @@ export default function PortalShell({ eyebrow, title, subtitle, switcher, action
             )
           })}
         </nav>
-        <div className="min-w-0">{children(current, open)}</div>
+        <section id="portal-content" aria-label={sections.find((s) => s.id === current)?.label} className="min-w-0">{children(current, open)}</section>
       </div>
     </div>
   )

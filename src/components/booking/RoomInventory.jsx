@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createRoom, updateRoom, resetRoomDates, inventoryError, listRooms, listRoomDates, saveRoomDates } from '../../lib/inventory.js'
 import { vietnamToday } from '../../lib/partner.js'
+import { usePortalResource } from '../../hooks/usePortalResource.js'
+import PortalLoadState from '../portal/PortalLoadState.jsx'
 
 const INPUT = 'mt-1 w-full rounded-xl border border-line-strong bg-paper px-3 py-2'
 const BUTTON = 'rounded-full bg-chili px-4 py-2 font-utility text-sm text-chili-ink disabled:opacity-50'
 
-export default function RoomInventory({ property, onSaved }) {
+export default function RoomInventory({ property, onSaved, onOpenListing }) {
   const [rooms, setRooms] = useState([])
   const [revision, setRevision] = useState(0)
   const [state, setState] = useState('loading')
@@ -19,15 +21,16 @@ export default function RoomInventory({ property, onSaved }) {
       .catch((e) => { if (active) { setError(inventoryError(e)); setState('error') } })
     return () => { active = false }
   }, [property.id, revision])
-  const owner = property.role === 'owner'
+  const owner = property.role === 'owner' && property.active === true
   async function act(fn, success) {
     setState('saving'); setError(''); setMessage('')
     try { await fn(); setMessage(success); setRevision((n) => n + 1); onSaved?.() }
     catch (e) { setError(inventoryError(e)); setState('ready') }
   }
   return <section className="space-y-4 rounded-2xl border border-line bg-surface p-5" aria-label="Kho phòng">
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">Kho phòng & giá theo ngày</h2><span className="text-sm text-herb">{property.inventory_enabled ? 'Đã bật kho phòng' : 'Chưa bật — đang giữ luồng đặt cũ'}</span></div>
+    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">Phòng & giá theo ngày</h2><span className="text-sm text-herb">{property.inventory_enabled ? 'Đã mở bán' : 'Chưa mở bán'}</span></div>
     <p className="text-sm text-ink-muted">Mỗi đơn đặt một phòng. Ngày trả phòng không chiếm kho. Đơn chờ thanh toán giữ phòng đến khi bị hủy; hãy theo dõi các đơn chưa thanh toán.</p>
+    {!owner && <p className="rounded-xl bg-paper-2 p-3 text-sm text-ink-muted">{property.active === true ? 'Bạn có quyền xem phòng và giá. Chỉ chủ cơ sở được chỉnh sửa.' : 'Cơ sở đang tạm khoá. Liên hệ FoodTrip để kiểm tra và mở lại quyền vận hành.'}</p>}
     {error && <p role="alert" className="text-chili">{error}</p>}{message && <p role="status" className="text-herb">{message}</p>}
     {state === 'loading' && <p role="status">Đang tải kho phòng…</p>}
     {state === 'error' && <button className={BUTTON} onClick={() => setRevision((n) => n + 1)}>Thử lại</button>}
@@ -38,23 +41,20 @@ export default function RoomInventory({ property, onSaved }) {
     </form>}
     {state === 'ready' && !rooms.length && <p className="text-sm text-ink-muted">Chưa có loại phòng. Chủ cơ sở có thể thêm loại phòng ở trên.</p>}
     {rooms.map((room) => <RoomDates key={`${room.id}-${revision}`} room={room} owner={owner} onSaved={() => setRevision((n) => n + 1)} />)}
-    {owner && !property.inventory_enabled && rooms.length > 0 && <p className="rounded-xl border border-line p-4 text-sm text-ink-muted">Mở bán bằng nút “Mở bán trên FoodTrip” trong mục “Hoàn thiện hồ sơ để mở bán” phía trên — sau khi hoàn thành đủ 6 mục (ảnh, tiện nghi, chính sách, phòng, tài khoản nhận tiền, điều khoản).</p>}
+    {owner && !property.inventory_enabled && rooms.length > 0 && <div className="rounded-xl border border-line p-4 text-sm text-ink-muted"><p>Tiếp theo, vào Hồ sơ cơ sở để hoàn thành ảnh, tiện nghi, chính sách, tài khoản nhận tiền và điều khoản, rồi bấm Mở bán.</p>{onOpenListing && <button type="button" className={`${BUTTON} mt-3`} onClick={onOpenListing}>Đến hồ sơ cơ sở →</button>}</div>}
   </section>
 }
 
 function RoomDates({ room, owner, onSaved }) {
   const [form, setForm] = useState({ start: vietnamToday(), end: vietnamToday(), quantity: room.quantity, price: room.nightly_price })
   const [settings, setSettings] = useState({ name: room.name, capacity: room.capacity, quantity: room.quantity, price: room.nightly_price, active: room.active })
-  const [days, setDays] = useState([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [tick, setTick] = useState(0)
-  useEffect(() => {
-    let active = true
-    listRoomDates(room.id, vietnamToday()).then((rows) => { if (active) setDays(rows) }).catch((e) => { if (active) setError(inventoryError(e)) })
-    return () => { active = false }
-  }, [room.id, tick])
+  const loadDates = useCallback(() => listRoomDates(room.id, vietnamToday()), [room.id])
+  const datesResource = usePortalResource(`${room.id}:${tick}`, loadDates)
+  const days = datesResource.data ?? []
   async function submit(e) {
     e.preventDefault(); setBusy(true); setError(''); setMessage('')
     try { await saveRoomDates(room.id, form); setTick((n) => n + 1); setMessage('Đã cập nhật lịch bán phòng.') } catch (e) { setError(inventoryError(e)) }
@@ -89,6 +89,6 @@ function RoomDates({ room, owner, onSaved }) {
     </form>}
     {error && <p role="alert" className="mt-3 text-chili">{error}</p>}{message && <p role="status" className="mt-3 text-herb">{message}</p>}
     <p className="my-3 text-sm text-ink-muted">Ngày không có trong bảng dùng giá và số lượng mặc định. Số mở bán là tổng hạn mức, chưa trừ đơn đã giữ.</p>
-    <div className="max-h-64 overflow-auto"><table className="w-full text-left text-sm"><thead><tr><th>Ngày</th><th>Mở bán</th><th>Giá / đêm</th></tr></thead><tbody>{days.map((d) => <tr key={d.stay_date}><td>{d.stay_date}</td><td>{d.quantity}</td><td>{Number(d.nightly_price).toLocaleString('vi-VN')}đ</td></tr>)}</tbody></table></div>
+    {datesResource.status !== 'ready' ? <PortalLoadState status={datesResource.status} onRetry={datesResource.reload} /> : days.length ? <div className="max-h-64 overflow-auto"><table className="w-full text-left text-sm"><thead><tr><th scope="col">Ngày</th><th scope="col">Mở bán</th><th scope="col">Giá / đêm</th></tr></thead><tbody>{days.map((d) => <tr key={d.stay_date}><td>{d.stay_date}</td><td>{d.quantity}</td><td>{Number(d.nightly_price).toLocaleString('vi-VN')}đ</td></tr>)}</tbody></table></div> : <p className="text-sm text-ink-muted">Chưa có ngày điều chỉnh riêng. Các ngày dùng giá và số phòng mặc định của loại phòng.</p>}
   </details>
 }

@@ -17,10 +17,11 @@ export default function RequireAccess({ capability = 'account', children }) {
   const error = authError || (user && access.status === 'error')
   return <section className="mx-auto max-w-2xl px-5 py-16 text-center">
     <h1 className="text-3xl font-bold">{error ? t('Chưa kiểm tra được quyền', 'Could not verify access') : !user ? t('Đăng nhập để sử dụng chức năng này', 'Sign in to use this feature') : t('Tài khoản chưa có quyền truy cập', 'This account does not have access')}</h1>
-    <p className="mt-4 text-ink-muted">{t('Bạn có thể xem chức năng của từng vai trò trong bảng quyền truy cập.', 'See what each role can do in the access guide.')}</p>
+    <p className="mt-4 text-ink-muted">{!user ? t('Đăng nhập xong, bạn sẽ tiếp tục tại trang này. Bạn có thể dùng cùng một tài khoản cho chuyến đi và công việc được phân công.', 'After signing in, you will continue on this page. The same account supports your travels and assigned work.') : t('Chọn khu vực làm việc được phân công hoặc kiểm tra quyền của tài khoản.', 'Choose an assigned workspace or check your account access.')}</p>
     <div className="mt-6 flex flex-wrap justify-center gap-4">
       {error ? <button className="rounded-full bg-chili px-5 py-3 text-chili-ink" onClick={() => authError ? window.location.reload() : access.refresh()}>{t('Thử lại', 'Retry')}</button> : !user && hasAuth && <button className="rounded-full bg-chili px-5 py-3 text-chili-ink" onClick={() => setAuthOpen(true)}>{t('Đăng nhập / Đăng ký', 'Sign in / Sign up')}</button>}
       <Link className="rounded-full border border-line px-5 py-3" to="/permissions">{t('Vai trò & quyền truy cập', 'Roles & permissions')}</Link>
+      <Link className="rounded-full border border-line px-5 py-3" to={user ? '/account' : '/explore'}>{user ? t('Tài khoản & công việc', 'Account & workspaces') : t('Tiếp tục khám phá', 'Continue exploring')}</Link>
     </div>
     {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
   </section>

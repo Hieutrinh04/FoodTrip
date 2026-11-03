@@ -3,6 +3,8 @@ import { ArrowDown, ArrowUp, CaretDown, CheckCircle, Circle, ImageSquare, MapPin
 import * as partner from '../../lib/partner.js'
 import { enableInventory } from '../../lib/inventory.js'
 import Spinner from '../ui/Spinner.jsx'
+import { usePortalResource } from '../../hooks/usePortalResource.js'
+import PortalLoadState from '../portal/PortalLoadState.jsx'
 
 const LocationPicker = lazy(() => import('../map/LocationPicker.jsx'))
 
@@ -26,20 +28,19 @@ const draftOf = (p) => ({
  */
 export default function ListingEditor({ property, t, lang, explain, onSaved, onOpenRooms }) {
   const [draft, setDraft] = useState(() => draftOf(property))
-  const [ready, setReady] = useState(null)
-  const [terms, setTerms] = useState(null)
-  const [payout, setPayout] = useState(null)
+  const load = useCallback(async () => {
+    const [ready, terms, payout] = await Promise.all([partner.getReadiness(property.id), partner.getCurrentTerms(), partner.getPayout(property.id)])
+    return { ready, terms, payout }
+  }, [property.id])
+  const resource = usePortalResource(property.id, load)
+  const { ready, terms, payout } = resource.data ?? {}
   const [payoutForm, setPayoutForm] = useState({ bank: '', account: '', holder: '' })
   const [open, setOpen] = useState(null)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
 
-  const refresh = useCallback(() => {
-    partner.getReadiness(property.id).then(setReady).catch(() => setReady({}))
-    partner.getPayout(property.id).then(setPayout).catch(() => setPayout(null))
-  }, [property.id])
-  useEffect(() => { setDraft(draftOf(property)); refresh() }, [property, refresh])
-  useEffect(() => { partner.getCurrentTerms().then(setTerms).catch(() => setTerms(null)) }, [])
+  const refresh = resource.reload
+  useEffect(() => { setDraft(draftOf(property)) }, [property])
 
   async function run(key, fn) {
     setBusy(key); setError('')
@@ -75,6 +76,8 @@ export default function ListingEditor({ property, t, lang, explain, onSaved, onO
   ]
   const done = ready ? items.filter((i) => ready[i.key]).length : 0
   const allDone = ready && done === items.length
+
+  if (resource.status !== 'ready') return <PortalLoadState status={resource.status} onRetry={refresh} />
 
   return (
     <section className="rounded-2xl border border-line bg-surface p-5">
@@ -219,7 +222,7 @@ export default function ListingEditor({ property, t, lang, explain, onSaved, onO
                             <div><button type="button" disabled={Boolean(busy)} onClick={() => run('terms', () => partner.acceptTerms(property.id, terms.version))} className={SAVE}>{t('Tôi đồng ý điều khoản', 'I accept the terms')}</button></div>
                           </div>
                         )
-                        : <Spinner label={t('Đang tải điều khoản…', 'Loading the terms…')} />
+                        : <p role="status" className="text-sm text-ink-muted">{t('Chưa có điều khoản được công bố. Vui lòng liên hệ FoodTrip.', 'No terms have been published. Please contact FoodTrip.')}</p>
                   )}
                 </div>
               )}
