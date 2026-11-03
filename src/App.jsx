@@ -12,6 +12,7 @@ import RecoveryRedirect from './auth/RecoveryRedirect.jsx'
 const Landing = lazy(() => import('./pages/Landing.jsx'))
 const Explore = lazy(() => import('./pages/Explore.jsx'))
 const PlaceDetail = lazy(() => import('./pages/PlaceDetail.jsx'))
+const CityPage = lazy(() => import('./pages/CityPage.jsx'))
 const Planner = lazy(() => import('./pages/Planner.jsx'))
 const ShareVideo = lazy(() => import('./pages/ShareVideo.jsx'))
 const Community = lazy(() => import('./pages/Community.jsx'))
@@ -55,6 +56,7 @@ function App() {
                 <Route path="/" element={<Landing />} />
                 <Route path="/explore" element={<Explore />} />
                 <Route path="/place/:id" element={<PlaceDetail />} />
+                <Route path="/thanh-pho/:cityId" element={<CityPage />} />
                 <Route path="/plan" element={<Planner />} />
                 <Route path="/nearby" element={<NearbyEats />} />
                 <Route path="/trips" element={<RequireAccess><SavedTrips /></RequireAccess>} />

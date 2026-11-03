@@ -19,8 +19,25 @@ export default function Layout() {
 
   useEffect(() => {
     mainRef.current?.focus()
-    window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' })
-  }, [location.pathname])
+    const behavior = 'instant' in window ? 'instant' : 'auto'
+    const id = location.hash.slice(1)
+    if (!id) {
+      window.scrollTo({ top: 0, behavior })
+      return undefined
+    }
+    // "/#thanh-pho": land on that section. Pages load lazily, so the target may
+    // appear a few frames after the route changes; give it up to two seconds.
+    let frame = 0
+    const started = performance.now()
+    const seek = () => {
+      const target = document.getElementById(decodeURIComponent(id))
+      if (target) target.scrollIntoView({ behavior })
+      else if (performance.now() - started < 2000) frame = requestAnimationFrame(seek)
+      else window.scrollTo({ top: 0, behavior })
+    }
+    seek()
+    return () => cancelAnimationFrame(frame)
+  }, [location.pathname, location.hash])
 
   return (
     <div className={`min-h-dvh flex flex-col relative z-10 ${guestBar ? 'pb-36 md:pb-24' : ''}`}>

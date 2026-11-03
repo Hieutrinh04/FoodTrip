@@ -8,7 +8,7 @@ export function matchesCatalogQuery(place, query) {
   return !needle || plain([place.name?.vi, place.name?.en, place.address?.vi, place.address?.en, place.shortDesc?.vi, place.shortDesc?.en].filter(Boolean).join(' ')).includes(needle)
 }
 
-function cityIdOf(row) {
+export function cityIdOf(row) {
   const text = ` ${plain(row.city || row.address || '')} `
   if (/\b(sai gon|ho chi minh|hcmc|tphcm)\b/.test(text)) return 'hcmc'
   return CITIES.find((c) => [c.id, c.name.vi, c.name.en].some((name) => text.includes(` ${plain(name)} `)))?.id ?? null

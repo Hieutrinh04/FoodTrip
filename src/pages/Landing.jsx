@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
@@ -9,6 +10,7 @@ import ExpandingCards from '../components/ui/expanding-cards.jsx'
 import CountUp from '../components/ui/CountUp.jsx'
 import ItineraryTicket from '../components/ticket/ItineraryTicket.jsx'
 import { CITIES, ITINERARY_TEMPLATES } from '../data/destinations.js'
+import { fetchCityCounts } from '../lib/cityStats.js'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import { fadeUp, staggerContainer, viewportOnce } from '../motion/variants.js'
 
@@ -47,6 +49,8 @@ const C = {
     ticketCta: 'Tự tạo lịch trình của bạn',
     destEyebrow: 'Địa điểm nổi bật',
     destTitle: 'Đi đâu cũng có quán để mê.',
+    allCitiesTitle: 'FoodTrip ở các thành phố',
+    kept: (n) => `${n.toLocaleString('vi-VN')} địa điểm đã lưu`,
     reviewsEyebrow: 'Đánh giá & lưu địa điểm',
     reviewsTitle: 'Xem thông tin, lưu nơi bạn thích.',
     reviewsSub: 'Xem nguồn đánh giá khi có dữ liệu và lưu địa điểm vào tài khoản để tìm lại sau.',
@@ -89,6 +93,8 @@ const C = {
     ticketCta: 'Build your own itinerary',
     destEyebrow: 'Featured destinations',
     destTitle: 'Wherever you go, there’s something to fall for.',
+    allCitiesTitle: 'FoodTrip city by city',
+    kept: (n) => `${n.toLocaleString('en-US')} kept place${n > 1 ? 's' : ''}`,
     reviewsEyebrow: 'Reviews & saved places',
     reviewsTitle: 'Explore information, save your favourites.',
     reviewsSub: 'Check review sources where data is available and save places to your account for later.',
@@ -112,6 +118,14 @@ export default function Landing() {
   const { lang } = useLanguage()
   const c = C[lang]
 
+  // Real kept-venue counts per city; no figure is shown until they arrive, or if they cannot.
+  const [counts, setCounts] = useState(null)
+  useEffect(() => {
+    let live = true
+    fetchCityCounts().then((result) => { if (live) setCounts(result) })
+    return () => { live = false }
+  }, [])
+
   const hoianCity = CITIES.find((ci) => ci.id === 'hoian')
   const hoianDays = ITINERARY_TEMPLATES.hoian
 
@@ -121,7 +135,7 @@ export default function Landing() {
     tagline: city.tagline[lang],
     image: CITY_VISUALS[city.id].image,
     icon: CITY_VISUALS[city.id].icon,
-    linkHref: `/explore?city=${city.id}`,
+    linkHref: `/thanh-pho/${city.id}`,
   }))
 
   return (
@@ -231,6 +245,20 @@ export default function Landing() {
           <motion.div initial="hidden" whileInView="show" viewport={viewportOnce} variants={fadeUp}>
             <ExpandingCards items={cityCards} defaultActiveIndex={0} />
           </motion.div>
+
+          <h3 id="thanh-pho" className="mt-14 scroll-mt-24 text-xl font-bold">{c.allCitiesTitle}</h3>
+          <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {CITIES.map((city) => (
+              <li key={city.id}>
+                <Link to={`/thanh-pho/${city.id}`} className="group relative isolate flex h-32 flex-col justify-end overflow-hidden rounded-xl p-3 text-white">
+                  <img src={city.image} alt="" loading="lazy" className="absolute inset-0 -z-10 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                  <span className="absolute inset-0 -z-10 bg-gradient-to-t from-[#17130f]/85 to-[#17130f]/10" />
+                  <span className="font-bold leading-tight">{city.name[lang]}</span>
+                  {counts?.[city.id] > 0 && <span className="mt-0.5 font-utility text-2xs font-semibold text-white/85">{c.kept(counts[city.id])}</span>}
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

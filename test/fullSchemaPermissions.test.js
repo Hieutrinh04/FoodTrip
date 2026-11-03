@@ -145,6 +145,20 @@ test('all migrations on one schema: tenants, roles and private data', async (t) 
       assert.equal((await rows('select public.shared_itinerary($1) as trip', [sharedTrip]))[0].trip, null, 'revocation also applies to another authenticated account')
     })
 
+    await t.test('city counts are public numbers, not a way into the venue store', async () => {
+      await db.exec('reset role')
+      await db.query(`insert into public.known_places(place_id,name,core,address,city,lat,lng,category,source)
+        values('gid-1','Phở A','pho a','1 Phố','Hà Nội',21,105,'Quán phở','confirmed'),('gid-2','Bún B','bun b','2 Phố','Hà Nội',21,105,'Quán bún','confirmed'),
+              ('gid-3','Hotel C','hotel c','3 Phố','Hà Nội',21,105,'Hotel','confirmed'),('map:x','Ghost','ghost','4 Phố','Hà Nội',21,105,null,'confirmed'),
+              ('gid-4','Cơm D','com d','5 Phố','Huế',16,107,'Quán cơm','confirmed'),('gid-5','No city','no city','6 Phố',null,16,107,'Quán','confirmed')`)
+      for (const who of [null, 'customer']) {
+        await as(who)
+        const counts = Object.fromEntries((await rows('select city, places::int as n from public.place_city_counts()')).map((r) => [r.city, r.n]))
+        assert.deepEqual(counts, { 'Hà Nội': 2, 'Huế': 1 }, 'hotels, map placeholders and rows without a city are not counted')
+        await denied('select place_id from public.known_places')
+      }
+    })
+
     await t.test('community: only the author or an admin removes a post', async () => {
       await as('customer')
       const [{ id: post }] = await rows("insert into public.community_posts(author_name,body,place_name,address,lat,lng) values('An','Hello','Quan A','1 Pho',21,105) returning id")

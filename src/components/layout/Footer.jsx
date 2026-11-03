@@ -14,7 +14,7 @@ const CONTENT = {
     newsletterError: 'Có lỗi xảy ra, thử lại nhé.',
     newsletterDuplicate: 'Email này đã đăng ký rồi.',
     cols: [
-      { title: 'Sản phẩm', links: [{ to: '/explore', label: 'Khám phá' }, { to: '/plan', label: 'Lịch trình' }, { to: '/community', label: 'Cộng đồng du lịch' }] },
+      { title: 'Sản phẩm', links: [{ to: '/explore', label: 'Khám phá' }, { to: '/#thanh-pho', label: 'Các thành phố' }, { to: '/plan', label: 'Lịch trình' }, { to: '/community', label: 'Cộng đồng du lịch' }] },
       { title: 'Công ty', links: [{ to: '/about', label: 'Về chúng tôi' }, { to: '/blog', label: 'Blog ẩm thực' }, { to: '/hop-tac', label: 'Hợp tác với FoodTrip' }] },
       { title: 'Hỗ trợ', links: [{ to: '/help', label: 'Trung tâm trợ giúp' }, { to: '/permissions', label: 'Vai trò & quyền truy cập' }, { to: '/contact', label: 'Liên hệ' }, { to: '/terms', label: 'Điều khoản' }, { to: '/privacy', label: 'Quyền riêng tư' }] },
     ],
@@ -27,7 +27,7 @@ const CONTENT = {
     newsletterError: 'Something went wrong — please try again.',
     newsletterDuplicate: 'That email is already subscribed.',
     cols: [
-      { title: 'Product', links: [{ to: '/explore', label: 'Explore' }, { to: '/plan', label: 'Itinerary' }, { to: '/community', label: 'Travel community' }] },
+      { title: 'Product', links: [{ to: '/explore', label: 'Explore' }, { to: '/#thanh-pho', label: 'Cities' }, { to: '/plan', label: 'Itinerary' }, { to: '/community', label: 'Travel community' }] },
       { title: 'Company', links: [{ to: '/about', label: 'About us' }, { to: '/blog', label: 'Food blog' }, { to: '/hop-tac', label: 'Partner with FoodTrip' }] },
       { title: 'Support', links: [{ to: '/help', label: 'Help center' }, { to: '/permissions', label: 'Roles & permissions' }, { to: '/contact', label: 'Contact' }, { to: '/terms', label: 'Terms' }, { to: '/privacy', label: 'Privacy' }] },
     ],
