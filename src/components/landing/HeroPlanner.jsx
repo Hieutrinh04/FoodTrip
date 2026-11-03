@@ -13,7 +13,7 @@ const C = {
     budget: 'Ngân sách / người', budgetV: '1.500.000đ',
     people: 'Số người', peopleV: '2 người',
     chips: ['Hải sản', 'Cà phê', 'Phố cổ & check-in', 'Ăn chay', 'Xe máy', 'Ô tô riêng'],
-    note: 'AI sẽ kiểm tra giờ mở cửa & khoảng cách thực tế giữa các điểm.',
+    note: 'Gợi ý dùng thông tin giờ mở cửa và tuyến đường khi có dữ liệu; hãy kiểm tra lại trước khi đi.',
     cta: 'Tạo lịch trình',
   },
   en: {
@@ -22,7 +22,7 @@ const C = {
     budget: 'Budget / person', budgetV: '1,500,000đ',
     people: 'People', peopleV: '2 people',
     chips: ['Seafood', 'Coffee', 'Old town & photos', 'Vegetarian', 'Motorbike', 'Private car'],
-    note: 'Our AI checks real opening hours & distances between stops.',
+    note: 'Suggestions use opening hours and routes when available; check again before travelling.',
     cta: 'Plan my trip',
   },
 }

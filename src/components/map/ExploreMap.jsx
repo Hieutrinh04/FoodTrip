@@ -10,13 +10,13 @@ import { useLanguage } from '../../i18n/LanguageContext.jsx'
 
 const COPY = {
   vi: {
-    noKey: 'Cần cấu hình Track-Asia API key để hiển thị bản đồ khám phá.',
+    noKey: 'Bản đồ khám phá tạm thời chưa khả dụng. Bạn vẫn có thể xem danh sách địa điểm.',
     empty: 'Không có địa điểm đủ dữ liệu tọa độ để hiển thị.',
     loading: 'Đang định vị các địa điểm…',
     you: 'Vị trí của bạn',
   },
   en: {
-    noKey: 'A Track-Asia API key is required to show the explore map.',
+    noKey: 'The explore map is temporarily unavailable. You can still browse the place list.',
     empty: 'No places have enough location data to display.',
     loading: 'Locating places…',
     you: 'Your location',

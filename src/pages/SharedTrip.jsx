@@ -84,6 +84,7 @@ export default function SharedTrip() {
         <EmptyState
           icon={LinkBreak}
           title={c.notFoundTitle}
+          headingAs="h1"
           body={c.notFound}
           action={(
             <Link to="/plan" className="inline-flex items-center gap-2 rounded-full bg-chili px-6 py-[13px] font-utility text-md font-semibold text-chili-ink shadow-soft transition-shadow hover:shadow-lifted">

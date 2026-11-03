@@ -14,9 +14,9 @@ const CONTENT = {
     newsletterError: 'Có lỗi xảy ra, thử lại nhé.',
     newsletterDuplicate: 'Email này đã đăng ký rồi.',
     cols: [
-      { title: 'Sản phẩm', links: [{ to: '/explore', label: 'Khám phá' }, { to: '/plan', label: 'Lịch trình AI' }, { to: '/community', label: 'Cộng đồng du lịch' }] },
+      { title: 'Sản phẩm', links: [{ to: '/explore', label: 'Khám phá' }, { to: '/plan', label: 'Lịch trình' }, { to: '/community', label: 'Cộng đồng du lịch' }] },
       { title: 'Công ty', links: [{ to: '/about', label: 'Về chúng tôi' }, { to: '/blog', label: 'Blog ẩm thực' }, { to: '/hop-tac', label: 'Hợp tác với FoodTrip' }] },
-      { title: 'Hỗ trợ', links: [{ to: '/help', label: 'Trung tâm trợ giúp' }, { to: '/permissions', label: 'Vai trò & quyền truy cập' }, { to: '/contact', label: 'Liên hệ' }, { to: '/terms', label: 'Điều khoản' }] },
+      { title: 'Hỗ trợ', links: [{ to: '/help', label: 'Trung tâm trợ giúp' }, { to: '/permissions', label: 'Vai trò & quyền truy cập' }, { to: '/contact', label: 'Liên hệ' }, { to: '/terms', label: 'Điều khoản' }, { to: '/privacy', label: 'Quyền riêng tư' }] },
     ],
     bottom: '© 2026 FoodTrip. Made with vị giác tại Việt Nam.',
   },
@@ -27,11 +27,11 @@ const CONTENT = {
     newsletterError: 'Something went wrong — please try again.',
     newsletterDuplicate: 'That email is already subscribed.',
     cols: [
-      { title: 'Product', links: [{ to: '/explore', label: 'Explore' }, { to: '/plan', label: 'AI Itinerary' }, { to: '/community', label: 'Travel community' }] },
+      { title: 'Product', links: [{ to: '/explore', label: 'Explore' }, { to: '/plan', label: 'Itinerary' }, { to: '/community', label: 'Travel community' }] },
       { title: 'Company', links: [{ to: '/about', label: 'About us' }, { to: '/blog', label: 'Food blog' }, { to: '/hop-tac', label: 'Partner with FoodTrip' }] },
-      { title: 'Support', links: [{ to: '/help', label: 'Help center' }, { to: '/permissions', label: 'Roles & permissions' }, { to: '/contact', label: 'Contact' }, { to: '/terms', label: 'Terms' }] },
+      { title: 'Support', links: [{ to: '/help', label: 'Help center' }, { to: '/permissions', label: 'Roles & permissions' }, { to: '/contact', label: 'Contact' }, { to: '/terms', label: 'Terms' }, { to: '/privacy', label: 'Privacy' }] },
     ],
-    bottom: '© 2026 FoodTrip. Made with vị giác in Vietnam.',
+    bottom: '© 2026 FoodTrip. Made with a taste for Vietnam.',
   },
 }
 
@@ -89,7 +89,7 @@ export default function Footer() {
               <button
                 type="submit"
                 disabled={status === 'busy'}
-                aria-label="Đăng ký nhận tin"
+                aria-label={lang === 'vi' ? 'Đăng ký nhận tin' : 'Subscribe to updates'}
                 className="flex items-center justify-center w-11 h-11 shrink-0 rounded-full bg-chili text-chili-ink disabled:opacity-60"
               >
                 {status === 'success' ? <CheckCircle size={16} /> : <EnvelopeSimple size={16} />}

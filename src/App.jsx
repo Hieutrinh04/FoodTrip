@@ -33,6 +33,7 @@ const NotFound = lazy(() => import('./pages/NotFound.jsx'))
 const PasswordRecovery = lazy(() => import('./pages/PasswordRecovery.jsx'))
 const TourPage = lazy(() => import('./pages/TourPage.jsx'))
 const Permissions = lazy(() => import('./pages/Permissions.jsx'))
+const Account = lazy(() => import('./pages/Account.jsx'))
 
 function PageFallback() {
   return <div role="status" className="mx-auto max-w-[1180px] px-5 py-16 text-center font-utility text-sm text-ink-muted">Đang tải… / Loading…</div>
@@ -73,7 +74,9 @@ function App() {
                 <Route path="/help" element={<InfoPage page="help" />} />
                 <Route path="/contact" element={<InfoPage page="contact" />} />
                 <Route path="/terms" element={<InfoPage page="terms" />} />
+                <Route path="/privacy" element={<InfoPage page="privacy" />} />
                 <Route path="/permissions" element={<Permissions />} />
+                <Route path="/account" element={<RequireAccess><Account /></RequireAccess>} />
                 <Route path="/admin" element={<RequireAccess capability="admin"><Admin /></RequireAccess>} />
                 <Route path="/partner" element={<RequireAccess><Partner /></RequireAccess>} />
                 {/* Tours are chosen inside the planner and listed with the

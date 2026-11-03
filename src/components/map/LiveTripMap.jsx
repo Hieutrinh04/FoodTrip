@@ -12,7 +12,7 @@ import { useLanguage } from '../../i18n/LanguageContext.jsx'
 
 const C = {
   vi: {
-    noKey: 'Bản đồ trực tiếp cần cấu hình Track-Asia API key (xem .env.example).',
+    noKey: 'Bản đồ hành trình tạm thời chưa khả dụng. Bạn vui lòng thử lại sau.',
     noLocation: 'Chưa đủ dữ liệu vị trí thật để dựng bản đồ — thử tạo lại lịch trình.',
     mapError: 'Không thể tải bản đồ lúc này — vui lòng thử lại.',
     locate: 'Định vị tôi trên bản đồ',
@@ -27,7 +27,7 @@ const C = {
     preparing: 'Đang tải nền bản đồ và tuyến đường…',
   },
   en: {
-    noKey: 'Live map needs a Track-Asia API key configured (see .env.example).',
+    noKey: 'The trip map is temporarily unavailable. Please try again later.',
     noLocation: 'Not enough real location data to build the map — try regenerating the itinerary.',
     mapError: 'The map could not be loaded — please try again.',
     locate: 'Locate me on the map',

@@ -97,7 +97,7 @@ export default function TourPage() {
   if (state.status === 'error') {
     return (
       <div className="mx-auto max-w-[1180px] px-5 py-10 md:px-8">
-        <EmptyState icon={Compass} title={c.missing} body={c.missingHint}
+        <EmptyState icon={Compass} headingAs="h1" title={c.missing} body={c.missingHint}
           action={<Link to="/plan" className="inline-flex items-center gap-2 rounded-full bg-chili px-6 py-[13px] font-utility text-md font-semibold text-chili-ink">{c.back}</Link>} />
       </div>
     )

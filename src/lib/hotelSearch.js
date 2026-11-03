@@ -40,7 +40,7 @@ function simulatedPriceLevel(id) {
   return SIMULATED_BANDS[h % SIMULATED_BANDS.length]
 }
 
-// Bands for a *real* nightly rate in VND, so a hotel priced by Hotelbeds is
+// Bands for a provider reference nightly price in VND, so a hotel priced by Hotelbeds is
 // grouped against the trip budget on the same scale as an estimated one.
 function priceLevelForVnd(pricePerNight) {
   if (pricePerNight < 500_000) return 'PRICE_LEVEL_INEXPENSIVE'
@@ -70,10 +70,10 @@ function mapHotel(p) {
 
 /**
  * Shapes one hotel from the `hotel-availability` Edge Function, which merges
- * Hotelbeds (real rate, real room types) with Google Maps (photo, rating).
- * `priceSource` decides whether the price band is read off the real tariff or
+ * Hotelbeds (test reference prices and room data) with Google Maps (photo, rating).
+ * `priceSource` decides whether the price band is read off the provider test price or
  * still derived from the hotel id, so an estimate is never dressed up as a
- * quoted rate.
+ * bookable rate.
  */
 function mapLiveHotel(h) {
   const real = h.priceSource === 'hotelbeds' && h.priceFrom != null
@@ -232,7 +232,7 @@ export async function fetchHotelById(placeId) {
   }
 }
 
-// Bands, as shown on a hotel with no quoted rate. A hotel that *does* have one
+// Bands, as shown on a hotel with no bookable rate. A hotel that *does* have one
 // shows the rate itself instead, so these read as estimates without needing a
 // second qualifier next to them.
 export const PRICE_LEVEL_LABEL = {

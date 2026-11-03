@@ -6,8 +6,8 @@ import { hasMapsKey, loadMapStyle, mapRequestTransform } from '../../lib/trackAs
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
 
 const C = {
-  vi: { noKey: 'Cần cấu hình Track-Asia API key để xem bản đồ.' },
-  en: { noKey: 'A Track-Asia API key is required to show the map.' },
+  vi: { noKey: 'Bản đồ tạm thời chưa khả dụng. Bạn vui lòng thử lại sau.' },
+  en: { noKey: 'The map is temporarily unavailable. Please try again later.' },
 }
 
 function resolveCssColor(varName, fallback) {
