@@ -37,6 +37,8 @@
 .explore-selected-summary > button:first-child { position: absolute; top: 8px; right: 8px; padding: 6px; }
 .explore-mobile-toggle { display: none; }
 .explore-page :is(button,a,input,select):focus-visible { outline: 2px solid var(--chili); outline-offset: 3px; }
+/* Actual hit areas, including the 28px catalogue reload and map controls. */
+.explore-page :is(button, a[href], [role="button"]) { min-width: 32px; min-height: 32px; }
 @media (min-width: 1024px) {
   .explore-page { height: calc(100dvh - 72px); display: flex; flex-direction: column; overflow: hidden; }
   .explore-heading { flex-shrink: 0; }

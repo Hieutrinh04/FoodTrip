@@ -2,7 +2,7 @@
 
 # 🍜 FoodTrip
 
-**Nền tảng lên lịch trình du lịch ẩm thực Việt Nam, có AI hỗ trợ**
+**Nền tảng khám phá địa điểm và lên lịch trình du lịch ẩm thực Việt Nam**
 
 *Đồ án tốt nghiệp*
 
@@ -28,13 +28,13 @@ Dự án bao phủ trọn vòng đời sản phẩm: **phân tích yêu cầu �
 
 | Nhóm | Tính năng |
 |---|---|
-| 🗺️ **Lập lịch trình AI** | Wizard 6 bước, hoặc mô tả chuyến đi bằng ngôn ngữ tự nhiên để AI tự điền. Hệ thống dựng lịch trình theo khung giờ và chỉ gợi ý những nơi còn mở cửa ở khung giờ đó |
+| 🗺️ **Lập lịch trình** | Wizard 6 bước, hoặc mô tả chuyến đi để bộ đọc cục bộ gợi ý điền thông tin. Hệ thống dựng lịch trình theo khung giờ và dùng giờ mở cửa khi có dữ liệu; người dùng cần xác nhận lại trước khi đi |
 | 📊 **Chấm điểm địa điểm** | Mô hình **Weighted Sum**: `0.30×Sở thích + 0.25×Đánh giá + 0.20×Khoảng cách + 0.15×Ngân sách + 0.10×Độ phổ biến` |
 | 🧭 **Tối ưu tuyến đường** | Tối ưu thứ tự điểm đến trong ngày, coi như bài toán **TSP có ràng buộc khung giờ** (TSP with Time Windows), dựa trên khoảng cách đường bộ thực tế |
 | 🔎 **Khám phá** | Bản đồ quán ăn và địa điểm tại 12 thành phố, lọc theo loại món, giờ mở cửa, khoảng cách. Có xem 360° Street View |
 | 🎡 **Ăn gì bây giờ?** | Vòng quay chọn món, sau đó định vị và tìm quán gần nhất |
 | 🎬 **Video review** | Tự tìm video YouTube Shorts / TikTok review cho từng quán |
-| 🏨 **Đặt phòng & tour** | Xem giá phòng thực tế (Hotelbeds), quản lý tồn phòng, thanh toán qua **VNPay** / **SePay** |
+| 🏨 **Đặt phòng & tour** | Giá Hotelbeds là tham khảo từ môi trường thử nghiệm, chưa phải giá đặt được. Đối tác quản lý tồn phòng; luồng VNPay / SePay hỗ trợ chế độ thử theo cấu hình |
 | 🤝 **Đối tác** | Khách sạn và đơn vị tour tự đăng ký, đăng phòng, đăng tour, quản lý đơn |
 | 👥 **Cộng đồng** | Đăng bài kèm ảnh và vị trí trên bản đồ, bình luận |
 | 📍 **Chuyến đi trực tiếp** | Chia sẻ lịch trình qua link, phòng realtime để cả nhóm cùng theo dõi hành trình |
@@ -64,21 +64,21 @@ Dự án bao phủ trọn vòng đời sản phẩm: **phân tích yêu cầu �
 ```
 ┌─────────────────────┐      ┌──────────────────────────────────────┐
 │  React 19 + Vite    │      │  Supabase                            │
-│  (SPA, 22 trang)    │◄────►│  • PostgreSQL + Row Level Security   │
+│  (SPA, 25 module trang)    │◄────►│  • PostgreSQL + Row Level Security   │
 │                     │      │  • Auth, Storage, Realtime           │
-│  MapLibre GL        │      │  • 20 Edge Functions (Deno)          │
+│  MapLibre GL        │      │  • 22 Edge Functions (Deno)          │
 └─────────┬───────────┘      └───────────────┬──────────────────────┘
           │                                  │
           ▼                                  ▼
-   Track-Asia (bản đồ,              Claude API · Google Places · YouTube Data
+   Track-Asia (bản đồ,              Google Places · YouTube Data (Claude tuỳ chọn)
    tìm kiếm, chỉ đường)             Hotelbeds · VNPay · SePay
 ```
 
 - **Frontend:** React 19, React Router 7, Tailwind CSS 4, Framer Motion, MapLibre GL, Pannellum (ảnh 360°)
-- **Backend:** Supabase gồm PostgreSQL với **29 migration**, RLS cho mọi bảng và **20 Edge Functions**
+- **Backend:** Supabase gồm PostgreSQL với **47 migration**, RLS cho mọi bảng và **22 Edge Functions**
 - **AI / NLP:**
-  - Claude API phân tích yêu cầu chuyến đi viết bằng tiếng Việt
-  - Bộ dữ liệu NER tiếng Việt (~3.000 câu, nhãn `BUSINESS` / `LOC`) cùng notebook huấn luyện **PhoBERT** để nhận diện tên quán và địa danh trong phụ đề video
+  - Trợ lý hiện xử lý bằng quy tắc, FAQ và dữ liệu ứng dụng. Theo lần kiểm tra server đã ghi nhận: khóa Anthropic chưa cấu hình, mô hình tự train chưa triển khai. Việc có code tích hợp không có nghĩa mô hình đang chạy.
+  - Mục tiêu huấn luyện trợ lý là **PhoBERT intent + BIO slots** và bộ tìm FAQ (`ml/assistant`); notebook và tập dữ liệu đã có, chưa có xác nhận triển khai trọng số. Pipeline NER tên quán/địa danh trong phụ đề video là phần riêng (`ml/training`). Phần thử fine-tune sinh câu trả lời chưa được bật trên web.
 - **Tích hợp:** Track-Asia, Google Places, YouTube Data API, Hotelbeds, VNPay (sandbox), SePay
 
 ---
@@ -94,9 +94,9 @@ src/
 ├── data/             # Dữ liệu mẫu 12 thành phố
 └── i18n/             # Đa ngôn ngữ VI / EN
 supabase/
-├── migrations/       # 29 file migration (schema, RLS, booking, tour, partner...)
-└── functions/        # 20 Edge Functions (parse-trip-request, hotel-availability, vnpay-*, sepay-*...)
-ml/                   # Bộ dữ liệu NER + notebook huấn luyện PhoBERT
+├── migrations/       # 47 file migration (schema, RLS, booking, tour, partner...)
+└── functions/        # 22 Edge Functions (parse-trip-request, hotel-availability, vnpay-*, sepay-*...)
+ml/                   # Trợ lý PhoBERT intent + slots, FAQ và pipeline NER video riêng
 scripts/              # Script thu thập dữ liệu địa điểm, phụ đề YouTube
 test/                 # Kiểm thử (node --test) và tài liệu kiểm thử
 ```
@@ -113,7 +113,7 @@ cp .env.example .env.local   # điền các API key cần thiết
 npm run dev                  # http://localhost:5173
 ```
 
-Thiếu API key thì ứng dụng vẫn chạy với dữ liệu mẫu, nhưng một số tính năng sẽ bị tắt (bản đồ, giá phòng thật, thanh toán). Hướng dẫn chi tiết cho từng key có trong [`.env.example`](.env.example).
+Thiếu API key thì ứng dụng vẫn chạy với dữ liệu mẫu, nhưng một số tính năng sẽ bị tắt (bản đồ, giá tham khảo nhà cung cấp, thanh toán). Hướng dẫn chi tiết cho từng key có trong [`.env.example`](.env.example).
 
 | Lệnh | Mục đích |
 |---|---|

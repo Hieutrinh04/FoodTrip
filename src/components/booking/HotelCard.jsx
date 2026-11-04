@@ -12,14 +12,14 @@ const C = {
   vi: {
     reviews: (n) => `${n} đánh giá`, selectHotel: 'Chọn khách sạn này', selected: 'Đã chọn',
     from: 'Từ', perNight: '/đêm', stars: (n) => `${n} sao`,
-    estimated: 'giá ước tính', liveRate: 'giá thật',
+    estimated: 'giá ước tính', liveRate: 'giá tham khảo từ nhà cung cấp — chưa phải giá đặt được', partnerRate: 'giá do cơ sở cung cấp',
     viewRooms: 'Xem phòng & đặt', viewInfo: 'Xem thông tin', roomCount: (n) => `${n} loại phòng`,
     bookable: 'Đặt ngay trên FoodTrip', reference: 'Tham khảo — đặt ở nơi khác',
   },
   en: {
     reviews: (n) => `${n} reviews`, selectHotel: 'Select this hotel', selected: 'Selected',
     from: 'From', perNight: '/night', stars: (n) => `${n}-star`,
-    estimated: 'estimated', liveRate: 'live rate',
+    estimated: 'estimated', liveRate: 'provider reference price — not a bookable rate', partnerRate: 'property-supplied price',
     viewRooms: 'View rooms & book', viewInfo: 'View details', roomCount: (n) => `${n} room types`,
     bookable: 'Book on FoodTrip', reference: 'For reference — book elsewhere',
   },
@@ -35,7 +35,8 @@ const money = (n) => n.toLocaleString('vi-VN') + 'đ'
  *
  * Every card carries a number rather than only a price band: a traveller
  * comparing a hotel against their budget cannot do anything with "Vừa phải
- * (ước tính)". Where Hotelbeds quoted a tariff the number is real and says so;
+ * (ước tính)". Hotelbeds currently uses its test host, so its tariffs are
+ * provider references, not bookable rates. Partners supply their own prices;
  * otherwise it is the same deterministic estimate the booking page uses, so
  * the two screens never disagree.
  */
@@ -104,12 +105,12 @@ export default function HotelCard({ hotel, cityName, selected = false, onSelect,
           {roomCount > 0 && <span>{c.roomCount(roomCount)}</span>}
         </div>
         {price != null && (
-          <div className="mt-1.5 font-utility text-xs text-ink-faint">
+          <div className="mt-1.5 break-words font-utility text-xs text-ink-muted">
             {c.from} <span className="font-bold text-md text-chili tabular">{money(price)}</span>
             {c.perNight}
             {' · '}
-            <span className={realPrice ? 'text-herb font-semibold' : ''}>
-              {realPrice ? c.liveRate : c.estimated}
+            <span className={realPrice && hotel.priceSource !== 'hotelbeds' ? 'text-herb font-semibold' : 'text-ink-muted'}>
+              {hotel.priceSource === 'hotelbeds' ? c.liveRate : realPrice ? c.partnerRate : c.estimated}
             </span>
           </div>
         )}

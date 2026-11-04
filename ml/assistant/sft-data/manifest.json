@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "seed": 42,
+  "base": "Qwen/Qwen2.5-1.5B-Instruct",
+  "revision": "989aa7980e4cf806f80c7fef2b1adb7bc71aa306",
+  "sources": [
+    "FoodTrip public FAQ",
+    "synthetic evidence snapshots"
+  ],
+  "purpose": "grounded answer style; not a source of live facts",
+  "splits": {
+    "train": {
+      "rows": 345,
+      "sha256": "3a72292bf6dc3ef8422fbfde61cf903058f54b86780e6a7a56ddc1d3deb931a1"
+    },
+    "validation": {
+      "rows": 70,
+      "sha256": "c165d929b2a65c95b9e1cbe27185dce1b39df437c196db9cf58b364f7ffd4009"
+    },
+    "test": {
+      "rows": 106,
+      "sha256": "6905d0ab87a91a30d84790d75a164f08988bf429c2cf07887b1ae8deebcbb024"
+    }
+  }
+}

@@ -43,7 +43,7 @@ const PREFERENCE_TAGS = ['seafood', 'vegetarian', 'coffee', 'oldtown', 'nightlif
 
 const C = {
   vi: {
-    eyebrow: 'Lịch trình AI',
+    eyebrow: 'Lịch trình',
     title: 'Cùng dựng lịch trình vừa ý bạn.',
     steps: ['Điểm đến', 'Thời gian & ngân sách', 'Tự túc hay đi tour', 'Chọn khách sạn', 'Sở thích & di chuyển', 'Lịch trình của bạn'],
     stepCity: 'Bạn muốn đi đâu?',
@@ -56,7 +56,7 @@ const C = {
     stepHotel: 'Bạn muốn ở khách sạn nào?',
     hotelHint: 'FoodTrip tìm khách sạn thật quanh điểm đến, xếp theo tầm giá bạn vừa chọn. Chọn 1 khách sạn hoặc bỏ qua, chọn sau cũng được.',
     hotelSearching: 'Đang tìm khách sạn phù hợp…',
-    hotelNoKey: 'Cần cấu hình Google Maps API key để tìm khách sạn thật — bạn có thể bỏ qua bước này, không ảnh hưởng đến lịch trình.',
+    hotelNoKey: 'Tạm thời chưa tìm được nơi ở — bạn có thể bỏ qua bước này và tiếp tục lên lịch.',
     hotelEmpty: 'Không tìm thấy khách sạn nào ở điểm đến này — bỏ qua bước này cũng được.',
     hotelError: 'Có lỗi khi tìm khách sạn, thử lại sau hoặc bỏ qua bước này.',
     tierMatch: 'Đúng tầm giá của bạn', tierValue: 'Tiết kiệm hơn', tierPremium: 'Vượt tầm giá — cao cấp hơn', tierUnknown: 'Chưa có giá',
@@ -82,7 +82,7 @@ const C = {
     otherPlaceholder: 'vd: Phan Thiết, Quy Nhơn, Phú Quốc…',
     searchDest: 'Tìm kiếm',
     searchingDest: (name) => `Đang tìm địa điểm nổi bật tại ${name}…`,
-    noKeyDest: 'Cần cấu hình Google Maps API key để tìm điểm đến ngoài 6 thành phố có sẵn — bạn có thể chọn 1 trong các thành phố ở trên.',
+    noKeyDest: `Tìm điểm đến khác hiện chưa khả dụng — bạn có thể chọn trong ${CITIES.length} thành phố có sẵn ở trên.`,
     emptyDest: (name) => `Không tìm thấy đủ dữ liệu cho "${name}" — thử tên khác hoặc chọn 1 thành phố có sẵn ở trên.`,
     errorDest: 'Có lỗi khi tìm kiếm, thử lại sau nhé.',
     resultsHint: 'Chọn những địa điểm bạn muốn đưa vào lịch trình (đã chọn sẵn hết):',
@@ -94,17 +94,17 @@ const C = {
     shareTripTitle: (dest) => `Lịch trình ${dest} trên FoodTrip`,
     shareTripText: 'Xem lịch trình mình vừa tạo trên FoodTrip nè!',
     startLiveTrip: 'Bắt đầu hành trình chung', startLiveTripStarting: 'Đang mở phòng…', startLiveTripError: 'Không thể mở phòng hành trình, thử lại nhé.',
-    quickTitle: 'Mô tả nhanh chuyến đi của bạn (AI tự điền)',
+    quickTitle: 'Mô tả nhanh chuyến đi của bạn (điền tự động)',
     quickPlaceholder: 'vd: Lên lịch 3 ngày biển dưới 2 triệu, thích hải sản, đi xe máy…',
     quickSubmit: 'Điền tự động',
-    quickParsing: 'AI đang đọc yêu cầu của bạn…',
-    quickNoKey: 'Chưa cấu hình API AI (ANTHROPIC_API_KEY) — bạn tự chọn bên dưới nhé.',
+    quickParsing: 'Đang đọc yêu cầu của bạn…',
+    quickNoKey: 'Chưa đọc được mô tả chuyến đi — bạn chọn thông tin bên dưới nhé.',
     quickErrorText: 'Không đọc được yêu cầu, thử diễn đạt khác xem sao.',
     quickApplied: 'Đã điền tự động theo mô tả của bạn — kiểm tra lại bên dưới nhé!',
-    quickAppliedLocal: 'Đã điền theo mô tả của bạn (đọc theo mẫu câu, chưa dùng AI) — kiểm tra lại bên dưới nhé!',
+    quickAppliedLocal: 'Đã điền theo mô tả của bạn — kiểm tra lại bên dưới nhé!',
   },
   en: {
-    eyebrow: 'AI Itinerary',
+    eyebrow: 'Itinerary',
     title: 'Let’s build a plan you’ll love.',
     steps: ['Destination', 'Time & budget', 'Own way or tour', 'Choose a hotel', 'Preferences & transport', 'Your itinerary'],
     stepCity: 'Where do you want to go?',
@@ -117,7 +117,7 @@ const C = {
     stepHotel: 'Which hotel would you like to stay at?',
     hotelHint: "FoodTrip finds real hotels near your destination, ranked by the budget you just set. Pick one or skip this — you can always choose later.",
     hotelSearching: 'Finding hotels that fit…',
-    hotelNoKey: "A Google Maps API key is needed to find real hotels — you can skip this step, it won't affect your itinerary.",
+    hotelNoKey: "Hotel search is currently unavailable — you can skip this step and continue planning.",
     hotelEmpty: 'No hotels found for this destination — feel free to skip this step.',
     hotelError: 'Something went wrong searching for hotels — try again or skip this step.',
     tierMatch: 'Right in your budget', tierValue: 'Better value', tierPremium: 'Over budget — more upscale', tierUnknown: 'No price yet',
@@ -143,7 +143,7 @@ const C = {
     otherPlaceholder: 'e.g. Phan Thiet, Quy Nhon, Phu Quoc…',
     searchDest: 'Search',
     searchingDest: (name) => `Finding notable spots in ${name}…`,
-    noKeyDest: 'A Google Maps API key is needed to search destinations outside the 6 cities above — you can pick one of those instead.',
+    noKeyDest: `Other destination searches are currently unavailable — choose from the ${CITIES.length} cities above.`,
     emptyDest: (name) => `Couldn't find enough data for "${name}" — try another name or pick a city above.`,
     errorDest: 'Something went wrong searching — please try again.',
     resultsHint: 'Pick which places to include in the itinerary (all selected by default):',
@@ -155,14 +155,14 @@ const C = {
     shareTripTitle: (dest) => `${dest} itinerary on FoodTrip`,
     shareTripText: 'Check out this trip I planned on FoodTrip!',
     startLiveTrip: 'Start live journey', startLiveTripStarting: 'Opening room…', startLiveTripError: 'Could not open the live journey room — please try again.',
-    quickTitle: 'Describe your trip in a sentence (AI fills it in)',
+    quickTitle: 'Describe your trip in a sentence (automatic fill)',
     quickPlaceholder: 'e.g. Plan a 3-day beach trip under 2 million, love seafood, on a motorbike…',
     quickSubmit: 'Auto-fill',
-    quickParsing: 'AI is reading your request…',
-    quickNoKey: 'AI API not configured (ANTHROPIC_API_KEY) — please choose manually below.',
+    quickParsing: 'Reading your request…',
+    quickNoKey: 'Could not read your trip description — please choose the details below.',
     quickErrorText: "Couldn't parse that request — try rephrasing it.",
     quickApplied: 'Auto-filled from your description — double-check below!',
-    quickAppliedLocal: 'Filled in from your description (pattern-based, no AI) — double-check below!',
+    quickAppliedLocal: 'Filled in from your description — double-check below!',
   },
 }
 
@@ -1255,8 +1255,9 @@ function NavRow({ onBack, onNext, backLabel, nextLabel, nextLoading = false, nex
 }
 
 function StepProgress({ steps, current }) {
+  const { lang } = useLanguage()
   return (
-    <div className="mb-10" aria-label="Tiến trình">
+    <div className="mb-10" aria-label={lang === 'vi' ? 'Tiến trình' : 'Progress'}>
       <div className="mb-3 flex items-baseline justify-between gap-3 sm:hidden">
         <span className="font-utility text-xs font-bold text-chili">{steps[current]}</span>
         <span className="font-utility text-2xs font-semibold text-ink-faint tabular">{current + 1} / {steps.length}</span>

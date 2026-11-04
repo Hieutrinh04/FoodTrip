@@ -76,10 +76,15 @@ export async function setItineraryPublic(id, isPublic) {
   if (error) throw error
 }
 
-/** Fetches a shared itinerary by id — works for anonymous visitors, since RLS allows reading public rows without auth. */
-export async function getPublicItinerary(id) {
-  if (!hasSupabase || !isUuid(id)) return null
-  const { data, error } = await supabase.from('itineraries').select('*').eq('id', id).eq('is_public', true).single()
-  if (error) return null
-  return normalizeItinerary(data)
+/** Fetches a shared itinerary by id, for anonymous visitors too. Shared trips can be opened by link but not listed. */
+export async function getPublicItinerary(id, { client = supabase } = {}) {
+  if (!client || !isUuid(id)) return null
+  try {
+    const { data, error } = await client.rpc('shared_itinerary', { p_id: id })
+    // Fail closed during rollout/network errors; never fall back to table reads.
+    if (error || !data) return null
+    const publicTrip = { ...data }
+    delete publicTrip.user_id
+    return normalizeItinerary(publicTrip)
+  } catch { return null }
 }

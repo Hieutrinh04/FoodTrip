@@ -1,6 +1,7 @@
 import { searchPlaces, reverseGeocode, haversineKm } from './trackAsia.js'
 import { searchMapArea } from './mapAreaSearch.js'
 import { isWantedPlace } from './placeTypes.js'
+import { destinationWeatherLocation } from './tripWeather.js'
 
 const KEYWORDS = {
   buffet: 'nhà hàng buffet',
@@ -72,7 +73,9 @@ function normalizePlace(result, { keyword, category, cityId, origin }) {
  * point reverse-geocodes to, then filters by true distance — the provider has
  * no radius parameter, so proximity has to be applied client-side.
  */
-export async function searchExplorePlaces({ foodType, category = 'all', query, city, origin, radiusKm = 5, limit = 80 }) {
+export async function searchExplorePlaces({ foodType, category = 'all', query, city, origin, radiusKm = 5, limit = 80 }, {
+  search = searchMapArea, geocode = searchPlaces, reverse = reverseGeocode,
+} = {}) {
   const keyword = query?.trim() || KEYWORDS[foodType] || CATEGORY_KEYWORDS[category]
   if (!keyword) return []
 
@@ -82,21 +85,27 @@ export async function searchExplorePlaces({ foodType, category = 'all', query, c
   // model needs. The provider search below stays as the fallback for when the
   // backend has no Serper key, or Google knows nothing about the area.
   const cityName = city?.name?.vi ?? ''
+  if (!origin && cityName) {
+    origin = destinationWeatherLocation(city.id)
+    if (!origin) {
+      try { origin = (await geocode(cityName, { limit: 1 }))?.[0]?.location ?? null } catch { /* map search fallback below */ }
+    }
+  }
   if (origin || cityName) {
     try {
-      const found = await searchMapArea({
+      const found = origin ? await search({
         keyword, origin, area: cityName, category, cityId: city?.id, radiusKm,
-      })
-      if (found.places.length) return found.places.slice(0, limit)
+      }) : null
+      if (found?.places.length) return found.places.slice(0, limit)
     } catch { /* fall through to the provider search */ }
   }
 
   let area = city?.name?.vi ?? ''
-  if (origin) area = (await reverseGeocode(origin))?.areaName ?? area
+  if (origin && !cityName) area = (await reverse(origin))?.areaName ?? area
   if (!area) return []
 
   const batches = await Promise.all(
-    PHRASINGS.map((phrase) => searchPlaces(phrase(keyword, area), { limit: 100 }).catch(() => []))
+    PHRASINGS.map((phrase) => geocode(phrase(keyword, area), { limit: 100 }).catch(() => []))
   )
 
   const seenIds = new Set()

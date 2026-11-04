@@ -28,18 +28,19 @@ function cacheKey(keyword, origin, radiusKm, area) {
   return `${CACHE_PREFIX}${keyword}|${lat},${lng}|${radiusKm}`
 }
 
-function readCache(key) {
+function readCache(key, storage) {
   try {
-    const cached = JSON.parse(localStorage.getItem(key) || 'null')
-    return cached && Date.now() - cached.time < TTL ? cached.places : null
+    const cached = JSON.parse(storage?.getItem(key) || 'null')
+    return cached && Array.isArray(cached.places) && cached.places.length && Date.now() - cached.time < TTL ? cached.places : null
   } catch {
     return null
   }
 }
 
-function writeCache(key, places) {
+function writeCache(key, places, storage) {
+  if (!places.length) return
   try {
-    localStorage.setItem(key, JSON.stringify({ time: Date.now(), places }))
+    storage?.setItem(key, JSON.stringify({ time: Date.now(), places }))
   } catch { /* quota or private mode — the search still worked */ }
 }
 
@@ -107,15 +108,18 @@ export function normalise(place, { keyword = '', category = 'all', cityId = null
  *          Serper key configured, letting the caller fall back to the basemap
  *          provider's own search.
  */
-export async function searchMapArea({ keyword, origin = null, area = '', radiusKm = 3, category = 'all', cityId = null, pages = 2 }) {
+export async function searchMapArea({ keyword, origin = null, area = '', radiusKm = 3, category = 'all', cityId = null, pages = 2 }, {
+  invoke = hasSupabase ? (name, options) => supabase.functions.invoke(name, options) : null,
+  storage = globalThis.localStorage,
+} = {}) {
   // Either a centre point or a named area is enough; without both there is
   // nothing to search around.
   if (!keyword || (!origin && !area)) return { status: 'not-found', places: [] }
 
   const key = cacheKey(keyword, origin, radiusKm, area)
-  const cached = readCache(key)
+  const cached = readCache(key, storage)
   if (cached) return { status: 'ok', places: cached, cached: true }
-  if (!hasSupabase) return { status: 'no-key', places: [] }
+  if (!invoke) return { status: 'no-key', places: [] }
 
   // Naming the area inside the query is what lets Google resolve a whole city
   // without us geocoding it first.
@@ -129,11 +133,11 @@ export async function searchMapArea({ keyword, origin = null, area = '', radiusK
     params.set('lng', String(origin.lng))
   }
 
-  const { data, error } = await supabase.functions.invoke(`map-place-search?${params}`, { method: 'GET' })
+  const { data, error } = await invoke(`map-place-search?${params}`, { method: 'GET' })
   if (error) throw new Error('map-place-search-failed')
   if (data.status !== 'ok') return { status: data.status, places: [] }
 
   const places = data.places.map((place) => normalise(place, { keyword, category, cityId }))
-  writeCache(key, places)
+  writeCache(key, places, storage)
   return { status: 'ok', places }
 }

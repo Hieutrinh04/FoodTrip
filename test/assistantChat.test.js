@@ -6,10 +6,55 @@ import { composeReply } from '../supabase/functions/_shared/assistant/reply.js'
 import { ALL_SUGGESTIONS, suggestionsFor } from '../src/lib/assistantSuggestions.js'
 import { answersPending, askedDish, findFoodAnswer } from '../src/lib/assistantAnswers.js'
 import { bookingState, describeAccount, relevantBookings, HOLD_MS } from '../src/lib/assistantAccount.js'
-import { transcriptOf } from '../src/lib/assistant.js'
+import { askAssistant, transcriptOf } from '../src/lib/assistant.js'
+import { resolveChatTurn } from '../src/lib/assistantConversation.js'
 
 // 2026-11-10 10:00 in Vietnam.
 const NOW = Date.parse('2026-11-10T03:00:00Z')
+
+test('dish-led searches reach food computation in rules, offline fallback and a browser using an older server', async () => {
+  for (const [message, dish] of [['bún chả ở Hà Nội', 'bún chả'], ['hải sản ở Đà Nẵng', 'hải sản'], ['phở Hà Nội', 'phở'], ['phở bò Hà Nội', 'phở bò'], ['bánh căn ở Đà Lạt', 'bánh căn'], ['bun cha o Ha Noi', 'bun cha']]) {
+    assert.equal(askedDish(message, []), dish, message)
+    assert.equal(ruleIntent(message).intent, 'find_food', message)
+    const offline = await askAssistant(message)
+    assert.equal(offline.intent, 'find_food', message)
+    assert.equal(offline.action, null)
+    const turn = resolveChatTurn(message, { intent: 'out_of_scope', faq: 'stale-faq', slots: [] })
+    assert.equal(turn.answer.intent, 'find_food')
+    assert.equal(turn.answer.faq, null)
+    assert.equal(turn.updatePlan, false)
+  }
+})
+
+test('locations and non-food questions never become dish-led discovery', () => {
+  for (const [message, intent] of [['ở Hà Nội thì sao', 'out_of_scope'], ['thời tiết Hà Nội', 'ask_weather'], ['lên lịch 2 ngày ở Hội An', 'plan_trip'], ['huỷ phòng ở Đà Nẵng', 'booking_cancel_refund'], ['huỷ phòng có được hoàn tiền không?', 'booking_cancel_refund'], ['thời tiết phở Hà Nội', 'ask_weather'], ['phở Hà Nội mấy giờ mở cửa', 'place_info'], ['Hải Phòng', 'out_of_scope'], ['Hội An', 'out_of_scope'], ['phố Hà Nội', 'out_of_scope']]) {
+    assert.equal(askedDish(message, []), null, message)
+    assert.equal(ruleIntent(message).intent, intent, message)
+  }
+})
+
+test('bare dish requests filter unrelated DB and live venues without relaxing the dish', async () => {
+  const venue = (id, name, city, extra = {}) => ({ id, name: { vi: name }, address: { vi: city }, city, category: 'food', googleRating: 4.8, googleRatingCount: 500, ...extra })
+  for (const [message, city, good, menu, emptyDish] of [
+    ['bún chả ở Hà Nội', 'hanoi', 'Bún chả Hương Liên', 'Bún chả nướng', 'bún chả'],
+    ['hải sản ở Đà Nẵng', 'danang', 'Hải sản Bé Mặn', 'Hải sản tươi', 'hải sản'],
+    ['phở Hà Nội', 'hanoi', 'Phở Bát Đàn', 'Phở bò', 'phở'],
+  ]) {
+    const wrong = venue('wrong', 'Bún Thang Thanh Thanh gia truyền', city)
+    const lobster = venue('lobster', 'Lobster Queen', city)
+    const matching = venue('match', good, city)
+    const withMenu = venue('menu', 'Bếp nhà', city, { menu: [menu] })
+    for (const db of [true, false]) {
+      const candidates = [wrong, lobster, matching, withMenu]
+      const options = { catalog: async () => db ? candidates : [], locate: async () => ({}), search: async () => ({ places: db ? [] : candidates }) }
+      const result = await findFoodAnswer(message, [], { cityId: city }, 'vi', options)
+      assert.deepEqual(result.places.map((p) => p.id), ['match', 'menu'], `${message}, DB=${db}`)
+      const empty = await findFoodAnswer(message, [], { cityId: city }, 'vi', { ...options, catalog: async () => [], search: async () => ({ places: [wrong, lobster] }) })
+      assert.equal(empty.places, undefined)
+      assert.ok(empty.text.includes(`chưa tìm thấy quán ${emptyDish}`))
+    }
+  }
+})
 const booking = (over) => ({
   id: over.id ?? 'b1', hotel_name: 'Dalat Pine', check_in: '2026-11-20', check_out: '2026-11-22', total_price: 1200000,
   payment_status: 'paid', fulfillment_status: 'awaiting', refund_status: 'none', refund_amount: 0, created_at: '2026-11-01T00:00:00Z', ...over,
@@ -52,7 +97,7 @@ test('find food: real rated places, best trusted first; asks the city when none 
   assert.equal(asked.keyword, 'phở')
   assert.equal(asked.pages, 1)
   assert.deepEqual(asked.origin, { lat: 21.03, lng: 105.85 })
-  assert.deepEqual(out.places.map((x) => x.id), ['Phở Bát Đàn', 'Phở Thìn', 'Ít review'])
+  assert.deepEqual(out.places.map((x) => x.id), ['Phở Bát Đàn', 'Phở Thìn'])
   const none = await findFoodAnswer('quán phở ngon', [], { cityId: null, destinationQuery: null }, 'vi', { search, locate })
   assert.equal(none.need, 'dest')
   const nowhere = await findFoodAnswer('quán phở ngon', [], { cityId: null, destinationQuery: 'Xyz' }, 'vi', { search, locate: async () => null })

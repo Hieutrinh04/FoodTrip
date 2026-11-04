@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowSquareOut, ArrowsClockwise, Bed, ChartBar, ChatCircleText, DownloadSimple, EnvelopeSimple,
-  Lock, MagnifyingGlass, Trash, UserCircle, Users, VideoCamera, WarningCircle, Check, ArrowCounterClockwise, Receipt, CaretDown, ClockCounterClockwise, ShieldCheck, Buildings, Wallet, Compass, Star, Robot,
+  Lock, MagnifyingGlass, Trash, UserCircle, Users, VideoCamera, WarningCircle, Check, ArrowCounterClockwise, Receipt, CaretDown, ClockCounterClockwise, ShieldCheck, Buildings, Wallet, Compass, Star, Robot, CalendarBlank,
 } from '@phosphor-icons/react'
 import * as admin from '../lib/admin.js'
 import EmptyState from '../components/ui/EmptyState.jsx'
@@ -16,6 +16,8 @@ import { TourOperatorReview } from './TourPartner.jsx'
 import AdminReviews from '../components/reviews/AdminReviews.jsx'
 import SystemReadiness from '../components/portal/SystemReadiness.jsx'
 import AdminAssistant from '../components/admin/AdminAssistant.jsx'
+import AdminEvents from '../components/admin/AdminEvents.jsx'
+import PortalShell from '../components/portal/PortalShell.jsx'
 
 const TABS = [
   { id: 'overview', icon: ChartBar, vi: 'Tổng quan', en: 'Overview' },
@@ -30,6 +32,7 @@ const TABS = [
   { id: 'videos', icon: VideoCamera, vi: 'Video review', en: 'Video reviews' },
   { id: 'messages', icon: EnvelopeSimple, vi: 'Liên hệ', en: 'Messages' },
   { id: 'assistant', icon: Robot, vi: 'Trợ lý', en: 'Assistant' },
+  { id: 'events', icon: CalendarBlank, vi: 'Sự kiện', en: 'Events' },
   { id: 'subscribers', icon: Users, vi: 'Bản tin', en: 'Newsletter' },
   { id: 'users', icon: UserCircle, vi: 'Người dùng', en: 'Users' },
   { id: 'audit', icon: ClockCounterClockwise, vi: 'Nhật ký', en: 'Activity log' },
@@ -79,14 +82,16 @@ export default function Admin() {
   const t = (vi, en) => (lang === 'vi' ? vi : en)
   const { user, loading: authLoading, hasAuth } = useAuth()
   const [access, setAccess] = useState('checking')
-  const [tab, setTab] = useState('overview')
+  const [accessRevision, setAccessRevision] = useState(0)
   const [authOpen, setAuthOpen] = useState(false)
 
   useEffect(() => {
+    let active = true
     if (!user) { setAccess('signed-out'); return }
     setAccess('checking')
-    admin.getAdminStatus().then(setAccess)
-  }, [user])
+    admin.getAdminStatus().then((status) => { if (active) setAccess(status) }).catch(() => { if (active) setAccess('error') })
+    return () => { active = false }
+  }, [user, accessRevision])
 
   const header = (
     <div className="mb-8 max-w-[700px]">
@@ -109,19 +114,13 @@ export default function Admin() {
       body={t('Cơ sở dữ liệu chưa có migration quản trị (supabase/migrations/20260923120000_admin.sql).', 'The admin migration (supabase/migrations/20260923120000_admin.sql) has not been applied.')} />
   } else if (access === 'error') {
     body = <EmptyState icon={WarningCircle} title={t('Không kiểm tra được quyền', 'Could not check access')}
-      action={<button type="button" onClick={() => { setAccess('checking'); admin.getAdminStatus().then(setAccess) }} className={BUTTON}><ArrowsClockwise size={14} />{t('Thử lại', 'Retry')}</button>} />
+      action={<button type="button" onClick={() => setAccessRevision((n) => n + 1)} className={BUTTON}><ArrowsClockwise size={14} />{t('Thử lại', 'Retry')}</button>} />
   } else {
     body = (
-      <div className="grid gap-6 lg:grid-cols-[210px_minmax(0,1fr)]">
-        <nav aria-label={t('Mục quản trị', 'Admin sections')} className="no-scrollbar flex gap-1.5 overflow-x-auto lg:flex-col lg:overflow-visible">
-          {TABS.map(({ id, icon: Icon, ...label }) => (
-            <button key={id} type="button" onClick={() => setTab(id)} aria-current={tab === id ? 'page' : undefined}
-              className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-left font-utility text-sm font-semibold transition-colors ${tab === id ? 'bg-ink text-paper' : 'text-ink-muted hover:bg-paper-2 hover:text-ink'}`}>
-              <Icon size={17} />{label[lang]}
-            </button>
-          ))}
-        </nav>
-        <section className="min-w-0">
+      <PortalShell eyebrow={t('Quản trị', 'Administration')} title={t('Quản trị FoodTrip', 'FoodTrip administration')}
+        subtitle={t('Theo dõi hoạt động và xử lý công việc trên toàn hệ thống.', 'Monitor activity and manage work across the platform.')}
+        sections={TABS.map((item) => ({ ...item, label: item[lang] }))}>
+        {(tab, setTab) => <div className="space-y-5">
           {tab === 'overview' && <Overview t={t} onOpen={setTab} />}
           {tab === 'system' && <SystemReadiness lang={lang} />}
           {tab === 'bookings' && <BookingsTab t={t} lang={lang} />}
@@ -134,20 +133,20 @@ export default function Admin() {
           {tab === 'videos' && <VideosTab t={t} />}
           {tab === 'messages' && <MessagesTab t={t} />}
           {tab === 'assistant' && <AdminAssistant t={t} lang={lang} />}
+          {tab === 'events' && <AdminEvents t={t} lang={lang} />}
           {tab === 'subscribers' && <SubscribersTab t={t} />}
           {tab === 'users' && <UsersTab t={t} currentUserId={user.id} />}
           {tab === 'audit' && <AuditTab t={t} />}
-        </section>
-      </div>
+        </div>}
+      </PortalShell>
     )
   }
 
   return (
-    <div className="mx-auto max-w-[1280px] px-5 py-12 md:px-8 md:py-16">
-      {header}
-      {body}
+    <>
+      {access === 'admin' ? body : <div className="mx-auto max-w-[1280px] px-5 py-10 md:px-8 md:py-12">{header}{body}</div>}
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
-    </div>
+    </>
   )
 }
 
@@ -180,9 +179,9 @@ function ListState({ list, t, empty, children }) {
       {children}
       {(list.pageIndex > 0 || hasNext) && (
         <div className="mt-4 flex items-center justify-end gap-2 font-utility text-2xs text-ink-muted">
-          <button type="button" className={BUTTON} disabled={list.pageIndex === 0} onClick={() => list.setPageIndex(list.pageIndex - 1)}>{t('Trước', 'Previous')}</button>
+          <button type="button" className={BUTTON} disabled={list.status === 'loading' || list.pageIndex === 0} onClick={() => list.setPageIndex(list.pageIndex - 1)}>{t('Trước', 'Previous')}</button>
           <span>{t('Trang', 'Page')} {list.pageIndex + 1}{pages != null && ` / ${pages}`}</span>
-          <button type="button" className={BUTTON} disabled={!hasNext} onClick={() => list.setPageIndex(list.pageIndex + 1)}>{t('Sau', 'Next')}</button>
+          <button type="button" className={BUTTON} disabled={list.status === 'loading' || !hasNext} onClick={() => list.setPageIndex(list.pageIndex + 1)}>{t('Sau', 'Next')}</button>
         </div>
       )}
     </div>

@@ -1,8 +1,8 @@
 // Room types come from one of two places.
 //
-// When the hotel was priced by Hotelbeds, they are real: real room names, the
-// real quoted rate, the real board (room-only / bed & breakfast), the real
-// free-cancellation deadline and the real remaining allotment. Those arrive
+// Hotelbeds currently supplies test reference data: room names, prices, board
+// (room-only / bed & breakfast), cancellation dates and allotment. These are
+// not verified bookable inventory. They arrive
 // already shaped on `hotel.rooms` from the hotel-availability Edge Function.
 //
 // Otherwise there is no per-room inventory to read — neither Track-Asia nor
@@ -57,7 +57,7 @@ export function boardLabel(board) {
   return BOARD_LABEL[String(board || '').toUpperCase()] ?? null
 }
 
-/** Real Hotelbeds rooms, shaped like the simulated ones so callers don't branch. */
+/** Hotelbeds test room data, shaped like estimates so callers do not branch. */
 function realRoomTypes(hotel) {
   return hotel.rooms.map((room, index) => ({
     // Hotelbeds room codes repeat across properties, so the hotel id stays in

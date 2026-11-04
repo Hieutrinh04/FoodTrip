@@ -30,7 +30,7 @@ const C = {
     invalidDates: 'Ngày trả phòng phải sau ngày nhận phòng.',
     nightsLabel: (n) => (n === 1 ? '1 đêm' : `${n} đêm`),
     perNight: '/đêm', roomsLeft: (n) => `Còn ${n} phòng`,
-    freeCancel: (d) => `Huỷ miễn phí trước ${d}`, realRate: 'Giá thật từ Hotelbeds',
+    freeCancel: (d) => `Huỷ miễn phí trước ${d}`,
     webPhotos: 'Ảnh sưu tầm từ các trang đặt phòng (Booking, Agoda, TripAdvisor) — không phải ảnh do khách sạn cung cấp.',
     selectRoom: 'Chọn phòng này', selected: 'Đã chọn',
     guestInfoTitle: 'Thông tin người đặt', guestName: 'Họ tên', guestPhone: 'Số điện thoại', guestEmail: 'Email',
@@ -52,7 +52,7 @@ const C = {
     invalidDates: 'Check-out date must be after check-in date.',
     nightsLabel: (n) => (n === 1 ? '1 night' : `${n} nights`),
     perNight: '/night', roomsLeft: (n) => `${n} rooms left`,
-    freeCancel: (d) => `Free cancellation until ${d}`, realRate: 'Live rate from Hotelbeds',
+    freeCancel: (d) => `Free cancellation until ${d}`,
     webPhotos: 'Photos collected from booking sites (Booking, Agoda, TripAdvisor) — not supplied by the property.',
     selectRoom: 'Select this room', selected: 'Selected',
     guestInfoTitle: 'Guest details', guestName: 'Full name', guestPhone: 'Phone number', guestEmail: 'Email',
@@ -275,7 +275,7 @@ export default function BookingRoom() {
     return <div className="mx-auto max-w-[880px] px-5 py-8 md:px-8"><Spinner label={c.loading} /></div>
   }
   if (status === 'not-found' || !hasSupabase) {
-    return <div className="mx-auto max-w-[880px] px-5 py-8 md:px-8"><EmptyState icon={Bed} title={c.notFound} /></div>
+    return <div className="mx-auto max-w-[880px] px-5 py-8 md:px-8"><EmptyState icon={Bed} headingAs="h1" title={c.notFound} /></div>
   }
 
   const badge = hotelScoreBadge(hotel.rating)
@@ -459,7 +459,6 @@ export default function BookingRoom() {
                 </div>
                 <div className="text-right shrink-0">
                   <div className="font-bold text-lg text-chili tabular">{formatVnd(room.pricePerNight)}<span className="text-xs font-normal text-ink-faint">{c.perNight}</span></div>
-                  {room.real && <div className="font-utility text-2xs text-ink-faint mt-0.5">{c.realRate}</div>}
                   <div className={`inline-flex items-center gap-1.5 mt-2 font-utility text-xs font-semibold px-3 py-1.5 rounded-full ${isSelected ? 'bg-chili text-chili-ink' : 'border-[1.5px] border-line-strong'}`}>
                     {isSelected && <CheckCircle size={13} weight="fill" />} {isSelected ? c.selected : c.selectRoom}
                   </div>

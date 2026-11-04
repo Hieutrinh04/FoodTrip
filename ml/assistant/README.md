@@ -1,5 +1,9 @@
 # FoodTrip assistant — training and deployment
 
+For the active intent/FAQ + LoRA training run and its verified status, see
+[TRAINING-20261030.md](TRAINING-20261030.md). The full notebook is
+`ml/notebooks/train_foodtrip_full.ipynb`. Smoke completion is not full training.
+
 The assistant (chat on every page, and "Điền tự động" in the planner) reads a
 message with a model trained here: its **intent** (20, see
 `supabase/functions/_shared/assistant/intents.js`) and its **slots** (DEST,

@@ -28,8 +28,8 @@ const HOTEL_SHEET_NAME = { vi: 'Khách sạn', en: 'Hotels' }
 // The spreadsheet leaves the trip and gets read without the app around it, so
 // it has to say on its own face which prices were quoted and which were guessed.
 const PRICE_SOURCE_LABEL = {
-  vi: { hotelbeds: 'Giá thật (Hotelbeds)', estimated: 'Ước tính' },
-  en: { hotelbeds: 'Live rate (Hotelbeds)', estimated: 'Estimated' },
+  vi: { hotelbeds: 'Giá tham khảo nhà cung cấp (Hotelbeds thử nghiệm), chưa phải giá đặt được', partner: 'Giá do cơ sở cung cấp', estimated: 'Ước tính' },
+  en: { hotelbeds: 'Provider reference price (Hotelbeds test), not a bookable rate', partner: 'Property-supplied price', estimated: 'Estimated' },
 }
 
 function buildHotelRows(hotels, lang) {
@@ -39,7 +39,7 @@ function buildHotelRows(hotels, lang) {
       h.name,
       h.stars ?? '',
       h.priceFrom != null ? formatVnd(h.priceFrom) : '',
-      PRICE_SOURCE_LABEL[lang][h.priceSource === 'hotelbeds' ? 'hotelbeds' : 'estimated'],
+      PRICE_SOURCE_LABEL[lang][['hotelbeds', 'partner'].includes(h.priceSource) ? h.priceSource : 'estimated'],
       h.rating ?? '',
       h.userRatingCount ?? '',
       h.address,

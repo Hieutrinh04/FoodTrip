@@ -42,6 +42,7 @@ const NAV_LINKS = [
 // Pages that only mean something once signed in live in the account menu
 // rather than the main bar.
 const ACCOUNT_LINKS = [
+  { to: '/account', icon: UserCircle, label: { vi: 'Tài khoản & công việc', en: 'Account & workspaces' } },
   { to: '/trips', icon: MapTrifold, label: { vi: 'Lịch trình của tôi', en: 'My trips' } },
   { to: '/bookings', icon: Bed, label: { vi: 'Đặt chỗ của tôi', en: 'My bookings' } },
 ]
@@ -58,7 +59,8 @@ const TOUR_PARTNER_LINK = { to: '/partner/tours', icon: Buildings, label: { vi: 
 const ACCESS_LINK = { to: '/permissions', icon: ShieldCheck, label: { vi: 'Vai trò & quyền truy cập', en: 'Roles & permissions' } }
 
 function accountLinks(access) {
-  return [...ACCOUNT_LINKS, ...(access.can('hotel.portal') ? [PARTNER_LINK] : []), ...(access.can('tour.portal') ? [TOUR_PARTNER_LINK] : []), JOIN_LINK, ...(access.can('admin') ? [ADMIN_LINK] : []), ACCESS_LINK]
+  const tourLink = access.can('tour.manage') ? TOUR_PARTNER_LINK : { ...TOUR_PARTNER_LINK, to: '/partner/tours?view=guide', label: { vi: 'Đoàn hướng dẫn của tôi', en: 'My guiding groups' } }
+  return [...ACCOUNT_LINKS, ...(access.can('hotel.portal') ? [PARTNER_LINK] : []), ...(access.can('tour.portal') ? [tourLink] : []), JOIN_LINK, ...(access.can('admin') ? [ADMIN_LINK] : []), ACCESS_LINK]
 }
 
 const CTA = { vi: 'Tạo lịch trình', en: 'Plan a trip' }
@@ -79,11 +81,21 @@ function AccountMenu({ user, onSignOut, lang }) {
   const location = useLocation()
 
   // Close on navigation, on a click anywhere else, and on Escape.
-  useEffect(() => setOpen(false), [location.pathname])
+  useEffect(() => setOpen(false), [location.pathname, location.search])
   useEffect(() => {
     if (!open) return undefined
+    ref.current?.querySelector('[role="menuitem"]')?.focus()
     const onDown = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    const onKey = (e) => {
+      if (e.key === 'Escape') { setOpen(false); ref.current?.querySelector('button')?.focus(); return }
+      if (!ref.current?.contains(document.activeElement)) return
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return
+      e.preventDefault()
+      const items = [...ref.current.querySelectorAll('[role="menuitem"]')]
+      const at = items.indexOf(document.activeElement)
+      const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (at + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
+      items[next]?.focus()
+    }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
     return () => {
@@ -95,7 +107,7 @@ function AccountMenu({ user, onSignOut, lang }) {
   const initial = (user.email?.[0] ?? '?').toUpperCase()
 
   return (
-    <div ref={ref} className="relative hidden sm:block">
+    <div ref={ref} onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false) }} className="relative hidden sm:block">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -115,7 +127,7 @@ function AccountMenu({ user, onSignOut, lang }) {
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15, ease: easeOut }}
-          className="absolute right-0 top-[calc(100%+8px)] z-50 w-64 overflow-hidden rounded-xl border border-line bg-surface shadow-lifted"
+          className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[calc(100dvh-100px)] w-72 max-w-[calc(100vw-40px)] overflow-y-auto rounded-xl border border-line bg-surface shadow-lifted"
         >
           <div className="border-b border-line px-4 py-3">
             <div className="font-utility text-micro uppercase tracking-wide text-ink-faint">{l.signedInAs}</div>
@@ -126,6 +138,7 @@ function AccountMenu({ user, onSignOut, lang }) {
               <NavLink
                 key={to}
                 to={to}
+                end
                 role="menuitem"
                 className={({ isActive }) => `flex items-center gap-2.5 px-4 py-2.5 font-utility text-sm font-semibold transition-colors hover:bg-paper-2 ${isActive ? 'text-chili' : ''}`}
               >
@@ -174,7 +187,7 @@ export default function Nav() {
 
   // The mobile sheet closes itself on navigation instead of relying on every
   // link to remember an onClick.
-  useEffect(() => setOpen(false), [location.pathname])
+  useEffect(() => setOpen(false), [location.pathname, location.search])
 
   return (
     <header className="no-print sticky top-0 z-50 border-b border-line bg-paper/80 backdrop-blur-md">
@@ -255,7 +268,7 @@ export default function Nav() {
           initial={{ height: 0, opacity: 0 }}
           animate={{ height: 'auto', opacity: 1 }}
           transition={{ duration: 0.3, ease: easeOut }}
-          className="overflow-hidden border-t border-line xl:hidden"
+          className="max-h-[calc(100dvh-72px)] overflow-y-auto border-t border-line xl:hidden"
           aria-label={l.mobileNav}
         >
           <div className="mx-auto flex max-w-[1400px] flex-col px-5 py-3 font-utility font-semibold md:px-8">
@@ -263,6 +276,7 @@ export default function Nav() {
               <NavLink
                 key={link.to}
                 to={link.to}
+                end
                 className={({ isActive }) => `border-b border-dashed border-line py-3 ${isActive ? 'text-chili' : ''}`}
               >
                 {link.label[lang]}
@@ -288,7 +302,7 @@ export default function Nav() {
                     <SignOut size={14} /> {l.logout}
                   </button>
                 ) : (
-                  <button onClick={() => { setAuthOpen(true); setOpen(false) }} className={`${ICON_BUTTON} ml-auto px-3.5`}>
+                  <button onClick={() => setAuthOpen(true)} className={`${ICON_BUTTON} ml-auto px-3.5`}>
                     <UserCircle size={16} /> {l.login}
                   </button>
                 )

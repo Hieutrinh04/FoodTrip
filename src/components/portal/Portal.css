@@ -1,0 +1,17 @@
+/* Shared controls for account, administration and partner workspaces. */
+@layer components {
+  .portal-workspace :where(button, a, input, select, textarea, summary):focus-visible {
+    outline: 2px solid var(--chili);
+    outline-offset: 3px;
+  }
+  .portal-workspace :where(button, select, input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"])) {
+    min-height: 44px;
+  }
+  .portal-workspace :where(input, select, textarea) { max-width: 100%; }
+  .portal-workspace :where(input[type="checkbox"], input[type="radio"]) { accent-color: var(--chili); }
+  .portal-workspace :where(button:disabled) { cursor: not-allowed; }
+  .portal-workspace :where(th, td) { vertical-align: top; }
+  .portal-workspace :where(details > summary) { min-height: 40px; }
+  .portal-workspace :where(h1, h2, h3) { overflow-wrap: anywhere; }
+  .portal-workspace :where([role="alert"], [role="status"]) { overflow-wrap: anywhere; }
+}

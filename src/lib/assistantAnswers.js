@@ -13,6 +13,10 @@ import { planFields } from './assistant.js'
 import { datePhrases, parseTripDate } from './tripDates.js'
 import { normalizeVi } from './text.js'
 import { searchMapArea } from './mapAreaSearch.js'
+import { fetchPlaceCatalog, mergePlaceCatalog } from './placeCatalog.js'
+import { placesForDestination } from './plannerCatalog.js'
+import { mergeFoodPreferences, matchesFoodPreferences, foodPreferenceNotes } from './assistantFoodPreferences.js'
+import { dishLedSearch, blocksDishSearch, asksNearbyFood, isAmbiguousDishSearch } from '../../supabase/functions/_shared/assistant/dishRequest.js'
 
 
 const vnd = (n) => `${Math.round(n / 1000) * 1000 >= 1e6 ? (Math.round(n / 1e5) / 10).toLocaleString('vi-VN') + ' triệu' : Math.round(n / 1000).toLocaleString('vi-VN') + 'k'}`
@@ -24,10 +28,27 @@ const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, 
  * already settled (`before`, planner fields) — "chi phí bao nhiêu" after
  * "Hà Nội 2 ngày" is about Hà Nội, 2 days; "3 ngày thì sao" changes the length.
  */
+/**
+ * What the server says it can take today, added to payment answers so the chat
+ * never promises more than the booking page offers. Null when real transfers
+ * are on, or when the state could not be read.
+ */
+export function paymentAvailabilityNote({ sepay, vnpay }, lang = 'vi') {
+  const vi = lang === 'vi'
+  if (sepay === 'mock') return vi ? 'Lưu ý: hiện thanh toán đang ở chế độ thử, không chuyển tiền thật và đơn được gắn nhãn DEMO.' : 'Note: payments are in test mode right now. No real money moves and orders are marked DEMO.'
+  if (sepay === 'ready' || sepay === 'unknown' || vnpay === 'unknown') return null
+  if (vnpay === 'ready') return vi ? 'Lưu ý: hiện chỉ có VNPay ở môi trường sandbox để thử, chưa nhận tiền thật.' : 'Note: only the VNPay sandbox is on right now, for testing. It does not take real money.'
+  return vi ? 'Lưu ý: hiện web chưa mở thanh toán trực tuyến.' : 'Note: online payment is not open on the site yet.'
+}
+
 export function tripInContext(message, slots, before = null) {
   const now = planFields(message, slots)
+  if (['do', 'day', 'nay', 'dau', 'the nao'].includes(normalizeVi(now.destinationQuery))) { now.destinationQuery = null; now.cityId = null }
   if (!now.mentioned.dates.length) now.mentioned.dates = datePhrases(message)
-  if (!before) return now
+  if (!before) {
+    if (!namesPlace(message, now)) { now.cityId = null; now.destinationQuery = null }
+    return now
+  }
   const said = (v) => v != null && (!Array.isArray(v) || v.length)
   const merged = { ...before, mentioned: { ...before.mentioned } }
   for (const key of ['duration', 'people', 'budgetPerPerson', 'transport', 'prefs']) if (said(now[key])) merged[key] = now[key]
@@ -44,7 +65,8 @@ function namesPlace(message, fields) {
   const said = ` ${normalizeVi(message)} `
   // The city's names, and the phrase the message used for it ("Sài Gòn" for TP. Hồ Chí Minh).
   const names = [fields.destinationQuery, ...(fields.cityId ? [getCity(fields.cityId)?.name.vi, getCity(fields.cityId)?.name.en] : [])]
-  return names.some((n) => n && said.includes(` ${normalizeVi(n)} `))
+  const generic = new Set(['do', 'day', 'nay', 'the nao', 'dau', 'quan do', 'quan nay'])
+  return names.some((n) => n && !generic.has(normalizeVi(n)) && said.includes(` ${normalizeVi(n)} `))
 }
 
 /** Whether a message changes details of the trip being talked about ("3 người thì sao", "đi xe máy"). */
@@ -59,6 +81,7 @@ export function requestFromTrip(trip, lang = 'vi') {
   return [
     where && `đi ${where}`, trip.duration && `${trip.duration} ngày`, trip.people && `${trip.people} người`,
     trip.budgetPerPerson && `ngân sách ${Math.round(trip.budgetPerPerson / 1000)}k mỗi người`, trip.transport && `đi ${TRANSPORT_WORDS[trip.transport] ?? ''}`,
+    trip.mentioned?.dates?.length && trip.mentioned.dates.join(', '),
     trip.prefs?.length && `thích ${trip.prefs.map((p) => PREF_WORDS[p] ?? '').filter(Boolean).join(', ')}`,
   ].filter(Boolean).join(', ') || (lang === 'vi' ? 'lên lịch' : 'plan')
 }
@@ -94,8 +117,8 @@ export async function estimateCost(trip, lang = 'vi') {
       const q = (f) => prices[Math.min(prices.length - 1, Math.floor(f * (prices.length - 1)))]
       const [lo, hi] = [q(0.25) * nights * rooms, q(0.75) * nights * rooms]
       lowPP += lo / people; highPP += hi / people
-      lines.push(vi ? `Ở: ${range(lo, hi)} cho ${nights} đêm, ${rooms} phòng (giá thật của ${prices.length} khách sạn đang mở bán, khoảng giữa)` : `Stay: ${range(lo, hi)} for ${nights} night(s), ${rooms} room(s) (real rates of ${prices.length} hotels, middle range)`)
-    } else missing.push(vi ? 'giá phòng (chưa có đủ giá thật ở đây)' : 'rooms (not enough real rates here)')
+      lines.push(vi ? `Ở: ${range(lo, hi)} cho ${nights} đêm, ${rooms} phòng (khoảng giữa từ ${prices.length} nơi có giá; giá nhà cung cấp là tham khảo thử nghiệm, chưa phải giá đặt được; giá đối tác cần kiểm tra theo ngày đặt)` : `Stay: ${range(lo, hi)} for ${nights} night(s), ${rooms} room(s) (middle range from ${prices.length} priced properties; provider prices are test references, not bookable rates; check partner prices for your dates)`)
+    } else missing.push(vi ? 'giá phòng (chưa có đủ dữ liệu giá ở đây)' : 'rooms (not enough price data here)')
   }
 
   const curated = trip.cityId ? getPlacesByCity(trip.cityId).filter((p) => ['food', 'cafe'].includes(p.category) && MEAL[p.price]) : []
@@ -104,7 +127,7 @@ export async function estimateCost(trip, lang = 'vi') {
     const hi = curated.reduce((s, p) => s + MEAL[p.price][1], 0) / curated.length
     const meals = days * 3
     lowPP += lo * meals; highPP += hi * meals
-    lines.push(vi ? `Ăn uống: ${range(lo * meals, hi * meals)}/người cho ${meals} bữa (theo mức giá ${curated.length} quán FoodTrip có ở ${where})` : `Food: ${range(lo * meals, hi * meals)} per person for ${meals} meals (price levels of ${curated.length} FoodTrip places in ${where})`)
+    lines.push(vi ? `Ăn uống: ${range(lo * meals, hi * meals)}/người cho ${meals} bữa (tham khảo mức giá mẫu của ${curated.length} quán ở ${where}, chưa phải giá thực đơn đã xác minh)` : `Food: ${range(lo * meals, hi * meals)} per person for ${meals} meals (sample price bands for ${curated.length} places in ${where}, not verified menu prices)`)
   } else missing.push(vi ? `ăn uống (FoodTrip chưa có đủ giá quán ở ${where})` : `food (FoodTrip has too few priced places in ${where})`)
 
   const head = vi ? `Ước tính cho ${people} người, ${days} ngày ở ${where}${assumed.length ? ` (mình giả định ${assumed.join(', ')})` : ''}:` : `Estimate for ${people}, ${days} days in ${where}${assumed.length ? ` (assuming ${assumed.join(', ')})` : ''}:`
@@ -142,6 +165,7 @@ export async function weatherAnswer(trip, lang = 'vi') {
         : `Forecast for ${where} ${when}: ${lo}–${hi}°C, rain likely on ${s.rainyDays}/${s.totalDays} days${s.severeDays ? `, ${s.severeDays} with heavy rain or storms` : ''}${s.sunnyDays ? `, ${s.sunnyDays} sunny` : ''}.`
       return { text: `${text.trim()} (Open-Meteo)` }
     }
+    return { text: vi ? `Mình chưa tải được dự báo cho ${where} ${when}. Bạn thử lại sau nhé; mình chưa có dữ liệu để kết luận trời nắng hay mưa.` : `The forecast for ${where} ${when} is unavailable. Please retry; I cannot establish whether it will rain.` }
   }
   const season = seasonalTravelRisk({ cityId: trip.cityId, location, startDate: start, duration: days })
   const text = vi
@@ -151,11 +175,11 @@ export async function weatherAnswer(trip, lang = 'vi') {
 }
 
 /** A named place's hours, address and rating (place-details: stored places answer for free). */
-export async function placeInfoAnswer(name, trip, lang = 'vi') {
+export async function placeInfoAnswer(name, trip, lang = 'vi', { load = fetchPlaceDetails, selected = null } = {}) {
   const vi = lang === 'vi'
   if (!name) return { text: vi ? 'Bạn hỏi quán nào? Ví dụ “Phở Thìn Lò Đúc mấy giờ mở cửa?”.' : 'Which place? E.g. “when does Phở Thìn Lò Đúc open?”.', need: 'place' }
   const area = placeName(trip, lang) ?? ''
-  const details = await fetchPlaceDetails({ name, address: area }).catch(() => null)
+  const details = await load({ name, address: selected?.address?.vi ?? area, location: selected?.location ?? null }).catch(() => null)
   const p = details?.status === 'ok' ? details.place : null
   if (!p) return { text: vi ? `Mình chưa tìm thấy “${name}”${area ? ` ở ${area}` : ''}. Thử thêm khu vực hoặc tìm trong Khám phá.` : `I could not find “${name}”${area ? ` in ${area}` : ''}. Add the area or try Explore.`, links: [{ to: '/explore', label: vi ? 'Khám phá' : 'Explore' }] }
   const today = todayHours(p.hours)
@@ -185,11 +209,18 @@ const DISH_END = /(?=\s+(?:ngon|nào|ở|tại|gần|quanh|đâu|giá|rẻ|cho|k
 
 /** The dish a "find food" message asks for: the model's FOOD slot, else the words after "quán / món / ăn". */
 export function askedDish(message, slots) {
+  if (blocksDishSearch(message) || isAmbiguousDishSearch(message)) return null
+  const led = dishLedSearch(message)
+  if (led) return led
   const slot = slots?.find((s) => s.type === 'FOOD')?.text
   if (slot) return slot
+  const english = message.match(/^(?:good|find|recommend)\s+(?:places?\s+for\s+)?(.+?)\s+(?:in|near|around)\s+/i)?.[1]
+  if (english && !/^(?:food|restaurants?|places?)$/i.test(english)) return english.trim()
   const m = message.match(new RegExp(`(?:^|\\s)(?:quán|món|ăn|tìm|chỗ)\\s+(.+?)${DISH_END.source}`, 'i'))
   // "phở ngon ở Hà Nội": the dish opens the message.
   let dish = (m?.[1] ?? message.match(/^(.{2,30}?)\s+ngon(?:\s|$)/i)?.[1] ?? '').trim()
+  // "quán phở dưới 100k": a price limit is a filter, not part of the dish.
+  dish = dish.replace(/(?:^|\s+)(?:dưới|duoi|tầm|tam|khoảng|khoang|rẻ|re)(?:\s+.*)?$/i, '').trim()
   while (/^(quán|món|ăn|chỗ|bán)\s+/i.test(dish)) dish = dish.replace(/^(quán|món|ăn|chỗ|bán)\s+/i, '')
   const generic = normalizeVi(dish)
   return dish && !NOT_DISH.has(generic)
@@ -206,22 +237,67 @@ async function locateArea(trip, where) {
 // Google's rating, weighted by how many people gave it (4.9★ from 3 reviews ranks below 4.6★ from 900).
 const trusted = (p) => (p.googleRating ?? 0) * ((p.googleRatingCount ?? 0) / ((p.googleRatingCount ?? 0) + 20))
 
+/** Provider keyword search is only candidate retrieval, not evidence of a menu. */
+export function dishMatchStrength(place, dish) {
+  if (!dish) return 0
+  const needle = normalizeVi(dish)
+  const strings = (value) => typeof value === 'string' ? [value] : Array.isArray(value) ? value.flatMap(strings)
+    : value && typeof value === 'object' ? Object.values(value).flatMap(strings) : []
+  const matches = (value) => strings(value).some((text) => {
+    // Accented "phố" means street, not the dish "phở"; normalization alone
+    // would treat a restaurant's "phố cổ" description as menu evidence.
+    const evidence = needle === 'pho' ? text.replace(/phố/gi, '') : text
+    const clauses = evidence.split(/[.;\n]/).map(normalizeVi)
+    return clauses.some((clause) => ` ${clause} `.includes(` ${needle} `)
+      && !['khong ban', 'khong co', 'khong phuc vu', 'no', 'does not serve'].some((negation) => ` ${clause} `.includes(` ${negation} ${needle} `)))
+  })
+  if (matches(place.name)) return 2
+  return matches([place.shortDesc, place.description, place.dishes, place.menu, place.cuisine]) ? 1 : 0
+}
+
 /** A few real places for a dish in the trip's area, best rated first (one page of Google results, cached). */
-export async function findFoodAnswer(message, slots, trip, lang = 'vi', { search = searchMapArea, locate = locateArea } = {}) {
+export async function findFoodAnswer(message, slots, trip, lang = 'vi', { search = searchMapArea, locate = locateArea, catalog = fetchPlaceCatalog, excludeIds = [], preferences: before = {} } = {}) {
   const vi = lang === 'vi'
-  const dish = askedDish(message, slots)
+  const preferences = { ...mergeFoodPreferences(message), ...before }
+  const dish = ['cafe', 'vegetarian'].includes(preferences.kind) ? null : askedDish(message, slots)
+  const keyword = preferences.kind === 'cafe' ? 'quán cà phê' : preferences.kind === 'vegetarian' ? 'quán chay' : dish ?? 'quán ăn ngon'
+  const subject = preferences.kind === 'cafe' ? (vi ? 'cà phê' : 'coffee') : preferences.kind === 'vegetarian' ? (vi ? 'chay' : 'vegetarian') : dish ?? (vi ? 'ăn' : 'food')
+  const notes = foodPreferenceNotes(preferences, lang)
+  // NearbyEats owns consent/GPS and its manual dish search. Do not silently
+  // search the previous city's centre or request location from this chat.
+  if (dish && asksNearbyFood(message)) return { preferences, text: vi
+    ? `Bạn muốn tìm ${dish} gần mình. Mở “Ăn gì gần đây?” và bấm “Định vị & gợi ý cho tôi” để cho phép vị trí khi sẵn sàng. Nút này tìm quán ăn nói chung, chưa lọc riêng ${dish}. Để tìm đúng món bằng ô tìm kiếm, nhập “${dish}” kèm khu vực của bạn; ô này không tự dùng GPS. Mình chưa dùng vị trí của bạn để tìm quán.`
+    : `You want ${dish} nearby. Open Nearby and use “Locate & suggest for me” to allow location when ready. That button finds food places in general, without a ${dish} filter. To search for this dish in the text field, enter “${dish}” with your area; the text field does not use GPS automatically. I have not used your location to search.`,
+    links: [{ to: '/nearby', label: vi ? `Tìm ${dish} gần tôi` : `Find ${dish} nearby` }] }
   const where = placeName(trip, 'vi')
-  if (!where) return { text: vi ? `Bạn muốn tìm ${dish ? `${dish} ` : 'quán '}ở thành phố nào?` : `Which city should I look for ${dish ?? 'food'} in?`, need: 'dest', links: [{ to: '/nearby', label: vi ? 'Tìm quanh vị trí của tôi' : 'Search near me' }] }
-  // Google Maps answers a dish around a point; a city's name alone returns nothing.
-  const origin = await locate(trip, where)
-  if (!origin) return { text: vi ? `Mình chưa xác định được vị trí của ${where}.` : `I could not locate ${where}.`, links: [{ to: '/explore', label: vi ? 'Khám phá' : 'Explore' }] }
-  const found = await search({ keyword: dish ?? 'quán ăn ngon', origin, area: where, radiusKm: 5, cityId: trip.cityId ?? null, pages: 1 })
-  const places = (found?.places ?? []).filter((p) => p.googleRating != null).sort((a, b) => trusted(b) - trusted(a)).slice(0, 3)
-  if (!places.length) return { text: vi ? `Mình chưa tìm thấy quán ${dish ?? 'ăn'} nào có đánh giá ở ${where}. Thử tìm trong Khám phá.` : `I found no rated ${dish ?? 'food'} places in ${where}. Try Explore.`, links: [{ to: '/explore', label: vi ? 'Khám phá' : 'Explore' }] }
+  if (!where) return { preferences, text: vi ? `Bạn muốn tìm quán ${subject} ở thành phố nào?` : `Which city should I look for ${subject} in?`, need: 'dest', links: [{ to: '/nearby', label: vi ? 'Tìm quanh vị trí của tôi' : 'Search near me' }] }
+  const dishMatches = (p) => !dish || dishMatchStrength(p, dish) > 0
+  const available = (list) => list.filter((p) => ['food', 'cafe'].includes(p.category ?? 'food') && p.googleRating != null && !excludeIds.includes(p.id) && dishMatches(p) && matchesFoodPreferences(p, preferences))
+  let stored = []
+  try { stored = available(placesForDestination(await catalog(), { cityId: trip.cityId, destinationName: where })) } catch { /* live lookup is still available */ }
+  let found = null, unavailable = false
+  if (stored.length < 3) {
+    try {
+      const origin = await locate(trip, where)
+      if (origin) found = await search({ keyword, origin, area: where, radiusKm: 5, cityId: trip.cityId ?? null, pages: 1 })
+      else unavailable = true
+    } catch { unavailable = true }
+  }
+  // Apply the same dish evidence check to live candidates and the DB catalogue.
+  const live = available(found?.places ?? []).filter((p) => !p.city || !trip.cityId || p.city === trip.cityId)
+  const places = mergePlaceCatalog(stored, live).sort((a, b) => dishMatchStrength(b, dish) - dishMatchStrength(a, dish) || trusted(b) - trusted(a)).slice(0, 3)
+  if (!places.length) return { preferences, text: [vi
+    ? (excludeIds.length ? `Mình chưa tìm thêm được quán ${subject} khác ở ${where}. Bạn có muốn đổi món hoặc khu vực?`
+      : unavailable ? `Mình chưa xác định được vị trí hoặc tải được dữ liệu quán tại ${where}. Bạn có thể thử lại hoặc tìm trong Khám phá.`
+        : `Mình chưa tìm thấy quán ${subject} nào khớp tiêu chí và có đánh giá ở ${where}. Thử đổi món hoặc tìm trong Khám phá nhé.`)
+    : `No ${excludeIds.length ? 'additional ' : ''}rated ${subject} places found in ${where}. Try a different dish or area.`, ...notes,
+    vi ? 'Mình giữ nguyên các tiêu chí bạn yêu cầu. Bạn có thể giảm mức sao, đổi loại quán hoặc khu vực để tìm tiếp.' : 'Your filters are unchanged. Lower the rating threshold or change the venue type or area to continue.'].join('\n\n'), links: [{ to: '/explore', label: vi ? 'Khám phá' : 'Explore' }] }
   const lines = places.map((p, i) => `${i + 1}. ${p.name.vi} — ${p.googleRating}★ (${(p.googleRatingCount ?? 0).toLocaleString('vi-VN')})${p.address.vi ? ` · ${p.address.vi}` : ''}`)
   return {
-    text: [vi ? `Quán ${dish ?? 'ăn'} được đánh giá tốt ở ${where} (theo Google):` : `Well-rated ${dish ?? 'food'} places in ${where} (Google ratings):`, ...lines].join('\n'),
+    text: [vi ? `Mình tìm được ${places.length} quán ${subject} để bạn cân nhắc ở ${where}:` : `${places.length} ${subject} places to consider in ${where}:`, ...lines, ...notes,
+      vi ? `Mình ưu tiên dữ liệu khớp món, rồi điểm Google có cân nhắc số lượt đánh giá.${stored.length ? ' Có sử dụng quán đã lưu trong FoodTrip.' : ''} Bạn muốn xem kỹ quán nào?` : 'Ranked by dish evidence, then Google ratings weighted by review count. Which place would you like to look at?'].join('\n'),
     places,
+    preferences,
     links: [{ to: '/explore', label: vi ? 'Xem thêm trong Khám phá' : 'More in Explore' }],
   }
 }
@@ -238,6 +314,9 @@ export function answersPending(pending, message, reading) {
   // A new, understood question wins over an outstanding clarification.
   // Naming a city in a food/weather question is not an answer to a planner prompt.
   if (reading.intent !== 'out_of_scope' && reading.intent !== pending.intent) return false
+  // An explicit new dish is a new search, even while waiting for a city.
+  // A bare city still completes the old dish request.
+  if (pending.intent === 'find_food' && askedDish(message, reading.slots ?? [])) return false
   const words = message.trim().split(/\s+/).length
   if (pending.intent === 'plan_trip' && ['duration', 'people'].includes(pending.need)) {
     if (/^\d{1,2}$/.test(message.trim())) return true

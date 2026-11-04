@@ -39,7 +39,9 @@ export async function rateAnswer(id, helpful) {
  * the same patterns. Never guesses a field neither found.
  */
 export function planFields(message, slots = []) {
-  const fields = parseTripRequestLocally(message)
+  const bilingual = message.replace(/\b(\d+)\s*days?\b/gi, '$1 ngày').replace(/\b(\d+)\s*(?:people|persons?|travelers?|travellers?)\b/gi, '$1 người')
+    .replace(/\b(\d+(?:[.,]\d+)?)\s*million\b/gi, '$1 triệu').replace(/\b(?:motorbike|motorcycle)\b/gi, 'xe máy')
+  const fields = parseTripRequestLocally(bilingual)
   const of = (type) => slots.filter((s) => s.type === type).map((s) => s.text)
   const read = (text) => parseTripRequestLocally(text)
   if (!fields.cityId && !fields.destinationQuery && of('DEST').length) {

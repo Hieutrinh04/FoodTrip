@@ -30,7 +30,7 @@ export const INTENTS = [
   { id: 'place_info', group: 'compute', label: 'Thông tin quán',
     answer: { vi: 'Cho mình tên quán và khu vực (ví dụ “Phở Thìn Lò Đúc mấy giờ mở cửa?”), mình tra giờ mở cửa, địa chỉ và đánh giá.', en: 'Give me the place name and area (e.g. “when does Phở Thìn Lò Đúc open?”) and I’ll look up hours, address and rating.' },
     links: [{ to: '/explore', vi: 'Khám phá', en: 'Explore' }] },
-  { id: 'find_food', group: 'plan', label: 'Tìm quán ăn',
+  { id: 'find_food', group: 'compute', label: 'Tìm quán ăn',
     answer: { vi: 'Trang Khám phá tìm quán theo khu vực, loại món và điểm phù hợp; “Ăn gì gần đây?” tìm quanh vị trí của bạn và có vòng quay chọn món.', en: 'Explore finds places by area, dish and suitability score; “What to eat nearby?” searches around you and has a food wheel.' },
     links: [{ to: '/explore', vi: 'Khám phá', en: 'Explore' }, { to: '/nearby', vi: 'Ăn gì gần đây?', en: 'Nearby' }] },
   { id: 'booking_how', group: 'help', label: 'Cách đặt phòng',

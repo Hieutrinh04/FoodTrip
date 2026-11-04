@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ArrowBendUpLeft, EyeSlash } from '@phosphor-icons/react'
 import { Stars } from './Stars.jsx'
 import { partnerReviews, replyToReview, reviewError } from '../../lib/reviews.js'
 import { PortalCard } from '../portal/PortalShell.jsx'
+import PortalLoadState from '../portal/PortalLoadState.jsx'
+import { usePortalResource } from '../../hooks/usePortalResource.js'
 
 const C = {
   vi: {
@@ -32,17 +34,10 @@ const when = (iso, lang) => new Date(iso).toLocaleDateString(lang === 'vi' ? 'vi
 /** A partner portal's reviews section: a property's ('stay', property id) or an operator's ('tour', operator id). */
 export default function PartnerReviews({ kind, ownerId, lang }) {
   const c = C[lang]
-  const [data, setData] = useState(null)
-  const [error, setError] = useState('')
-  const [tick, setTick] = useState(0)
-
-  useEffect(() => {
-    let active = true
-    partnerReviews(kind, ownerId)
-      .then((result) => { if (active) { setData(result); setError('') } })
-      .catch((err) => { if (active) setError(reviewError(err, lang)) })
-    return () => { active = false }
-  }, [kind, ownerId, tick, lang])
+  const load = useCallback(() => partnerReviews(kind, ownerId), [kind, ownerId])
+  const resource = usePortalResource(`${kind}:${ownerId}`, load)
+  if (resource.status !== 'ready') return <PortalLoadState status={resource.status} onRetry={resource.reload} />
+  const data = resource.data
 
   const items = data?.items ?? []
   const unanswered = items.filter((r) => !r.reply && !r.hidden).length
@@ -62,11 +57,9 @@ export default function PartnerReviews({ kind, ownerId, lang }) {
         <p className="self-center text-sm text-ink-muted">{c.tip}</p>
       </div>
       <PortalCard title={c.title}>
-        {error && <p role="alert" className="text-sm text-chili">{error}</p>}
-        {!data && !error && <p className="text-sm text-ink-muted">{c.loading}</p>}
         {data && items.length === 0 && <p className="text-sm text-ink-muted">{c.none}</p>}
         <div className="flex flex-col divide-y divide-line">
-          {items.map((review) => <ReviewRow key={review.id} review={review} c={c} lang={lang} onChanged={() => setTick((n) => n + 1)} />)}
+          {items.map((review) => <ReviewRow key={review.id} review={review} c={c} lang={lang} onChanged={resource.reload} />)}
         </div>
       </PortalCard>
     </div>

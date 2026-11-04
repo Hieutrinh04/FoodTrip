@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { useLanguage } from '../i18n/LanguageContext.jsx'
 import AuthModal from '../components/auth/AuthModal.jsx'
@@ -11,6 +11,9 @@ import TourApplication from '../components/tours/TourApplication.jsx'
 import { OperatorChecklist, TourChecklist } from '../components/tours/TourOnboarding.jsx'
 import PartnerReviews from '../components/reviews/PartnerReviews.jsx'
 import './Tours.css'
+import { usePortalResource } from '../hooks/usePortalResource.js'
+import PortalLoadState from '../components/portal/PortalLoadState.jsx'
+import { guideGroups, selectedBusiness } from '../lib/portalView.js'
 
 /** The page language as `t(vi, en)`, plus `lang` for helpers that format dates and errors. */
 function useT() {
@@ -32,7 +35,11 @@ function TourPartnerAccount() {
   const [tick, setTick] = useState(0)
   const [error, setError] = useState('')
   const [auth, setAuth] = useState(false)
-  const [operatorId, setOperatorId] = useState('')
+  const [params, setParams] = useSearchParams()
+  const operatorId = params.get('operator')
+  const guideView = params.get('view') === 'guide'
+  const applicationView = params.get('view') === 'application'
+  const setOperatorId = (id) => setParams((p) => { const next = new URLSearchParams(p); next.set('operator', id); return next })
   // Bumped when the operator profile or terms change: every tour's checklist depends on them.
   const [profileTick, setProfileTick] = useState(0)
   const reload = () => setTick((n) => n + 1)
@@ -46,16 +53,28 @@ function TourPartnerAccount() {
   }, [user, tick, lang])
 
   const operators = data?.operators.filter((o) => o.status === 'approved' && data.members.some((m) => m.operator_id===o.id && m.user_id===user?.id && ['owner','manager'].includes(m.role))) ?? []
-  const operator = operators.find((o) => o.id===operatorId) ?? operators[0]
+  const operator = guideView || applicationView ? null : selectedBusiness(operators, operatorId)
   const owner = data?.members.some((m) => m.operator_id===operator?.id && m.user_id===user?.id && m.role==='owner')
-  const isGuide = data?.members.some((m) => m.user_id===user?.id && m.role==='guide')
+  const isGuide = data?.members.some((m) => m.user_id===user?.id && m.role==='guide' && data.operators.some((o) => o.id === m.operator_id && o.status === 'approved'))
+
+  if (data && isGuide && !applicationView && !operator) return <PortalShell
+    eyebrow={t('Cổng hướng dẫn viên', 'Guide portal')} title={t('Lịch hướng dẫn của tôi', 'My guiding schedule')}
+    subtitle={t('Theo dõi các đoàn được phân công và chuẩn bị đón khách.', 'Follow your assigned groups and prepare to welcome guests.')}
+    actions={<button type="button" className="tour-secondary" onClick={reload}>{t('Tải lại', 'Reload')}</button>}
+    sections={[{ id: 'manifest', label: t('Đoàn của tôi', 'My groups'), icon: Flag }]}>
+    {() => <GuideManifest manifest={data.manifest} />}
+  </PortalShell>
+
+  if (data && guideView && !isGuide) return <PortalShell title={t('Lịch hướng dẫn', 'Guiding schedule')} sections={[{ id: 'access', label: t('Quyền truy cập', 'Access'), icon: Flag }]}>
+    {() => <PortalCard title={t('Chưa có phân công hướng dẫn', 'No guide assignment')}><p className="text-sm text-ink-muted">{t('Tài khoản chưa được cấp vai trò hướng dẫn viên. Nhờ chủ đơn vị kiểm tra nhân sự hoặc chọn khu vực làm việc khác.', 'This account has no guide role. Ask the operator owner to check team access or choose another workspace.')}</p><Link to="/account" className="mt-4 inline-block text-sm font-semibold text-chili">{t('Về tài khoản & công việc →', 'Back to account & workspaces →')}</Link></PortalCard>}
+  </PortalShell>
 
   // Not (yet) running an operator: the sign-up, its waiting state, or the guide's own view.
   if (!operator) {
-    return <div className="tour-page"><span className="eyebrow">{t('Cổng đối tác tour', 'Tour partner portal')}</span><h1>{t('Quản lý tour & đoàn khách', 'Manage tours & groups')}</h1>
+    return <div className="portal-workspace tour-page"><span className="eyebrow">{t('Cổng đối tác tour', 'Tour partner portal')}</span><h1>{t('Đăng ký & hồ sơ đối tác tour', 'Tour partner applications')}</h1>
       {loading && <p role="status">{t('Đang kiểm tra tài khoản…', 'Checking your account…')}</p>}
       {!loading && !user && <button className="tour-primary" onClick={() => setAuth(true)}>{t('Đăng nhập cổng đối tác', 'Sign in to the partner portal')}</button>}
-      {error && <p role="alert" className="tour-error">{error}</p>}
+      {error && <PortalLoadState status="error" onRetry={reload} />}
       {user && !data && !error && <p role="status">{t('Đang tải dữ liệu đối tác…', 'Loading partner data…')}</p>}
       {data && <>
         {data.operators.filter((o) => o.applicant_id===user.id && o.status==='pending').map((o) => <div key={o.id} className="tour-card">
@@ -65,8 +84,8 @@ function TourPartnerAccount() {
             `FoodTrip will call ${o.phone ? o.phone : 'the phone number you gave'} to verify and review within 1–3 working days. Once approved, this page shows what is left to publish your first tour.`,
           )}</p>
         </div>)}
-        {isGuide && <GuideManifest manifest={data.manifest} />}
-        {!isGuide && !data.operators.some((o) => o.applicant_id===user.id && ['pending','approved'].includes(o.status)) && (
+        {!isGuide && data.operators.some((o) => o.applicant_id===user.id && o.status==='approved') && <PortalCard title={t('Hồ sơ đã được duyệt', 'Application approved')}><p className="text-sm text-ink-muted">{t('Hồ sơ đã được duyệt. Chọn đơn vị tại Tài khoản & công việc để bắt đầu; nếu chưa thấy đơn vị, hãy tải lại quyền hoặc liên hệ FoodTrip.', 'Your application is approved. Choose the operator in Account & workspaces; if it is missing, refresh access or contact FoodTrip.')}</p><button type="button" className="tour-secondary mt-3" onClick={reload}>{t('Tải lại quyền', 'Reload access')}</button><Link className="ml-3 text-sm text-chili" to="/contact">{t('Liên hệ FoodTrip', 'Contact FoodTrip')}</Link></PortalCard>}
+        {(!isGuide || applicationView) && !data.operators.some((o) => o.applicant_id===user.id && ['pending','approved'].includes(o.status)) && (
           <TourApplication onDone={reload} rejected={data.operators.filter((o) => o.applicant_id===user.id && o.status==='rejected').sort((x, y) => y.created_at.localeCompare(x.created_at))[0]} />
         )}
       </>}
@@ -102,7 +121,7 @@ function TourPartnerAccount() {
       actions={<button type="button" onClick={reload} className="rounded-full border border-line px-3.5 py-1.5 font-utility text-2xs font-semibold hover:border-chili hover:text-chili">{t('Tải lại', 'Reload')}</button>}
       sections={sections}
     >
-      {(section, open) => <div className="tour-page !m-0 !max-w-none !p-0 space-y-5">
+      {(section, open) => <div key={operator.id} className="tour-page !m-0 !max-w-none !p-0 space-y-5">
         {error && <p role="alert" className="tour-error">{error}</p>}
         {section === 'overview' && <TourOverview ctx={ctx} profileTick={profileTick} onProfileSaved={() => setProfileTick((n) => n + 1)} open={open} />}
         {section === 'tours' && <>
@@ -275,11 +294,10 @@ function RemoveMember({ operatorId, member, onDone }) {
 /** What the operator owes FoodTrip: commission on finished tours, settled monthly. */
 function OperatorMoney({ operator }) {
   const { t, lang } = useT()
-  const [statement, setStatement] = useState(null)
-  const [error, setError] = useState('')
-  useEffect(() => { operatorStatement(operator.id).then(setStatement).catch((e) => setError(tourError(e, lang))) }, [operator.id, lang])
-  if (error) return <p role="alert" className="tour-error">{error}</p>
-  if (!statement) return <p role="status">{t('Đang tải số liệu…', 'Loading figures…')}</p>
+  const load = useCallback(() => operatorStatement(operator.id), [operator.id])
+  const resource = usePortalResource(operator.id, load)
+  if (resource.status !== 'ready') return <PortalLoadState status={resource.status} onRetry={resource.reload} />
+  const statement = resource.data
   const STATUS = { pending: [t('Chờ thanh toán', 'Awaiting payment'), 'bg-lantern/20 text-lantern'], paid: [t('Đã thanh toán', 'Paid'), 'bg-herb/15 text-herb'] }
   return <>
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
@@ -298,10 +316,20 @@ function OperatorMoney({ operator }) {
 }
 
 /** A guide's groups: who is coming, how many, where to meet. */
-function GuideManifest({ manifest }) {
+export function GuideManifest({ manifest, onReload }) {
   const { t, lang } = useT()
+  const [query, setQuery] = useState('')
+  const [filter, setFilter] = useState('upcoming')
+  const shown = guideGroups(manifest, { query, filter })
   return <PortalCard title={t('Đoàn được giao hướng dẫn', 'Groups you lead')}>
-    {!manifest.length ? <p className="text-sm text-ink-muted">{t('Chưa có chuyến sắp tới được giao cho bạn.', 'No upcoming departures assigned to you.')}</p> : <div className="grid gap-3 md:grid-cols-2">{manifest.map((d) => <article key={d.id} className="rounded-xl border border-line p-4">
+    <p className="mb-3 text-sm text-ink-muted">{t('Chỉ hiển thị các đoàn sắp đi hoặc đang diễn ra được phân công cho bạn. Danh sách gồm tên khách, số người và điểm hẹn.', 'Only assigned upcoming or ongoing groups are shown, with guest names, headcounts and meeting points.')}</p>
+    <div className="mb-4 flex flex-wrap items-end gap-3">
+      <label className="min-w-0 flex-1">{t('Tìm đoàn hoặc tên khách', 'Search groups or guests')}<input type="search" value={query} onChange={(e) => setQuery(e.target.value)} className="mt-1 w-full rounded-lg border border-line-strong bg-paper px-3 py-2" /></label>
+      <label>{t('Thời gian', 'When')}<select value={filter} onChange={(e) => setFilter(e.target.value)} className="mt-1 rounded-lg border border-line-strong bg-paper px-3 py-2"><option value="upcoming">{t('Sắp đi / đang diễn ra', 'Upcoming / ongoing')}</option><option value="today">{t('Hôm nay', 'Today')}</option></select></label>
+      {onReload && <button type="button" className="tour-secondary" onClick={onReload}>{t('Tải lại', 'Reload')}</button>}
+    </div>
+    <p role="status" className="mb-3 text-xs text-ink-faint">{t(`${shown.length} đoàn · ${shown.reduce((n, d) => n + (d.guests ?? []).reduce((s, g) => s + g.seats, 0), 0)} khách`, `${shown.length} groups · ${shown.reduce((n, d) => n + (d.guests ?? []).reduce((s, g) => s + g.seats, 0), 0)} guests`)}</p>
+    {!shown.length ? <p className="text-sm text-ink-muted">{manifest.length ? t('Không có đoàn khớp bộ lọc. Thử xoá tìm kiếm hoặc đổi thời gian.', 'No groups match. Clear your search or change the date filter.') : t('Chưa có chuyến sắp tới được giao cho bạn.', 'No upcoming departures assigned to you.')}</p> : <div className="grid gap-3 md:grid-cols-2">{shown.map((d) => <article key={d.id} className="rounded-xl border border-line p-4">
       <h3 className="font-bold">{d.title}</h3>
       <p className="text-sm text-ink-muted">{tourDate(d.starts_at, lang)} · {d.meeting_point}</p>
       <p className="mt-1 text-sm font-semibold">{t(`${d.guests.reduce((sum, g) => sum + g.seats, 0)} khách`, `${d.guests.reduce((sum, g) => sum + g.seats, 0)} guests`)}</p>
@@ -436,9 +464,12 @@ function ActionForm({ fields, submit, onDone, label }) {
   const [form,setForm] = useState(() => Object.fromEntries(fields.map((f) => [f.key,f.initial ?? f.options?.[0]?.[0] ?? ''])))
   const [busy,setBusy] = useState(false)
   const [error,setError] = useState('')
+  const locked = useRef(false)
   async function run(e) {
-    e.preventDefault(); setBusy(true); setError('')
-    try { await submit(form); onDone() } catch(err) { setError(tourError(err, lang)) } finally { setBusy(false) }
+    e.preventDefault()
+    if (locked.current) return
+    locked.current = true; setBusy(true); setError('')
+    try { await submit(form); await onDone() } catch(err) { setError(tourError(err, lang)) } finally { locked.current = false; setBusy(false) }
   }
   return <form onSubmit={run} className="tour-form"><fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
     {fields.map(({ key,label:fieldLabel,options,initial: _initial,required=true,...attrs }) => <label key={key}>{fieldLabel}{options ? <select required={required} value={form[key]} onChange={(e) => setForm({ ...form,[key]:e.target.value })}>{options.map(([value,text]) => <option key={value} value={value}>{text}</option>)}</select> : attrs.type==='textarea' ? <textarea required={required} minLength={attrs.minLength} maxLength={attrs.maxLength} rows={5} value={form[key]} onChange={(e) => setForm({ ...form,[key]:e.target.value })} /> : <input {...attrs} required={required} value={form[key]} onChange={(e) => setForm({ ...form,[key]:e.target.value })} />}</label>)}

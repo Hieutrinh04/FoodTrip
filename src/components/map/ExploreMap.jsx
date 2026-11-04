@@ -5,18 +5,18 @@ import '../../lib/maplibreSetup.js'
 import { MapPin, Warning } from '@phosphor-icons/react'
 import { hasMapsKey, hideBasemapPoiLayers, loadMapStyle, mapRequestTransform } from '../../lib/trackAsia.js'
 import { fetchPlaceEnrichment } from '../../lib/placesService.js'
-import { scoreForCriterion } from '../../lib/foodTripScore.js'
+import { CLUSTER_SOURCE, toFeatureCollection } from '../../lib/exploreMapData.js'
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
 
 const COPY = {
   vi: {
-    noKey: 'Cần cấu hình Track-Asia API key để hiển thị bản đồ khám phá.',
+    noKey: 'Bản đồ khám phá tạm thời chưa khả dụng. Bạn vẫn có thể xem danh sách địa điểm.',
     empty: 'Không có địa điểm đủ dữ liệu tọa độ để hiển thị.',
     loading: 'Đang định vị các địa điểm…',
     you: 'Vị trí của bạn',
   },
   en: {
-    noKey: 'A Track-Asia API key is required to show the explore map.',
+    noKey: 'The explore map is temporarily unavailable. You can still browse the place list.',
     empty: 'No places have enough location data to display.',
     loading: 'Locating places…',
     you: 'Your location',
@@ -33,6 +33,8 @@ const SOURCE_ID = 'explore-places'
 const CIRCLE_LAYER = 'explore-places-circle'
 const BADGE_LAYER = 'explore-places-badge'
 const LABEL_LAYER = 'explore-places-label'
+const CLUSTER_LAYER = 'explore-places-cluster'
+const CLUSTER_COUNT_LAYER = 'explore-places-cluster-count'
 
 const ROUTE_SOURCE_ID = 'explore-route'
 const ROUTE_CASING_LAYER = 'explore-route-casing'
@@ -66,32 +68,8 @@ const radiusExpression = (selectedId) => [
   8,
 ]
 const colorExpression = (selectedId) => ['case', ['==', ['get', 'id'], selectedId ?? ''], HERB, CHILI]
-
-function toFeatureCollection(plotted, criterion, lang) {
-  return {
-    type: 'FeatureCollection',
-    features: plotted.map(({ place, location }) => {
-      // The list computes one figure per place for the active criterion; the
-      // marker shows that same figure so a pin never disagrees with its card.
-      const communityScore = scoreForCriterion(place, criterion)
-      const shown = place.displayScore !== undefined
-        ? place.displayScore
-        : place.suitability ?? communityScore
-      const badge = shown != null ? shown.toFixed(1) : ''
-      return {
-        type: 'Feature',
-        geometry: { type: 'Point', coordinates: [location.lng, location.lat] },
-        properties: {
-          id: place.id,
-          name: place.name[lang] ?? place.name.vi,
-          badge,
-          // A place with nothing scorable at all falls back to a plain dot.
-          hasBadge: badge ? 1 : 0,
-        },
-      }
-    }),
-  }
-}
+// Single places (not clusters) — the layers that draw one pin each.
+const SINGLE = ['!', ['has', 'point_count']]
 
 /**
  * `navigation`, when set, switches the route to live following: { position,
@@ -196,12 +174,41 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
           // Drawn as a GPU-rendered layer rather than one DOM node per place:
           // a live search returns dozens to hundreds of results, and that many
           // DOM markers makes panning stutter.
-          map.addSource(SOURCE_ID, { type: 'geojson', data: EMPTY_COLLECTION })
+          map.addSource(SOURCE_ID, { type: 'geojson', data: EMPTY_COLLECTION, ...CLUSTER_SOURCE })
+
+          map.addLayer({
+            id: CLUSTER_LAYER,
+            type: 'circle',
+            source: SOURCE_ID,
+            filter: ['has', 'point_count'],
+            paint: {
+              'circle-color': CHILI,
+              'circle-opacity': 0.88,
+              'circle-radius': ['step', ['get', 'point_count'], 17, 10, 21, 50, 26],
+              'circle-stroke-width': 3,
+              'circle-stroke-color': '#ffffff',
+            },
+          })
+          map.addLayer({
+            id: CLUSTER_COUNT_LAYER,
+            type: 'symbol',
+            source: SOURCE_ID,
+            filter: ['has', 'point_count'],
+            layout: {
+              'text-field': ['get', 'point_count_abbreviated'],
+              'text-font': FONT,
+              'text-size': 13,
+              'text-allow-overlap': true,
+              'text-ignore-placement': true,
+            },
+            paint: { 'text-color': '#ffffff' },
+          })
 
           map.addLayer({
             id: CIRCLE_LAYER,
             type: 'circle',
             source: SOURCE_ID,
+            filter: SINGLE,
             paint: {
               // Wide enough to hold a score like "8.2"; plain dots for the rare
               // place that has nothing to score.
@@ -218,7 +225,7 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
             id: BADGE_LAYER,
             type: 'symbol',
             source: SOURCE_ID,
-            filter: ['==', ['get', 'hasBadge'], 1],
+            filter: ['all', SINGLE, ['==', ['get', 'hasBadge'], 1]],
             layout: {
               'text-field': ['get', 'badge'],
               'text-font': FONT,
@@ -233,6 +240,7 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
             id: LABEL_LAYER,
             type: 'symbol',
             source: SOURCE_ID,
+            filter: SINGLE,
             layout: {
               'text-field': ['get', 'name'],
               'text-font': FONT,
@@ -271,11 +279,20 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
             const layers = MARKER_LAYERS.filter((layer) => map.getLayer(layer))
             return map.queryRenderedFeatures(box, { layers })[0] ?? null
           }
+          const clusterAt = (point) => (map.getLayer(CLUSTER_LAYER) ? map.queryRenderedFeatures(point, { layers: [CLUSTER_LAYER] })[0] ?? null : null)
 
           map.on('click', (event) => {
             // Mid-trip, a stray tap must not pick another place or search a new
             // area — either would end the navigation under the traveller.
             if (navActiveRef.current) return
+            // A cluster opens up: zoom in to where it splits apart.
+            const cluster = clusterAt(event.point)
+            if (cluster) {
+              map.getSource(SOURCE_ID).getClusterExpansionZoom(cluster.properties.cluster_id)
+                .then((zoom) => map.easeTo({ center: cluster.geometry.coordinates, zoom, duration: 500 }))
+                .catch(() => null)
+              return
+            }
             const feature = markerFeatureAt(event.point)
             if (feature) {
               const id = feature.properties?.id
@@ -286,7 +303,7 @@ export default function ExploreMap({ places, criterion, selectedId, onSelect, on
           })
 
           const setPointerCursor = (event) => {
-            map.getCanvas().style.cursor = markerFeatureAt(event.point) ? 'pointer' : ''
+            map.getCanvas().style.cursor = clusterAt(event.point) || markerFeatureAt(event.point) ? 'pointer' : ''
           }
           map.on('mousemove', setPointerCursor)
           map.on('mouseout', () => { map.getCanvas().style.cursor = '' })

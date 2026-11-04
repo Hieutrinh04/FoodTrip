@@ -21,10 +21,10 @@ export default function PlaceAssessment({ place, details = null, lang = 'vi' }) 
       if (request === generation.current) setState({ busy: false, result: null, error: true })
     } finally { locked.current = false }
   }
-  return <section className="my-3 rounded-xl border border-chili/30 bg-paper p-3" aria-label={vi ? 'AI đánh giá quán' : 'AI place assessment'}>
+  return <section className="my-3 rounded-xl border border-chili/30 bg-paper p-3" aria-label={vi ? 'Phân tích dữ liệu quán' : 'Place data analysis'}>
     <button type="button" onClick={analyze} disabled={state.busy} aria-expanded={Boolean(state.result)} className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-chili px-4 py-2.5 font-utility text-sm font-semibold text-chili-ink disabled:opacity-60">
       {state.busy ? <SpinnerGap size={17} className="animate-spin" /> : <Sparkle size={17} weight="fill" />}
-      {state.busy ? (vi ? 'Đang đọc dữ liệu và nhận xét…' : 'Reading data and reviews…') : state.result ? (vi ? 'Phân tích lại quán này' : 'Analyze this place again') : (vi ? 'AI đánh giá quán' : 'Ask AI to assess this place')}
+      {state.busy ? (vi ? 'Đang đọc dữ liệu và nhận xét…' : 'Reading data and reviews…') : state.result ? (vi ? 'Phân tích lại quán này' : 'Analyze this place again') : (vi ? 'Phân tích dữ liệu quán' : 'Analyze this place’s data')}
     </button>
     <p className="mt-2 text-xs leading-relaxed text-ink-muted">{vi ? 'Tổng hợp điểm Google, thông tin quán và nhận xét đã tải để giúp bạn cân nhắc trước khi đi.' : 'Analyze Google ratings, listing details and loaded reviews to help you decide before visiting.'}</p>
     <div aria-live="polite" aria-busy={state.busy}>

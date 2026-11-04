@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { Compass } from '@phosphor-icons/react'
 import { CITIES } from '../../data/destinations.js'
 import { getCurrentTerms } from '../../lib/partner.js'
 import { applyAsOperator, tourError, OPERATOR_TYPES } from '../../lib/tours.js'
-import Spinner from '../ui/Spinner.jsx'
+import { usePortalResource } from '../../hooks/usePortalResource.js'
+import PortalLoadState from '../portal/PortalLoadState.jsx'
 import { useLanguage } from '../../i18n/LanguageContext.jsx'
 
 const INPUT = 'mt-1 block w-full rounded-xl border border-line-strong bg-paper px-3.5 py-2.5 text-md focus:border-chili'
@@ -23,12 +24,13 @@ export default function TourApplication({ rejected, onDone }) {
     name: '', operatorType: 'food_tour', cities: [], otherCity: '', website: '', description: '',
     contactName: '', contactRole: 'owner', phone: '', travelLicense: '', businessLicense: '', guideCard: '', taxCode: '',
   })
-  const [terms, setTerms] = useState(null)
+  const loadTerms = useCallback(() => getCurrentTerms('tour'), [])
+  const termsResource = usePortalResource('tour-application', loadTerms)
+  const terms = termsResource.data
   const [agreed, setAgreed] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
-  useEffect(() => { getCurrentTerms('tour').then(setTerms).catch(() => setTerms(null)) }, [])
 
   const STEPS = [t('Đơn vị', 'Operator'), t('Liên hệ & pháp lý', 'Contact & papers'), t('Điều khoản', 'Terms'), t('Xem lại & gửi', 'Review & send')]
   const toggleCity = (name) => setForm((f) => ({ ...f, cities: f.cities.includes(name) ? f.cities.filter((c) => c !== name) : [...f.cities, name].slice(0, 10) }))
@@ -48,7 +50,7 @@ export default function TourApplication({ rejected, onDone }) {
       if (form.phone.trim().length < 8) return t('Nhập số điện thoại để FoodTrip gọi xác minh.', 'Enter a phone number FoodTrip can call.')
       if (form.taxCode.trim() && !/^[0-9-]{10,14}$/.test(form.taxCode.trim())) return t('Mã số thuế gồm 10–14 chữ số.', 'A tax code has 10–14 digits.')
     }
-    if (at === 2 && !agreed) return t('Hãy đọc và đồng ý điều khoản đối tác tour.', 'Please read and accept the tour partner terms.')
+    if (at === 2 && (!terms || termsResource.status !== 'ready' || !agreed)) return t('Hãy tải, đọc và đồng ý điều khoản đối tác tour.', 'Please load, read and accept the tour partner terms.')
     return ''
   }
   function next() { const p = problem(step); setError(p); if (!p) setStep(step + 1) }
@@ -130,7 +132,7 @@ export default function TourApplication({ rejected, onDone }) {
                 <div className="mt-1.5 flex flex-wrap gap-1.5">
                   {[...new Set([...CITIES.map((c) => c.name.vi), ...form.cities])].map((name) => (
                     <button key={name} type="button" aria-pressed={form.cities.includes(name)} onClick={() => toggleCity(name)}
-                      className={`rounded-full border-[1.5px] px-3 py-1 text-sm ${form.cities.includes(name) ? 'border-herb bg-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}>{name}</button>
+                      className={`rounded-full border-[1.5px] px-3 py-1 text-sm ${form.cities.includes(name) ? 'border-herb bg-herb text-herb-ink' : 'border-line-strong hover:border-chili'}`}>{CITIES.find((city) => city.name.vi === name)?.name[lang] ?? name}</button>
                   ))}
                 </div>
                 <div className="mt-2 flex gap-2">
@@ -181,7 +183,9 @@ export default function TourApplication({ rejected, onDone }) {
                   <span>{t('Tôi là chủ hoặc người được đơn vị uỷ quyền, đã đọc và đồng ý điều khoản đối tác tour FoodTrip.', 'I own this operator or am authorised by it, and I accept the FoodTrip tour partner terms.')}</span>
                 </label>
               </>
-            ) : <Spinner label={t('Đang tải điều khoản…', 'Loading the terms…')} />
+          ) : termsResource.status !== 'ready'
+            ? <PortalLoadState status={termsResource.status} onRetry={termsResource.reload} />
+            : <p role="status" className="text-sm text-ink-muted">{t('Chưa có điều khoản được công bố. Vui lòng liên hệ FoodTrip.', 'No terms have been published. Please contact FoodTrip.')}</p>
           )}
 
           {step === 3 && (

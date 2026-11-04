@@ -4,13 +4,14 @@
 // scripts/eval-assistant.js). Plain JS, shared by Deno, the browser and Node.
 
 import { plain } from '../placeNames.js'
+import { dishLedSearch, isDishExplanation, isAmbiguousDishSearch } from './dishRequest.js'
 
 // Each intent's phrases (accents off) and how much one of them counts.
 const PATTERNS = [
   ['booking_cancel_refund', 3, /\b(huy|hoan tien|hoan lai|refund|cancel|tra phong som|doi y)\b/],
   ['booking_payment', 3, /\b(thanh toan|chuyen khoan|vnpay|sepay|quet ma|qr|tra tien|tien coc|dat coc|giu phong|het han thanh toan)\b/],
   ['booking_status', 2, /\b(don (cua toi|dat|phong)|tinh trang|trang thai|xac nhan chua|da xac nhan|kiem tra don|thong bao)\b/],
-  ['booking_how', 2, /\b(dat phong|dat khach san|book|booking|dat cho o|dat homestay|o dau|khach san nao)\b/],
+  ['booking_how', 2, /\b(khach san (?:o|tai|gan|nao)|dat phong|dat khach san|book|booking|dat cho o|dat homestay|o dau|khach san nao)\b/],
   ['tour_info', 3, /\b(tour|hdv|huong dan vien|tour guide|giu cho tour)\b/],
   ['share_video', 3, /\b(chia se (quan|video)|dan link|link tiktok|link youtube|video review|dang video|tiktok|youtube)\b/],
   ['saved_trips', 2, /\b(luu lich trinh|luu chuyen|chia se lich trinh|xuat (file|excel|pdf)|chuyen di cua toi|bat dau chuyen di|link lich trinh)\b/],
@@ -28,16 +29,34 @@ const PATTERNS = [
   ['thanks', 2, /\b(cam on|thank|thanks|tam biet|bye|ok cam on)\b/],
 ]
 
+const ENGLISH = [
+  ['plan_trip', /\b(plan|itinerary|\d+ days?|budget)\b/],
+  ['estimate_cost', /\b(how much|cost|expenses|afford)\b/],
+  ['ask_weather', /\b(weather|forecast|will it rain|temperature)\b/],
+  ['find_food', /\b(what to eat|where to eat|good (?:food|pho|restaurants?)|find (?:food|restaurants?)|find (?!hotels?\b|tours?\b)\w+(?: \w+)? (?:in|near)|recommend (?:food|restaurants?))\b/],
+  ['place_info', /\b(opening hours|when does .* open|address of|phone number)\b/],
+  ['booking_status', /\b(status of my booking|my booking status)\b/],
+  ['booking_cancel_refund', /\b(refund|cancel)\b/],
+  ['booking_payment', /\b(pay|payment|transferred|transfer)\b/],
+  ['tour_info', /\btour\b/],
+  ['modify_plan', /\b(swap|replace|reorder|change a place)\b/],
+  ['share_video', /\b(share a place|tiktok|facebook|youtube|video)\b/],
+  ['partner', /\b(partner|tour operator)\b/],
+  ['account', /\b(forgot password|reset (?:my )?password|delete my account|sign in|log in)\b/],
+]
+
 /** "địa chỉ ăn ngon" means recommendations; "địa chỉ Phở Thìn" means one place.
  * Interpret the food request as a phrase before scoring isolated words like địa chỉ.
  */
 export function isFoodDiscovery(message) {
+  if (isDishExplanation(message) || isAmbiguousDishSearch(message)) return false
+  if (dishLedSearch(message)) return true
   const t = plain(message)
   // "An" alone also occurs in Hội An; require a food noun or eating phrase.
   const food = /\b(quan|nha hang|an (?:gi|uong|ngon|o dau)|cho an|am thuc|cafe|ca phe|food|restaurant|eat)\b/.test(t)
   if (/\b(len lich|lap (?:lich trinh|ke hoach)|tao lich trinh)\b/.test(t)) return false
   const collection = /\b(cac|nhung|vai|mot so|danh sach|liet ke|goi y|de xuat|recommend|list|suggest)\b/.test(t)
-  const generic = /\b((?:dia chi|dia diem|diem|cho|quan|nha hang) (?:de |nen )?(?:an|am thuc|ngon)|an (?:gi|o dau|ngon|uong)|where to eat)\b/.test(t)
+  const generic = /\b((?:dia chi|dia diem|diem|cho|quan|nha hang) (?:de |nen )?(?:an|am thuc|ngon)|an (?:gi|o dau|ngon|uong)|where to eat|quan nao|quan (?:duoi|tam|khoang|re)\b|(?:quan chay|ca phe|cafe|coffee|vegetarian restaurants?) (?:o|tai|in|near))\b/.test(t)
   const namedFact = /\b(dia chi (?:cua|chinh xac)|so dien thoai|gio mo cua|may gio|mo cua luc|co ngon khong|con mo khong|phone number|opening hours)\b/.test(t)
   return food && !namedFact && (collection || generic)
 }
@@ -54,16 +73,32 @@ export function ruleIntent(message) {
     const hits = t.match(new RegExp(re.source, 'g'))?.length ?? 0
     if (hits) score[intent] = (score[intent] ?? 0) + weight * hits
   }
+  for (const [intent, re] of ENGLISH) if (re.test(t)) score[intent] = Math.max(score[intent] ?? 0, intent === 'plan_trip' ? 2 : 4)
   if (isFoodDiscovery(message)) {
     score.find_food = Math.max(score.find_food ?? 0, 4)
     // A list of food addresses is a search, not a request to name one restaurant.
     delete score.place_info
     if (!/\b(khach san|homestay|dat phong|hotel|booking)\b/.test(t)) delete score.booking_how
   }
+  // A dish definition is not the generic "món gì" discovery request.
+  if (isDishExplanation(message) || isAmbiguousDishSearch(message)) delete score.find_food
   // A question about money while planning ("lịch trình 3 triệu") is planning, not payment.
   if (score.plan_trip && score.booking_payment && !/thanh toan|chuyen khoan|vnpay|sepay/.test(t)) delete score.booking_payment
   // Paying for a tour is about tours (they are not paid on the site), not room payment.
   if (score.tour_info && score.booking_payment && !/phong|khach san|homestay/.test(t)) delete score.booking_payment
+  // Feature questions outrank isolated nouns ("tour", "lịch trình", "địa chỉ").
+  // Match actions and their objects; do not learn individual evaluation sentences.
+  const feature = (intent) => { score[intent] = Math.max(score[intent] ?? 0, 7) }
+  if (/\b(khach san|homestay|hotel)\b/.test(t) && /\b(tham khao|khong dat duoc|tim khach san)\b/.test(t)) feature('booking_how')
+  if (/\b(?:don (?:dat phong|cua (?:toi|minh))|tour (?:da dat|roi))\b/.test(t) && /\b(xem|nam o dau|tinh trang|trang thai|sao .*bi huy)\b/.test(t)) feature('booking_status')
+  if (/\b(?:dat tour roi|xem lai tour da dat)\b/.test(t)) feature('booking_status')
+  if (/\b(?:lich trinh|chuyen di)\b/.test(t) && /\b(?:gui|chia se|xuat|da luu|luu dau|minh luu)\b/.test(t)) feature('saved_trips')
+  if (/\b(?:theo doi|chia se) vi tri\b/.test(t) && /\b(?:nhau|nhom|ban be)\b/.test(t)) feature('saved_trips')
+  if (!score.booking_payment && /\b(?:bao loi|web bi loi|khong load duoc|khong tai duoc|gap nhan vien|noi chuyen voi nhan vien)\b/.test(t)) feature('contact_support')
+  if (!score.booking_payment && /\b(?:thong tin|dia chi)\b.*\b(?:sai|khong dung)\b/.test(t)) feature('contact_support')
+  if (!score.partner && !/\bdoi (?:tac|tien)\b/.test(t) && (/\b(?:doi|thay|bot|them)\b/.test(t) || /\bbo (?:diem|chua|quan)\b/.test(t)) && /\b(?:quan|diem|chua|an trua|taxi|xe may|khach san)\b/.test(t)) feature('modify_plan')
+  if (/\b(?:sang|toi|trua) ngay \d+\b/.test(t) && /\b(?:cho minh|doi|them)\b/.test(t)) feature('modify_plan')
+  if (!score.modify_plan && /\b(?:quan .+ nao ngon|an o dau|co gi an (?:khuya|toi|sang))\b/.test(t) && !score.ask_weather && !score.booking_cancel_refund) feature('find_food')
   const ranked = Object.entries(score).sort((a, b) => b[1] - a[1])
   if (!ranked.length) return { intent: 'out_of_scope', confidence: 0.3, source: 'rules' }
   const [best, top] = ranked[0]

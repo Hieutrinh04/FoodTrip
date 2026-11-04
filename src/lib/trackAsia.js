@@ -108,17 +108,30 @@ export async function loadMapStyle({ lightweight = false } = {}) {
     })
   }
   const style = structuredClone(await stylePromise)
-  if (lightweight) {
-    // The itinerary map already renders its own numbered markers. Dropping 50+
-    // symbol/POI layers avoids sprite, glyph and missing-icon requests while
-    // preserving the geographic context needed to understand the route.
-    style.layers = (style.layers ?? []).filter((layer) =>
-      layer.type === 'background' || (layer.type !== 'symbol' && LITE_MAP_SOURCE_LAYERS.has(layer['source-layer']))
-    )
-    delete style.sprite
-    delete style.glyphs
-  }
+  return lightweight ? liteStyle(style) : style
+}
+
+/**
+ * The itinerary/community maps render their own numbered markers. Dropping 50+
+ * symbol/POI layers avoids sprite and missing-icon requests while preserving
+ * the geographic context needed to understand the route — except the sea
+ * labels: they name Biển Đông and Quần đảo Hoàng Sa / Trường Sa (Việt Nam),
+ * which a map of Viet Nam published here must show at every zoom it allows.
+ * They carry no icons, so the sprite still goes; the glyphs stay for them.
+ */
+export function liteStyle(style) {
+  style.layers = (style.layers ?? []).filter((layer) =>
+    layer.type === 'background' || (layer.type !== 'symbol' && LITE_MAP_SOURCE_LAYERS.has(layer['source-layer'])) || isSeaLabel(layer)
+  )
+  delete style.sprite
+  if (!style.layers.some((layer) => layer.type === 'symbol')) delete style.glyphs
   return style
+}
+
+/** A sea/archipelago name layer (`natural_label`, class `sea`), without icons. */
+export function isSeaLabel(layer) {
+  return layer.type === 'symbol' && layer['source-layer'] === 'natural_label' && !layer.layout?.['icon-image']
+    && JSON.stringify(layer.filter ?? '').includes('"sea"')
 }
 
 /**

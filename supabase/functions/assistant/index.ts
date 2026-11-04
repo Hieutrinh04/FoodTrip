@@ -105,11 +105,16 @@ Deno.serve(async (request) => {
   const question = contextualQuestion(message, history)
   const [modelRead, retrieved] = await Promise.all([modelReading(question), retrieverHits(question)])
   const reading: Reading = modelRead ?? { ...ruleIntent(question), slots: [] } as Reading
+  // Clear food requests must not be sent back to a generic website FAQ by an
+  // older trained intent classifier. The browser uses the same precedence.
+  const local = ruleIntent(question)
+  if (local.intent === 'find_food') { reading.intent = local.intent; reading.confidence = local.confidence; reading.source = 'rules' }
   const composed = composeReply(question, reading, lang, retrieved ? { hits: retrieved.hits, threshold: retrieved.threshold } : {})
   const [id, generated] = await Promise.all([
     remember(message, lang, { ...reading, intent: composed.intent }),
     generateReply({ message, lang, history, composed }, {
       apiKey: Deno.env.get('ANTHROPIC_API_KEY'), model: Deno.env.get('ASSISTANT_CHAT_MODEL'),
+      localUrl: Deno.env.get('ASSISTANT_GENERATOR_URL'), localToken: Deno.env.get('ASSISTANT_GENERATOR_TOKEN'),
     }),
   ])
   // What is stored is what was answered: a sure FAQ match may settle the intent.

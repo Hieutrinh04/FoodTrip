@@ -49,12 +49,18 @@ def measure(ranked, gold):
 def choose_threshold(ranked, gold):
     """The lowest top score at which answered questions are ≥ TARGET_PRECISION right (validation)."""
     pairs = sorted(((r[0][1], r[0][0] == g) for r, g in zip(ranked, gold)), reverse=True)
-    best, right = 1.0, 0
-    for n, (score, ok) in enumerate(pairs, 1):
-        right += ok
-        if right / n >= TARGET_PRECISION:
+    # Evaluate complete tied-score groups, exactly as >= will accept them.
+    # An impossible threshold abstains when no group meets the precision target.
+    best, right, count, index = 1.000001, 0, 0, 0
+    while index < len(pairs):
+        score = pairs[index][0]
+        while index < len(pairs) and pairs[index][0] == score:
+            right += pairs[index][1]
+            count += 1
+            index += 1
+        if right / count >= TARGET_PRECISION:
             best = score
-    return round(best, 4)
+    return best
 
 
 def answered_at(ranked, gold, threshold):
@@ -107,7 +113,12 @@ def main():
     before = evaluate('before fine-tuning')
     examples = [InputExample(texts=[segment(r['question'], word_tokenize), entry_text[r['id']]]) for r in train]
     # No two pairs of the same entry in one batch: they would be each other's false negatives.
-    loader = NoDuplicatesDataLoader(examples, batch_size=min(args.batch_size, len(entries)))
+    # Smoke subsets may contain far fewer distinct answers than the FAQ catalogue.
+    # Requesting more unique answers than exist loops forever in this loader.
+    unique_answers = len({r['id'] for r in train})
+    if unique_answers < 2:
+        raise ValueError('Retriever training needs at least two distinct FAQ answers')
+    loader = NoDuplicatesDataLoader(examples, batch_size=min(args.batch_size, unique_answers))
     loss = losses.MultipleNegativesRankingLoss(model)
     steps = 1 if args.smoke else None
     model.fit(train_objectives=[(loader, loss)], epochs=1 if args.smoke else args.epochs, warmup_steps=0 if args.smoke else int(0.1 * len(loader) * args.epochs),
