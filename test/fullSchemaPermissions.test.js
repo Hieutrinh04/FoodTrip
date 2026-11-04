@@ -159,6 +159,39 @@ test('all migrations on one schema: tenants, roles and private data', async (t) 
       }
     })
 
+    await t.test('food events: partners propose, only an admin publishes, the public sees published only', async () => {
+      const event = (status = 'pending') => `insert into public.food_events(title_vi,summary,city_id,venue,weekly_days,weekly_start,weekly_end,status)
+        values('Chợ đêm thử','Chợ đêm cuối tuần để kiểm thử quyền','hanoi','Phố Hàng Đào','{5,6}','18:00','23:00','${status}') returning id`
+      await as('customer')
+      await denied(event(), [])
+      await as('staff')
+      await denied(event(), [])
+      await as('owner')
+      await denied(event('published'))
+      const [{ id: proposed }] = await rows(event())
+      await denied("update public.food_events set status='published' where id=$1 returning id", [proposed])
+      assert.equal((await rows("update public.food_events set review_note='ok', venue='Phố Hàng Đường' where id=$1 returning review_note", [proposed]))[0].review_note, null, 'review fields stay the admin’s')
+      await as('tourManager')
+      const [{ id: other }] = await rows(event())
+      assert.equal((await rows('select id from public.food_events where id=$1', [proposed])).length, 0, 'another partner’s pending entry is not visible')
+      for (const who of [null, 'customer']) {
+        await as(who)
+        assert.equal((await rows('select id from public.food_events')).length, 0, 'nothing is public before review')
+      }
+      await as('admin')
+      const [{ reviewed_at: reviewed }] = await rows("update public.food_events set status='published' where id=$1 returning reviewed_at", [proposed])
+      assert.ok(reviewed)
+      for (const who of [null, 'stranger']) {
+        await as(who)
+        assert.deepEqual((await rows('select id from public.food_events')).map((r) => r.id), [proposed])
+        assert.equal((await rows("update public.food_events set title_vi='hacked' where id=$1 returning id", [proposed])).length, 0)
+      }
+      await as('owner')
+      assert.equal((await rows('delete from public.food_events where id=$1 returning id', [proposed])).length, 0, 'a published entry is the admin’s to change')
+      await as('tourManager')
+      assert.equal((await rows('delete from public.food_events where id=$1 returning id', [other])).length, 1, 'a pending entry can be withdrawn')
+    })
+
     await t.test('community: only the author or an admin removes a post', async () => {
       await as('customer')
       const [{ id: post }] = await rows("insert into public.community_posts(author_name,body,place_name,address,lat,lng) values('An','Hello','Quan A','1 Pho',21,105) returning id")

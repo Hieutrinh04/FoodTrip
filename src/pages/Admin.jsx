@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowSquareOut, ArrowsClockwise, Bed, ChartBar, ChatCircleText, DownloadSimple, EnvelopeSimple,
-  Lock, MagnifyingGlass, Trash, UserCircle, Users, VideoCamera, WarningCircle, Check, ArrowCounterClockwise, Receipt, CaretDown, ClockCounterClockwise, ShieldCheck, Buildings, Wallet, Compass, Star, Robot,
+  Lock, MagnifyingGlass, Trash, UserCircle, Users, VideoCamera, WarningCircle, Check, ArrowCounterClockwise, Receipt, CaretDown, ClockCounterClockwise, ShieldCheck, Buildings, Wallet, Compass, Star, Robot, CalendarBlank,
 } from '@phosphor-icons/react'
 import * as admin from '../lib/admin.js'
 import EmptyState from '../components/ui/EmptyState.jsx'
@@ -16,6 +16,7 @@ import { TourOperatorReview } from './TourPartner.jsx'
 import AdminReviews from '../components/reviews/AdminReviews.jsx'
 import SystemReadiness from '../components/portal/SystemReadiness.jsx'
 import AdminAssistant from '../components/admin/AdminAssistant.jsx'
+import AdminEvents from '../components/admin/AdminEvents.jsx'
 import PortalShell from '../components/portal/PortalShell.jsx'
 
 const TABS = [
@@ -31,6 +32,7 @@ const TABS = [
   { id: 'videos', icon: VideoCamera, vi: 'Video review', en: 'Video reviews' },
   { id: 'messages', icon: EnvelopeSimple, vi: 'Liên hệ', en: 'Messages' },
   { id: 'assistant', icon: Robot, vi: 'Trợ lý', en: 'Assistant' },
+  { id: 'events', icon: CalendarBlank, vi: 'Sự kiện', en: 'Events' },
   { id: 'subscribers', icon: Users, vi: 'Bản tin', en: 'Newsletter' },
   { id: 'users', icon: UserCircle, vi: 'Người dùng', en: 'Users' },
   { id: 'audit', icon: ClockCounterClockwise, vi: 'Nhật ký', en: 'Activity log' },
@@ -131,6 +133,7 @@ export default function Admin() {
           {tab === 'videos' && <VideosTab t={t} />}
           {tab === 'messages' && <MessagesTab t={t} />}
           {tab === 'assistant' && <AdminAssistant t={t} lang={lang} />}
+          {tab === 'events' && <AdminEvents t={t} lang={lang} />}
           {tab === 'subscribers' && <SubscribersTab t={t} />}
           {tab === 'users' && <UsersTab t={t} currentUserId={user.id} />}
           {tab === 'audit' && <AuditTab t={t} />}

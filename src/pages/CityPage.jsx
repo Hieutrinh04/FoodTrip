@@ -9,6 +9,8 @@ import { useLanguage } from '../i18n/LanguageContext.jsx'
 import PlaceCard from '../components/destinations/PlaceCard.jsx'
 import ShareButton from '../components/ui/ShareButton.jsx'
 import NotFound from './NotFound.jsx'
+import { EventCard } from '../components/events/EventCard.jsx'
+import { listEvents, withStatus } from '../lib/foodEvents.js'
 
 const PlaceDetailsDrawer = lazy(() => import('../components/map/PlaceDetailsDrawer.jsx'))
 
@@ -20,7 +22,7 @@ const C = {
     topTitle: 'Quán đã lưu được đánh giá tốt', topNote: 'Điểm sao và số lượt đánh giá theo Google; FoodTrip không tự chấm.',
     topEmpty: 'FoodTrip chưa lưu quán nào có đánh giá ở đây. Tìm trên bản đồ để thêm quán mới.', topError: 'Chưa tải được danh sách quán đã lưu.',
     details: 'Chi tiết', sampleTitle: 'Địa điểm mẫu', sampleNote: 'Bộ dữ liệu mẫu đi kèm ứng dụng để minh hoạ — điểm và nhận xét của các địa điểm này không phải của người dùng thật.',
-    sights: 'Điểm tham quan', loading: 'Đang tải…',
+    sights: 'Điểm tham quan', loading: 'Đang tải…', eventsTitle: 'Sự kiện ẩm thực sắp tới', allEvents: 'Tất cả sự kiện ở đây',
     metaDesc: (name, tagline) => `${name}: ${tagline}. Xem quán trên bản đồ và lên lịch ăn chơi cùng FoodTrip.`,
   },
   en: {
@@ -30,7 +32,7 @@ const C = {
     topTitle: 'Well-rated places people kept', topNote: 'Stars and review counts are Google’s; FoodTrip does not rate them itself.',
     topEmpty: 'FoodTrip has no rated places kept here yet. Search the map to add some.', topError: 'Could not load the kept places.',
     details: 'Details', sampleTitle: 'Sample places', sampleNote: 'A sample dataset shipped with the app for illustration — the scores and reviews of these places are not from real users.',
-    sights: 'Sights', loading: 'Loading…',
+    sights: 'Sights', loading: 'Loading…', eventsTitle: 'Upcoming food events', allEvents: 'All events here',
     metaDesc: (name, tagline) => `${name}: ${tagline}. See places on the map and plan a food trip with FoodTrip.`,
   },
 }
@@ -50,6 +52,7 @@ function CityContent({ city }) {
   const [count, setCount] = useState(undefined) // undefined loading · null unavailable · number
   const [top, setTop] = useState({ status: 'loading', places: [] })
   const [detail, setDetail] = useState(null)
+  const [events, setEvents] = useState([])
   const closeDetail = useCallback(() => setDetail(null), [])
   const eateries = sampleEateries(city.id)
   const sights = sampleSights(city.id)
@@ -59,6 +62,8 @@ function CityContent({ city }) {
   useEffect(() => {
     let live = true
     fetchCityCounts().then((counts) => { if (live) setCount(counts ? counts[city.id] ?? 0 : null) })
+    // Only what is on now or coming; the section stays out of the page when there is none.
+    listEvents({ cityId: city.id }).then((rows) => { if (live) setEvents(withStatus(rows).filter((e) => e.when.status !== 'past').slice(0, 3)) }).catch(() => null)
     fetchPlaceCatalog()
       .then((catalog) => { if (live) setTop({ status: 'ready', places: topCatalogPlaces(catalog, city.id) }) })
       .catch(() => { if (live) setTop({ status: 'error', places: [] }) })
@@ -112,6 +117,11 @@ function CityContent({ city }) {
           ))}
         </ul>}
       </section>
+
+      {events.length > 0 && <section className="mx-auto max-w-[1180px] px-5 pt-14 md:px-8">
+        <div className="flex flex-wrap items-baseline justify-between gap-3"><h2 className="text-2xl font-bold">{c.eventsTitle}</h2><Link to={`/su-kien?city=${city.id}`} className="font-utility text-sm font-semibold text-chili hover:underline">{c.allEvents} →</Link></div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{events.map((e) => <EventCard key={e.id} event={e} lang={lang} />)}</div>
+      </section>}
 
       {eateries.length + sights.length > 0 && <section className="mx-auto max-w-[1180px] px-5 pt-14 md:px-8">
         <h2 className="text-2xl font-bold">{c.sampleTitle}</h2>

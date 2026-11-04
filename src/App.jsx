@@ -13,6 +13,8 @@ const Landing = lazy(() => import('./pages/Landing.jsx'))
 const Explore = lazy(() => import('./pages/Explore.jsx'))
 const PlaceDetail = lazy(() => import('./pages/PlaceDetail.jsx'))
 const CityPage = lazy(() => import('./pages/CityPage.jsx'))
+const EventsPage = lazy(() => import('./pages/EventsPage.jsx'))
+const EventPage = lazy(() => import('./pages/EventsPage.jsx').then((m) => ({ default: m.EventPage })))
 const Planner = lazy(() => import('./pages/Planner.jsx'))
 const ShareVideo = lazy(() => import('./pages/ShareVideo.jsx'))
 const Community = lazy(() => import('./pages/Community.jsx'))
@@ -57,6 +59,8 @@ function App() {
                 <Route path="/explore" element={<Explore />} />
                 <Route path="/place/:id" element={<PlaceDetail />} />
                 <Route path="/thanh-pho/:cityId" element={<CityPage />} />
+                <Route path="/su-kien" element={<EventsPage />} />
+                <Route path="/su-kien/:id" element={<EventPage />} />
                 <Route path="/plan" element={<Planner />} />
                 <Route path="/nearby" element={<NearbyEats />} />
                 <Route path="/trips" element={<RequireAccess><SavedTrips /></RequireAccess>} />
