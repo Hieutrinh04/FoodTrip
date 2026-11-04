@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Eye, EyeSlash } from '@phosphor-icons/react'
 import { Stars } from './Stars.jsx'
 import { adminListReviews, adminSetReviewHidden, reviewError } from '../../lib/reviews.js'
+import { adminListPlaceReviews, adminSetPlaceReviewHidden } from '../../lib/placeFacts.js'
+import { getPlace } from '../../data/destinations.js'
 
-const FILTERS = [['all', 'Tất cả', 'All'], ['low', '1–2 sao', '1–2 stars'], ['hidden', 'Đã ẩn', 'Hidden'], ['stay', 'Lưu trú', 'Stays'], ['tour', 'Tour', 'Tours']]
+const FILTERS = [['all', 'Tất cả', 'All'], ['low', '1–2 sao', '1–2 stars'], ['hidden', 'Đã ẩn', 'Hidden'], ['stay', 'Lưu trú', 'Stays'], ['tour', 'Tour', 'Tours'], ['place', 'Quán', 'Places']]
 
 /** Admin moderation: every review, newest first; hide one (with a reason, logged) or restore it. */
 export default function AdminReviews({ t, lang }) {
@@ -14,7 +16,14 @@ export default function AdminReviews({ t, lang }) {
 
   useEffect(() => {
     let active = true
-    adminListReviews().then((data) => { if (active) { setRows(data ?? []); setError('') } }).catch((err) => { if (active) setError(reviewError(err, lang)) })
+    // Place reviews come from their own table; before migration 20261104090000 there are none to list.
+    const places = adminListPlaceReviews().catch(() => [])
+    adminListReviews()
+      .then(async (data) => {
+        const own = (await places).map((r) => ({ ...r, kind: 'place', subject: getPlace(r.place_id)?.name?.[lang] ?? r.place_id }))
+        if (active) { setRows([...(data ?? []), ...own].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))); setError('') }
+      })
+      .catch((err) => { if (active) setError(reviewError(err, lang)) })
     return () => { active = false }
   }, [tick, lang])
 
@@ -23,7 +32,7 @@ export default function AdminReviews({ t, lang }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-ink-muted">{t('Chỉ khách đã ở hoặc đã đi tour mới đánh giá được. Ẩn khi đánh giá vi phạm (quảng cáo, xúc phạm, thông tin cá nhân) — không ẩn chỉ vì điểm thấp.', 'Only guests who stayed or toured can review. Hide reviews that break the rules (ads, abuse, personal data) — not merely low scores.')}</p>
+      <p className="text-sm text-ink-muted">{t('Đánh giá lưu trú và tour chỉ từ khách đã ở hoặc đã đi; đánh giá quán là của người dùng FoodTrip, chưa xác minh. Ẩn khi đánh giá vi phạm (quảng cáo, xúc phạm, thông tin cá nhân) — không ẩn chỉ vì điểm thấp.', 'Stay and tour reviews come only from guests who went; place reviews are from FoodTrip users, unverified. Hide reviews that break the rules (ads, abuse, personal data) — not merely low scores.')}</p>
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map(([id, vi, en]) => (
           <button key={id} type="button" onClick={() => setFilter(id)} aria-pressed={filter === id}
@@ -51,7 +60,7 @@ function Row({ r, t, lang, onDone }) {
   async function set(hidden) {
     if (hidden && note.trim().length < 3) { setError(t('Ghi lý do ẩn (ít nhất 3 ký tự).', 'Give a reason (at least 3 characters).')); return }
     setBusy(true); setError('')
-    try { await adminSetReviewHidden(r.id, hidden, note); setHiding(false); onDone() } catch (err) { setError(reviewError(err, lang)) }
+    try { await (r.kind === 'place' ? adminSetPlaceReviewHidden : adminSetReviewHidden)(r.id, hidden, note); setHiding(false); onDone() } catch (err) { setError(reviewError(err, lang)) }
     setBusy(false)
   }
 
@@ -59,7 +68,7 @@ function Row({ r, t, lang, onDone }) {
     <article className={`rounded-xl border bg-surface p-4 ${r.hidden ? 'border-chili/40' : 'border-line'}`}>
       <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span>
-          <span className="mr-2 rounded-full bg-paper-2 px-2 py-0.5 font-utility text-micro font-bold uppercase">{r.kind === 'stay' ? t('Lưu trú', 'Stay') : 'Tour'}</span>
+          <span className="mr-2 rounded-full bg-paper-2 px-2 py-0.5 font-utility text-micro font-bold uppercase">{r.kind === 'stay' ? t('Lưu trú', 'Stay') : r.kind === 'place' ? t('Quán', 'Place') : 'Tour'}</span>
           <b>{r.subject}</b><span className="text-ink-faint"> · {r.author} · {[r.context, new Date(r.created_at).toLocaleDateString(lang === 'vi' ? 'vi-VN' : 'en-GB')].filter(Boolean).join(' · ')}</span>
         </span>
         <Stars value={r.rating} />

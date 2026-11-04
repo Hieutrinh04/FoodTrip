@@ -5,7 +5,7 @@ import { composeReply } from '../../supabase/functions/_shared/assistant/reply.j
 import { user, property, place, session, tripId } from './data.js'
 import { requireLocalSupabase } from '../../scripts/e2e-safety.mjs'
 
-export async function mockBackend(page, { role = 'guest', lang = 'vi', theme = 'light', events = [], cityCounts = null } = {}) {
+export async function mockBackend(page, { role = 'guest', lang = 'vi', theme = 'light', events = [], cityCounts = null, placeFacts = null } = {}) {
   const backend = requireLocalSupabase(process.env.VITE_SUPABASE_URL ?? 'http://127.0.0.1:54329')
   const writes = [], requests = [], blocked = [], errors = []
   let savedTrip = null
@@ -37,6 +37,8 @@ export async function mockBackend(page, { role = 'guest', lang = 'vi', theme = '
     if (url.pathname.includes('/auth/')) return json(user)
     if (url.pathname.endsWith('/rpc/is_admin')) return json(false)
     if (url.pathname.endsWith('/rpc/is_food_event_partner')) return json(role === 'owner')
+    if (url.pathname.endsWith('/rpc/place_public_facts')) return placeFacts ? json(placeFacts) : route.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"PGRST202"}', headers: { 'access-control-allow-origin': '*' } })
+    if (url.pathname.endsWith('/rpc/submit_place_review')) { writes.push({ path: url.pathname, body }); return json(null) }
     if (url.pathname.endsWith('/rpc/place_city_counts')) return cityCounts ? json(cityCounts) : route.fulfill({ status: 404, contentType: 'application/json', body: '{"code":"PGRST202"}', headers: { 'access-control-allow-origin': '*' } })
     if (url.pathname.endsWith('/food_events')) {
       if (request.method() === 'POST') { writes.push({ path: url.pathname, body }); return json({ id: '00000000-0000-4000-8000-0000000000ee' }) }

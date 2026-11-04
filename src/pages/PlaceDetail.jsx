@@ -20,6 +20,7 @@ import { getSavedPlaceIds, setPlaceSaved } from '../lib/savedPlaces.js'
 import { fadeUp, staggerContainer, viewportOnce } from '../motion/variants.js'
 import NotFound from './NotFound.jsx'
 import ShareButton from '../components/ui/ShareButton.jsx'
+import PlaceCommunityReviews from '../components/reviews/PlaceCommunityReviews.jsx'
 import { usePageMeta } from '../hooks/usePageMeta.js'
 import PlaceAssessment from '../components/assistant/PlaceAssessment.jsx'
 
@@ -228,6 +229,8 @@ export default function PlaceDetail() {
           ))}
         </motion.div>
       </div>
+
+      <PlaceCommunityReviews placeId={place.id} lang={lang} savedTick={saved ? 1 : 0} />
 
       {enrichment.status === 'ready' && enrichment.data?.reviews?.length > 0 && (
         <div className="max-w-[1180px] mx-auto px-5 md:px-8 mt-14">
